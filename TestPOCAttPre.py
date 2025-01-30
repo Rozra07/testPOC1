@@ -117,29 +117,20 @@ st.title("Employee Attrition Prediction Tool")
 
 # Collect user inputs
 with st.form("attrition_form"):
-    employee_age = st.slider("Employee Age", min_value=18, max_value=65, value=30)
-    avg_employee_age = st.slider("Average Employee Age in Company", min_value=18, max_value=65, value=35)
+    employee_age = st.slider("Employee Age", 18, 65, 30)
+    avg_employee_age = st.slider("Average Employee Age in Company", 18, 65, 35)
     gender = st.radio("Employee Gender", ["Male", "Female"], horizontal=True)
-    female_ratio = st.slider("Percentage of Female Employees in Company", min_value=0, max_value=100, value=40)
-    
-    tenure = st.slider("How much time in company (Months)", min_value=0, max_value=240, value=36)
+    female_ratio = st.slider("Percentage of Female Employees in Company", 0, 100, 40)
+    tenure = st.slider("How much time in company (Months)", 0, 240, 36)
     last_promotion = st.selectbox("Hasn't been promoted for", ["1 year", "1.5 years", "2 years", "2.5 years", "3 years", "3.5 years", "4+ years"])
-    min_promotion_cycle = st.slider("Minimum Recruitment Tenure for Promotion (Years)", min_value=1, max_value=10, value=3)
-    
-    pulse = st.slider("Chances of leaving according to manager (%)", min_value=0, max_value=100, value=50)
-    pulse_category = "Low" if pulse < 30 else "Medium" if pulse < 70 else "High"
-    
+    min_promotion_cycle = st.slider("Minimum Recruitment Tenure for Promotion (Years)", 1, 10, 3)
+    pulse = st.slider("Chances of leaving according to manager (%)", 0, 100, 50)
+    college_tier = st.radio("College Tier", ["Tier 1", "Tier 2", "Tier 3"], horizontal=True)
+    industry_experience = st.selectbox("Industry Experience", ["IT", "Finance", "Healthcare", "Manufacturing"])
+    company_type = st.radio("Company Type", ["MNC", "Startup", "Mid-Size", "Small"], horizontal=True)
+    last_performance_rating = st.slider("Last Performance Rating", 1, 5, 3)
+    num_promotions = st.number_input("Number of Promotions", 0, 10, 1)
+    joining_ctc = st.number_input("Joining CTC (INR)", 300000, 2500000, 1000000)
+    compa_ratio = st.slider("Compa Ratio for the Role (%)", 50, 150, 100)
+    salary_increase = st.slider("Increase from Last Company (%)", 0, 50, 10)
     submit_button = st.form_submit_button("Predict")
-
-if submit_button:
-    employee_data["Pulse"] = pulse_category
-    prediction = predict_attrition(employee_data)
-    st.subheader("Prediction Result")
-    st.write(f"Estimated Attrition Probability: {prediction:.2f}%")
-    
-    if prediction > 70:
-        st.error("High Risk of Attrition")
-    elif prediction > 40:
-        st.warning("Medium Risk of Attrition")
-    else:
-        st.success("Low Risk of Attrition")
