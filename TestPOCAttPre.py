@@ -4,9 +4,12 @@ import numpy as np
 import streamlit as st
 
 def preprocess_data(df, feature_columns):
-    df["Age"] = pd.to_datetime("today").year - pd.to_datetime(df["DOB"], errors="coerce").dt.year
-    df["Tenure (Years)"] = pd.to_datetime("today").year - pd.to_datetime(df["Joining Date"], errors="coerce").dt.year
-    df["Days Since Last Promotion"] = (pd.to_datetime("today") - pd.to_datetime(df["Last Promotion Date"], errors="coerce")).dt.days
+    df["Days Since Last Promotion"] = df["Hasn't been promoted"].map({
+        "1 year": 365, "1.5 years": 547, "2 years": 730, "2.5 years": 912,
+        "3 years": 1095, "3.5 years": 1277, "4+ years": 1500
+    })
+    df["Age"] = df["Age"]
+    df["Tenure (Months)"] = df["Tenure (Months)"]
     
     categorical_cols = ["Pulse", "College Tier", "Industry Experience", "Company Type"]
     df = pd.get_dummies(df, columns=categorical_cols, drop_first=True)
@@ -34,25 +37,32 @@ st.title("Employee Attrition Prediction Tool")
 
 # Collect user inputs
 with st.form("attrition_form"):
-    dob = st.date_input("Date of Birth")
-    joining_date = st.date_input("Joining Date")
-    last_promotion_date = st.date_input("Last Promotion Date")
-    pulse = st.selectbox("Pulse", ["High", "Medium", "Low"])
-    college_tier = st.selectbox("College Tier", ["Tier 1", "Tier 2", "Tier 3"])
+    age = st.slider("Age", min_value=18, max_value=65, value=30)
+    tenure = st.slider("How much time in company (Months)", min_value=0, max_value=240, value=36)
+    last_promotion = st.selectbox("Hasn't been promoted for", ["1 year", "1.5 years", "2 years", "2.5 years", "3 years", "3.5 years", "4+ years"])
+    pulse = st.slider("Chances of leaving according to manager (%)", min_value=0, max_value=100, value=50)
+    pulse_category = "Low" if pulse < 30 else "Medium" if pulse < 70 else "High"
+    
+    st.write("Select College Tier:")
+    college_tier = st.radio("", ["Tier 1", "Tier 2", "Tier 3"], horizontal=True)
+    
     industry_experience = st.selectbox("Industry Experience", ["IT", "Finance", "Healthcare", "Manufacturing"])
-    company_type = st.selectbox("Company Type", ["MNC", "Startup", "Mid-Size", "Small"])
+    
+    st.write("Select Company Type:")
+    company_type = st.radio("", ["MNC", "Startup", "Mid-Size", "Small"], horizontal=True)
+    
     last_performance_rating = st.slider("Last Performance Rating", 1, 5, 3)
     num_promotions = st.number_input("Number of Promotions", min_value=0, max_value=10, value=1)
     joining_ctc = st.number_input("Joining CTC (INR)", min_value=300000, max_value=2500000, value=1000000)
-    salary_increase = st.number_input("Increase from Last Company (%)", min_value=0, max_value=50, value=10)
+    salary_increase = st.slider("Increase from Last Company (%)", min_value=0, max_value=50, value=10)
     submit_button = st.form_submit_button("Predict")
 
 if submit_button:
     employee_data = {
-        "DOB": dob,
-        "Joining Date": joining_date,
-        "Last Promotion Date": last_promotion_date,
-        "Pulse": pulse,
+        "Age": age,
+        "Tenure (Months)": tenure,
+        "Hasn't been promoted": last_promotion,
+        "Pulse": pulse_category,
         "College Tier": college_tier,
         "Industry Experience": industry_experience,
         "Company Type": company_type,
