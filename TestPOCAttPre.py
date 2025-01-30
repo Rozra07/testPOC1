@@ -1,9 +1,22 @@
 # train_model.py
 import pandas as pd
 import pickle
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import StandardScaler
+import subprocess
+import sys
+
+# Ensure required packages are installed
+def install(package):
+    subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+
+try:
+    from sklearn.model_selection import train_test_split
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.preprocessing import StandardScaler
+except ImportError:
+    install("scikit-learn")
+    from sklearn.model_selection import train_test_split
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.preprocessing import StandardScaler
 
 def preprocess_data(df):
     df["Age"] = pd.to_datetime("today").year - pd.to_datetime(df["DOB"], errors="coerce").dt.year
