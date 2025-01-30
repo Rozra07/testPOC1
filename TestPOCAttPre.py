@@ -8,7 +8,7 @@ def preprocess_data(df, feature_columns):
         "1 year": 365, "1.5 years": 547, "2 years": 730, "2.5 years": 912,
         "3 years": 1095, "3.5 years": 1277, "4+ years": 1500
     })
-    df["Age"] = df["Age"]
+    df["Age"] = df["Employee Age"]
     df["Tenure (Months)"] = df["Tenure (Months)"]
     
     categorical_cols = ["Pulse", "College Tier", "Industry Experience", "Company Type"]
@@ -37,19 +37,22 @@ st.title("Employee Attrition Prediction Tool")
 
 # Collect user inputs
 with st.form("attrition_form"):
-    age = st.slider("Age", min_value=18, max_value=65, value=30)
+    employee_age = st.slider("Employee Age", min_value=18, max_value=65, value=30)
     tenure = st.slider("How much time in company (Months)", min_value=0, max_value=240, value=36)
     last_promotion = st.selectbox("Hasn't been promoted for", ["1 year", "1.5 years", "2 years", "2.5 years", "3 years", "3.5 years", "4+ years"])
     pulse = st.slider("Chances of leaving according to manager (%)", min_value=0, max_value=100, value=50)
     pulse_category = "Low" if pulse < 30 else "Medium" if pulse < 70 else "High"
     
-    st.write("Select College Tier:")
+    st.write("Select College Tier (Does this tier have high retention in your company?):")
     college_tier = st.radio("", ["Tier 1", "Tier 2", "Tier 3"], horizontal=True)
+    college_preference = st.slider("Likelihood of retention for this tier (%)", min_value=0, max_value=100, value=50)
     
-    industry_experience = st.selectbox("Industry Experience", ["IT", "Finance", "Healthcare", "Manufacturing"])
+    industry_experience = st.selectbox("Industry Experience (Does this industry background have high retention in your company?)", ["IT", "Finance", "Healthcare", "Manufacturing"])
+    industry_preference = st.slider("Likelihood of retention for this industry (%)", min_value=0, max_value=100, value=50)
     
-    st.write("Select Company Type:")
+    st.write("Select Company Type (Does this company type have high retention in your company?):")
     company_type = st.radio("", ["MNC", "Startup", "Mid-Size", "Small"], horizontal=True)
+    company_preference = st.slider("Likelihood of retention for this company type (%)", min_value=0, max_value=100, value=50)
     
     last_performance_rating = st.slider("Last Performance Rating", 1, 5, 3)
     num_promotions = st.number_input("Number of Promotions", min_value=0, max_value=10, value=1)
@@ -59,13 +62,16 @@ with st.form("attrition_form"):
 
 if submit_button:
     employee_data = {
-        "Age": age,
+        "Employee Age": employee_age,
         "Tenure (Months)": tenure,
         "Hasn't been promoted": last_promotion,
         "Pulse": pulse_category,
         "College Tier": college_tier,
+        "College Tier Retention": college_preference,
         "Industry Experience": industry_experience,
+        "Industry Retention": industry_preference,
         "Company Type": company_type,
+        "Company Type Retention": company_preference,
         "Last Performance Rating": last_performance_rating,
         "No. of Promotion": num_promotions,
         "Joining CTC (INR)": joining_ctc,
