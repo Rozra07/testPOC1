@@ -43,16 +43,16 @@ with st.form("attrition_form"):
     pulse = st.slider("Chances of leaving according to manager (%)", min_value=0, max_value=100, value=50)
     pulse_category = "Low" if pulse < 30 else "Medium" if pulse < 70 else "High"
     
-    st.write("Select College Tier (Does this tier have high retention in your company?):")
+    st.write("Select College Tier:")
     college_tier = st.radio("", ["Tier 1", "Tier 2", "Tier 3"], horizontal=True)
-    college_preference = st.slider("Likelihood of retention for this tier (%)", min_value=0, max_value=100, value=50)
+    college_preference = st.slider("What is the acceptance level of this tier in your organisation (%)", min_value=0, max_value=100, value=50)
     
-    industry_experience = st.selectbox("Industry Experience (Does this industry background have high retention in your company?)", ["IT", "Finance", "Healthcare", "Manufacturing"])
-    industry_preference = st.slider("Likelihood of retention for this industry (%)", min_value=0, max_value=100, value=50)
+    industry_experience = st.selectbox("Industry Experience:", ["IT", "Finance", "Healthcare", "Manufacturing"])
+    industry_preference = st.slider("What is the acceptance level of this industry experience in your organisation (%)", min_value=0, max_value=100, value=50)
     
-    st.write("Select Company Type (Does this company type have high retention in your company?):")
+    st.write("Select Company Type:")
     company_type = st.radio("", ["MNC", "Startup", "Mid-Size", "Small"], horizontal=True)
-    company_preference = st.slider("Likelihood of retention for this company type (%)", min_value=0, max_value=100, value=50)
+    company_preference = st.slider("What is the acceptance level of this company type in your organisation (%)", min_value=0, max_value=100, value=50)
     
     last_performance_rating = st.slider("Last Performance Rating", 1, 5, 3)
     num_promotions = st.number_input("Number of Promotions", min_value=0, max_value=10, value=1)
