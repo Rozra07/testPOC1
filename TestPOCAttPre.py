@@ -1,0 +1,73 @@
+# train_model.py
+import pandas as pd
+import pickle
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
+
+def preprocess_data(df):
+    df["Age"] = pd.to_datetime("today").year - pd.to_datetime(df["DOB"], errors="coerce").dt.year
+    df["Tenure (Years)"] = pd.to_datetime("today").year - pd.to_datetime(df["Joining Date"], errors="coerce").dt.year
+    df["Days Since Last Promotion"] = (pd.to_datetime("today") - pd.to_datetime(df["Last Promotion Date"], errors="coerce")).dt.days
+    
+    df.drop(columns=["Employee UID (masked)", "Resignation Date", "LWD"], errors="ignore", inplace=True)
+    df.fillna(df.median(), inplace=True)
+    
+    categorical_cols = ["Pulse", "College Tier", "Industry Experience", "Company Type"]
+    df = pd.get_dummies(df, columns=categorical_cols, drop_first=True)
+    
+    return df
+
+df = pd.read_csv("Test data Prediction model.csv")
+df = preprocess_data(df)
+X = df.drop(columns=["Status"], errors="ignore")
+y = df["Status"].apply(lambda x: 1 if x != "Active" else 0)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+model = LogisticRegression(max_iter=500, random_state=42)
+model.fit(X_train_scaled, y_train)
+
+# Save scaler and model
+with open("scaler.pkl", "wb") as scaler_file:
+    pickle.dump(scaler, scaler_file)
+with open("logistic_regression_model.pkl", "wb") as model_file:
+    pickle.dump(model, model_file)
+with open("feature_columns.pkl", "wb") as feature_file:
+    pickle.dump(X.columns.tolist(), feature_file)
+
+print("✅ Model, Scaler, and Feature Columns saved successfully!")
+
+# predict.py
+import pickle
+import pandas as pd
+import numpy as np
+
+def preprocess_data(df, feature_columns):
+    df["Age"] = pd.to_datetime("today").year - pd.to_datetime(df["DOB"], errors="coerce").dt.year
+    df["Tenure (Years)"] = pd.to_datetime("today").year - pd.to_datetime(df["Joining Date"], errors="coerce").dt.year
+    df["Days Since Last Promotion"] = (pd.to_datetime("today") - pd.to_datetime(df["Last Promotion Date"], errors="coerce")).dt.days
+    
+    categorical_cols = ["Pulse", "College Tier", "Industry Experience", "Company Type"]
+    df = pd.get_dummies(df, columns=categorical_cols, drop_first=True)
+    
+    # Ensure feature consistency
+    df = df.reindex(columns=feature_columns, fill_value=0)
+    
+    return df
+
+def predict_attrition(employee_data):
+    with open("scaler.pkl", "rb") as scaler_file:
+        scaler = pickle.load(scaler_file)
+    with open("logistic_regression_model.pkl", "rb") as model_file:
+        model = pickle.load(model_file)
+    with open("feature_columns.pkl", "rb") as feature_file:
+        feature_columns = pickle.load(feature_file)
+    
+    df_input = pd.DataFrame([employee_data])
+    df_input = preprocess_data(df_input, feature_columns)
+    probability = model.predict_proba(scaler.transform(df_input))[:, 1][0]
+    return probability * 100
+
+print("✅ Prediction script ready! Load the trained model and call predict_attrition(employee_data)")
