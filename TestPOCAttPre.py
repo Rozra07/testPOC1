@@ -604,10 +604,31 @@ elif mode == "Bulk Employees":
     - Company Type
     """)
 
-    # 1. Introduce Inputs for Tier-Based Retention Percentages
-    st.sidebar.header("🔧 Set Retention Percentages per Tier")
+    # 1. Introduce Inputs for Fixed Attributes and Tier-Based Retention Percentages
+    st.sidebar.header("🔧 Set Fixed Attributes and Retention Percentages")
 
-    # a. College Tier Retention Percentages
+    # a. Fixed Attributes Sliders
+    st.sidebar.subheader("📊 Fixed Attributes for All Employees")
+    fixed_attributes = {
+        "Average Employee Age": st.sidebar.slider(
+            "Average Employee Age",
+            min_value=18,
+            max_value=65,
+            value=35,
+            step=1,
+            help="Set the average age of employees across the company."
+        ),
+        "Female Employee Ratio": st.sidebar.slider(
+            "Female Employee Ratio (%)",
+            min_value=0,
+            max_value=100,
+            value=40,
+            step=1,
+            help="Set the percentage of female employees in the company."
+        )
+    }
+
+    # b. College Tier Retention Percentages
     st.sidebar.subheader("🏫 College Tier Retention (%)")
     college_tiers = ["Tier 1", "Tier 2", "Tier 3"]
     college_retention = {}
@@ -618,10 +639,11 @@ elif mode == "Bulk Employees":
             min_value=10,
             max_value=100,
             value=default_value,
-            step=1
+            step=1,
+            help=f"Set the retention rate for employees from {tier} colleges."
         )
 
-    # b. Industry Retention Percentages
+    # c. Industry Retention Percentages
     st.sidebar.subheader("🏭 Industry Retention (%)")
     # Define your actual industry categories here
     industries = ["Tech", "Finance", "Healthcare", "Education", "Manufacturing"]
@@ -633,10 +655,11 @@ elif mode == "Bulk Employees":
             min_value=10,
             max_value=100,
             value=default_value,
-            step=1
+            step=1,
+            help=f"Set the retention rate for employees from the {industry} industry."
         )
 
-    # c. Company Type Retention Percentages
+    # d. Company Type Retention Percentages
     st.sidebar.subheader("🏢 Company Type Retention (%)")
     # Define your actual company type categories here
     company_types = ["Startup", "Enterprise", "Non-Profit", "SME"]
@@ -648,14 +671,22 @@ elif mode == "Bulk Employees":
             min_value=10,
             max_value=100,
             value=default_value,
-            step=1
+            step=1,
+            help=f"Set the retention rate for employees from {ctype} companies."
         )
 
-    # 2. File Uploader
+    # 2. User Guidance
+    st.sidebar.markdown("""
+    ---
+    **🔔 Important:**  
+    Please adjust the fixed attributes and retention percentages according to your organization's specifics **before** uploading and processing the bulk data.
+    """)
+
+    # 3. File Uploader
     uploaded_file = st.file_uploader("📤 Upload CSV/Excel File", type=["csv", "xlsx"])
 
     if uploaded_file is not None:
-        # 3. Read the Uploaded File
+        # 4. Read the Uploaded File
         if uploaded_file.name.endswith(".csv"):
             df_bulk = pd.read_csv(uploaded_file)
         else:
@@ -664,7 +695,7 @@ elif mode == "Bulk Employees":
         st.write("**📊 Uploaded Data Preview:**")
         st.dataframe(df_bulk.head())
 
-        # 4. Validate Columns
+        # 5. Validate Columns
         required_cols = [
             "Employee Age", "Gender", "Pulse",
             "Hasn't been promoted", "Minimum Promotion Cycle",
@@ -683,7 +714,11 @@ elif mode == "Bulk Employees":
                     # Convert row to dictionary
                     row_dict = row.to_dict()
 
-                    # 5. Apply Tier-Based Retention Percentages
+                    # 6. Apply Fixed Attributes from Sliders
+                    row_dict["Average Employee Age"] = fixed_attributes["Average Employee Age"]
+                    row_dict["Female Employee Ratio"] = fixed_attributes["Female Employee Ratio"]
+
+                    # 7. Apply Tier-Based Retention Percentages
                     # a. College Tier Retention
                     college_tier = row_dict.get("College Tier")
                     if college_tier in college_retention:
@@ -708,11 +743,7 @@ elif mode == "Bulk Employees":
                         st.warning(f"Row {idx}: Unknown Company Type '{company_type}'. Using default retention of 50%.")
                         row_dict["Company Type Retention"] = 50  # Default value
 
-                    # d. Fixed Attributes from Previous Steps (if any)
-                    # If you still have other fixed attributes (like Average Employee Age, Female Employee Ratio),
-                    # ensure they are set either via sliders or other inputs.
-
-                    # 6. Predict Attrition
+                    # 8. Predict Attrition
                     bulk_score, bulk_trigs = predict_attrition(row_dict)
                     scores.append(bulk_score)
 
@@ -721,14 +752,14 @@ elif mode == "Bulk Employees":
                     triggers_str = ", ".join(neg_trigs)
                     triggers_list.append(triggers_str)
 
-                # 7. Append Results to DataFrame
+                # 9. Append Results to DataFrame
                 df_bulk["Attrition Score"] = scores
                 df_bulk["Negative Triggers"] = triggers_list
 
                 st.success("✅ Bulk Prediction Completed!")
                 st.dataframe(df_bulk)
 
-                # 8. Basic Insights
+                # 10. Basic Insights
                 st.write("### 📈 Aggregate Insights")
 
                 high_risk = (df_bulk["Attrition Score"] >= 75).sum()
@@ -770,5 +801,6 @@ elif mode == "Bulk Employees":
                     st.write("""
                     *You can expand this section to include more detailed analysis or individual scenario planning for each employee.*
                     """)
+
 
 
