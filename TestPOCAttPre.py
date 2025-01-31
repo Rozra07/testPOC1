@@ -52,7 +52,6 @@ train_and_save_model()
 ###############################################################################
 # Step 2: Define the Master Dictionary for Triggers, Sub-Problems, and Solutions
 ###############################################################################
-# Each trigger -> { "subproblems": {key: label}, "solutions": {key: solution} }
 TRIGGER_DETAILS = {
     "Low gender diversity": {
         "subproblems": {
@@ -120,7 +119,7 @@ TRIGGER_DETAILS = {
         }
     },
 
-    "Low performance rating": {  # same subproblems/solutions as Very low performance rating
+    "Low performance rating": {
         "subproblems": {
             "misaligned_role": "Job role or expectations are unclear or mismatched",
             "no_feedback": "Lack of continuous feedback or 1-on-1 sessions",
@@ -141,9 +140,6 @@ TRIGGER_DETAILS = {
             )
         }
     },
-
-    # Positive triggers (like "Excellent performance rating", "High compensation ratio", "Low dissatisfaction (Pulse)")
-    # typically reduce risk. We won't add sub-problems for them.
 
     "Low compensation competitiveness": {
         "subproblems": {
@@ -257,7 +253,7 @@ TRIGGER_DETAILS = {
 }
 
 ###############################################################################
-# Step 3: Rule-Based Scoring (No Changes, Just Return Triggers) 
+# Step 3: Rule-Based Scoring
 ###############################################################################
 def compute_weighted_attrition(employee, return_triggers=False):
     score = 0
@@ -341,7 +337,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
         return final_score
 
 ###############################################################################
-# Step 4: ML Prediction (Unchanged except returning triggers)
+# Step 4: ML Prediction - Combines ML Probability + Rule-Based Score
 ###############################################################################
 def predict_attrition(employee_data):
     with open("logistic_regression_model.pkl", "rb") as f:
@@ -355,18 +351,21 @@ def predict_attrition(employee_data):
     df_input = pd.get_dummies(df_input)
     df_input = df_input.reindex(columns=feature_columns, fill_value=0)
     X_scaled = scaler.transform(df_input)
-    ml_probability = model.predict_proba(X_scaled)[:, 1][0] * 100
 
+    ml_probability = model.predict_proba(X_scaled)[:, 1][0] * 100
     rule_probability, triggers = compute_weighted_attrition(employee_data, return_triggers=True)
+
     combined_score = 0.75 * rule_probability + 0.25 * ml_probability
     return combined_score, triggers
 
 ###############################################################################
 # Step 5: Streamlit UI
 ###############################################################################
-# We use session_state to handle a two-step process:
-# 1. The user inputs data and sees the triggers.
-# 2. The user selects relevant sub-problems for each trigger to get solutions.
+# We use session_state to handle a multi-step process:
+# 1. Collect employee data -> Display base prediction.
+# 2. Show triggers -> user picks sub-problems.
+# 3. Show solutions.
+# 4. (New) Show "What-If" scenario sliders to see updated risk if certain features change.
 
 st.markdown("<h2 style='text-align: center; color: #4CAF50;'>🌟 Employee Attrition Prediction Tool 🚀</h2>", unsafe_allow_html=True)
 
@@ -449,12 +448,12 @@ if st.session_state.prediction_made:
     st.write("### 3. Select Sub-Problems That Apply to Your Organization")
     sub_problem_selections = {}
     for trig in triggers:
-        # If the trigger is actually a "positive" factor or not in TRIGGER_DETAILS, skip
+        # If the trigger is a "positive" factor or not in TRIGGER_DETAILS, skip
         if trig not in TRIGGER_DETAILS:
             continue
         st.write(f"**{trig}**: Which of these sub-problems do you see in your organization?")
         
-        # Display checkboxes for each possible sub-problem
+        # Display checkboxes
         subproblem_dict = TRIGGER_DETAILS[trig]["subproblems"]
         chosen = []
         for sub_key, sub_label in subproblem_dict.items():
@@ -470,7 +469,6 @@ if st.session_state.prediction_made:
 
         for trig in triggers:
             if trig not in TRIGGER_DETAILS:
-                # Possibly a positive factor or not in the dictionary
                 continue
 
             chosen_subproblems = sub_problem_selections[trig]
@@ -478,7 +476,6 @@ if st.session_state.prediction_made:
                 any_selection = True
                 st.write(f"**For Trigger: {trig}**")
                 for sub_key in chosen_subproblems:
-                    # Get the solution text
                     solution_text = TRIGGER_DETAILS[trig]["solutions"].get(sub_key, "")
                     sub_label = TRIGGER_DETAILS[trig]["subproblems"][sub_key]
                     st.markdown(f"**Sub-Problem:** {sub_label}")
@@ -486,3 +483,48 @@ if st.session_state.prediction_made:
 
         if not any_selection:
             st.info("No sub-problems were selected. Hence, no additional solutions to display.")
+
+    # ------------- NEW Step C: “What-If” Scenario Planning -------------
+    st.write("---")
+    st.write("### 5. What-If Scenario Planning")
+    st.write("Adjust certain factors to see how they could reduce or increase the attrition risk.")
+
+    # Create a copy of employee_data for scenario simulation
+    scenario_data = employee_data.copy()
+
+    # Only a subset of features might realistically be changed by HR or can vary quickly.
+    # For demonstration, let's pick a few key ones: Compa Ratio, Last Performance Rating, Pulse
+    scenario_data["Compa Ratio"] = st.slider(
+        "Scenario: Compa Ratio (%)", 50, 150, employee_data["Compa Ratio"]
+    )
+    scenario_data["Last Performance Rating"] = st.slider(
+        "Scenario: Last Performance Rating", 1, 5, employee_data["Last Performance Rating"]
+    )
+    scenario_data["Pulse"] = st.radio(
+        "Scenario: Pulse (Employee dissatisfaction)",
+        ["High", "Medium", "Low"],
+        index=["High", "Medium", "Low"].index(employee_data["Pulse"]),
+        horizontal=True
+    )
+
+    # Button to "Recalculate" scenario-based risk
+    if st.button("Recalculate Risk for Scenario"):
+        scenario_score, scenario_triggers = predict_attrition(scenario_data)
+        st.write("**Scenario Attrition Risk:** {:.2f}%".format(scenario_score))
+
+        # Show difference from original
+        score_diff = scenario_score - score
+        if score_diff > 0:
+            st.markdown(f"<p style='color:red;'>Risk increased by +{score_diff:.2f}% compared to original.</p>", unsafe_allow_html=True)
+        elif score_diff < 0:
+            st.markdown(f"<p style='color:green;'>Risk decreased by {score_diff:.2f}% compared to original.</p>", unsafe_allow_html=True)
+        else:
+            st.write("No change in risk compared to original scenario.")
+
+        # Show new triggers
+        if scenario_triggers:
+            st.write("#### Scenario Triggers:")
+            for t in scenario_triggers:
+                st.markdown(f"- **{t}**")
+        else:
+            st.markdown("*No major negative triggers identified in this scenario.*")
