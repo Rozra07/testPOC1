@@ -8,7 +8,7 @@ from sklearn.preprocessing import StandardScaler
 ###############################################################################
 # Step 1: Train a Dummy Logistic Regression Model (or Use Existing .pkl)
 ###############################################################################
-RUN_TRAINING = True  # Set to False if .pkl files already exist
+RUN_TRAINING = False  # Set to False if .pkl files already exist
 
 def train_and_save_model():
     np.random.seed(42)
@@ -25,10 +25,7 @@ def train_and_save_model():
         "Industry Retention": np.random.randint(10, 80, size=n_samples),
         "Company Type Retention": np.random.randint(10, 80, size=n_samples),
         "Last Performance Rating": np.random.randint(1, 6, size=n_samples),
-        "No. of Promotion": np.random.randint(0, 3, size=n_samples),
         "Compa Ratio": np.random.randint(50, 120, size=n_samples),
-        "Increase from last company": np.random.randint(0, 30, size=n_samples),
-        "Joining CTC (INR)": np.random.randint(300000, 2500000, size=n_samples),
         "Gender": np.random.choice(["Male", "Female"], size=n_samples),
         "Pulse": np.random.choice(["High", "Medium", "Low"], size=n_samples)
     })
@@ -55,7 +52,7 @@ if RUN_TRAINING:
     train_and_save_model()
 
 ###############################################################################
-# Step 2: Rule-Based Scoring with Extreme Case Adjustments (Compounding Effect)
+# Step 2: Rule-Based Scoring with Extreme Case Adjustments (Increased Impact)
 ###############################################################################
 def compute_weighted_attrition(employee):
     score = 0
@@ -81,15 +78,16 @@ def compute_weighted_attrition(employee):
         score += 15
         extreme_factors += 1
 
-    if extreme_factors >= 3:
-        multiplier = 1.3 if extreme_factors == 3 else (1.5 if extreme_factors == 4 else 1.8)
+    # Stronger multiplier for 2 or more extreme cases
+    if extreme_factors >= 2:
+        multiplier = 1.5 if extreme_factors == 2 else (1.8 if extreme_factors == 3 else 2.2)
         score = min(100, score * multiplier)
 
-    score = max(0, score - 20)
+    score = max(0, score - 10)  # Slight baseline reduction
     return min(100, score)
 
 ###############################################################################
-# Step 3: Machine Learning Prediction (Logistic Regression)
+# Step 3: Machine Learning Prediction (10% Weight)
 ###############################################################################
 def predict_attrition(employee_data):
     with open("logistic_regression_model.pkl", "rb") as f:
@@ -107,7 +105,7 @@ def predict_attrition(employee_data):
     ml_probability = model.predict_proba(X_scaled)[:, 1][0] * 100
     rule_probability = compute_weighted_attrition(employee_data)
 
-    combined_score = 0.5 * ml_probability + 0.5 * rule_probability
+    combined_score = 0.9 * rule_probability + 0.1 * ml_probability
     return combined_score
 
 ###############################################################################
