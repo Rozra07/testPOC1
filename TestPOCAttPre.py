@@ -55,8 +55,6 @@ def compute_weighted_attrition(employee):
     score = 0
     extreme_factors = 0
 
-
-`    if some_condition:
      if employee["Gender"] == "Female" and employee["Female Employee Ratio"] <= 15:
         score += 30
         extreme_factors += 1  
