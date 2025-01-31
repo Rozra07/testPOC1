@@ -258,11 +258,11 @@ TRIGGER_DETAILS = {
 },
 
 ###############################################################################
-# Step 3: Rule-Based Scoring (UNCHANGED)
+# Step 3: Rule-Based Scoring (No Changes)
 ###############################################################################
 def compute_weighted_attrition(employee, return_triggers=False):
     """
-    EXACT Weighted-Factor logic from your code, no changes
+    Computes a 0-100 rule-based score. Returns (score, triggers) if return_triggers=True.
     """
     score = 0
     extreme_factors = 0
@@ -274,8 +274,63 @@ def compute_weighted_attrition(employee, return_triggers=False):
         extreme_factors += 1
         triggers.append("Low gender diversity")
 
-    # ... all your other conditions ...
+    # Stagnant Promotions
+    if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
+        score += 30
+        extreme_factors += 1
+        triggers.append("Stagnant promotions")
 
+    # Performance Rating
+    if employee["Last Performance Rating"] == 1:
+        score += 25
+        extreme_factors += 1
+        triggers.append("Very low performance rating")
+    elif employee["Last Performance Rating"] == 2:
+        score += 15
+        extreme_factors += 0.5
+        triggers.append("Low performance rating")
+    elif employee["Last Performance Rating"] == 5:
+        score -= 15
+        extreme_factors -= 0.5
+        triggers.append("Excellent performance rating")  # positive
+
+    # Compensation
+    if employee["Compa Ratio"] < 70:
+        score += 30
+        extreme_factors += 1
+        triggers.append("Low compensation competitiveness")
+    elif employee["Compa Ratio"] > 110:
+        score -= 15
+        extreme_factors -= 0.5
+        triggers.append("High compensation ratio")  # positive
+
+    # Retention
+    if employee["College Tier Retention"] < 15:
+        score += 15
+        extreme_factors += 0.5
+        triggers.append("Low college tier retention")
+
+    if employee["Industry Retention"] < 15:
+        score += 15
+        extreme_factors += 0.5
+        triggers.append("Low industry retention")
+
+    if employee["Company Type Retention"] < 15:
+        score += 15
+        extreme_factors += 0.5
+        triggers.append("Low company type retention")
+
+    # Pulse
+    if employee["Pulse"] == "High":
+        score += 20
+        extreme_factors += 0.5
+        triggers.append("High dissatisfaction (Pulse)")
+    elif employee["Pulse"] == "Low":
+        score -= 20
+        extreme_factors -= 0.5
+        triggers.append("Low dissatisfaction (Pulse)")  # positive
+
+    # Extreme Factors
     if extreme_factors == 2:
         score = min(100, score * 1.3)
     elif extreme_factors == 3:
@@ -291,12 +346,13 @@ def compute_weighted_attrition(employee, return_triggers=False):
         return final_score
 
 ###############################################################################
-# Step 4: ML Probability + Weighted Factor (UNCHANGED)
+# Step 4: Machine Learning Combination (No Changes)
 ###############################################################################
 def predict_attrition(employee_data):
     """
-    Loads logistic regression, transforms data, and merges with Weighted Factor
-    EXACT logic. No changes from your code.
+    Loads the saved logistic regression model, transforms the data,
+    and combines ML probability with rule-based score.
+    Returns (combined_score, triggers).
     """
     with open("logistic_regression_model.pkl", "rb") as f:
         model = pickle.load(f)
@@ -311,45 +367,38 @@ def predict_attrition(employee_data):
     X_scaled = scaler.transform(df_input)
 
     ml_probability = model.predict_proba(X_scaled)[:, 1][0] * 100
-    rule_score, triggers = compute_weighted_attrition(employee_data, return_triggers=True)
+    rule_probability, triggers = compute_weighted_attrition(employee_data, return_triggers=True)
 
-    combined_score = 0.75 * rule_score + 0.25 * ml_probability
+    combined_score = 0.75 * rule_probability + 0.25 * ml_probability
     return combined_score, triggers
 
 ###############################################################################
-# Generate Sample CSV for Bulk (with columns that the user must fill)
+# Generate Sample CSV in-memory for Bulk
 ###############################################################################
-def generate_bulk_sample_csv():
+def generate_sample_csv():
     """
-    This sample has columns for each employee's individual data:
-      Employee Name, Department, Employee Age, Tenure (Months),
-      Hasn't been promoted, Minimum Promotion Cycle, Pulse, 
-      Last Performance Rating, Compa Ratio, Gender,
-      Which Tier College, Which Industry, Which Company Type
-
-    Meanwhile, 'Average Employee Age', 'Female Employee Ratio', 
-    'College Tier Retention', 'Industry Retention', 
-    'Company Type Retention' are asked as global sliders in the app
+    Returns a string of CSV data containing the required columns 
+    with 2 example rows.
     """
-    sample_df = pd.DataFrame({
-        "Employee Name": ["Alice", "Bob"],
-        "Department": ["Sales", "Engineering"],
+    sample_data = pd.DataFrame({
         "Employee Age": [30, 45],
+        "Average Employee Age": [35, 40],
+        "Gender": ["Male", "Female"],
+        "Female Employee Ratio": [50, 10],
         "Tenure (Months)": [36, 48],
-        "Hasn't been promoted": [12, 24],
-        "Minimum Promotion Cycle": [24, 24],
         "Pulse": ["Medium", "High"],
+        "Hasn't been promoted": [12, 36],
+        "Minimum Promotion Cycle": [24, 24],
+        "College Tier Retention": [60, 10],
+        "Industry Retention": [60, 10],
+        "Company Type Retention": [60, 10],
         "Last Performance Rating": [3, 1],
-        "Compa Ratio": [90, 65],
-        "Gender": ["Female", "Male"],
-        "Which Tier College": ["Tier 1", "Tier 2"],
-        "Which Industry": ["IT", "Manufacturing"],
-        "Which Company Type": ["Startup", "MNC"]
+        "Compa Ratio": [90, 65]
     })
-    buffer = io.StringIO()
-    sample_df.to_csv(buffer, index=False)
-    return buffer.getvalue()
-
+    csv_buffer = io.StringIO()
+    sample_data.to_csv(csv_buffer, index=False)
+    return csv_buffer.getvalue()
+    
 ###############################################################################
 # Step 5: Streamlit UI - Single + Bulk via Mode Switch
 ###############################################################################
