@@ -87,22 +87,33 @@ def compute_weighted_attrition(employee):
     return min(100, score)
 
 ###############################################################################
-# Step 3: Machine Learning Prediction (10% Weight)
+# Step 3: Machine Learning Prediction (10% Weight) with Fixes
 ###############################################################################
 def predict_attrition(employee_data):
-    with open("logistic_regression_model.pkl", "rb") as f:
-        model = pickle.load(f)
-    with open("scaler.pkl", "rb") as f:
-        scaler = pickle.load(f)
-    with open("feature_columns.pkl", "rb") as f:
-        feature_columns = pickle.load(f)
+    try:
+        with open("logistic_regression_model.pkl", "rb") as f:
+            model = pickle.load(f)
+        with open("scaler.pkl", "rb") as f:
+            scaler = pickle.load(f)
+        with open("feature_columns.pkl", "rb") as f:
+            feature_columns = pickle.load(f)
+    except Exception as e:
+        return f"Error loading model: {str(e)}"
 
     df_input = pd.DataFrame([employee_data])
     df_input = pd.get_dummies(df_input)
     df_input = df_input.reindex(columns=feature_columns, fill_value=0)
+    
+    if df_input.shape[1] == 0:
+        return "Error: Input features do not match model features."
+    
     X_scaled = scaler.transform(df_input)
-
-    ml_probability = model.predict_proba(X_scaled)[:, 1][0] * 100
+    
+    ml_proba = model.predict_proba(X_scaled)
+    if ml_proba is None or len(ml_proba) == 0:
+        return "Error: Model failed to generate predictions."
+    
+    ml_probability = ml_proba[:, 1][0] * 100
     rule_probability = compute_weighted_attrition(employee_data)
 
     combined_score = 0.9 * rule_probability + 0.1 * ml_probability
