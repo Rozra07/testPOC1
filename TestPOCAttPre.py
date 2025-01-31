@@ -178,4 +178,3 @@ if submit_button:
             unsafe_allow_html=True
         )
 
-this is the code i am using currently. update this accordingly as discussed
