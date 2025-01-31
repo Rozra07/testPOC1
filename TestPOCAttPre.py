@@ -5,16 +5,16 @@ import pickle
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 import openai
-###############################################################################
-# 0. Get OpenAI API Key from Streamlit Secrets
-###############################################################################
-# In your .streamlit/secrets.toml or Streamlit Cloud secrets, store it as:
-# [default]
-# OPENAI_API_KEY = "sk-..."
-openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 ###############################################################################
-# 1. Train and Save Logistic Regression Model (UNCHANGED Weighted Factor + ML)
+# 0. Read the OpenAI API Key from a file named "key"
+###############################################################################
+# The file "key" should contain only your API key, e.g. "sk-XXXX"
+with open("key", "r") as f:
+    openai.api_key = f.read().strip()
+
+###############################################################################
+# 1. Train and Save Logistic Regression Model (Weighted Factor + ML)
 ###############################################################################
 def train_and_save_model():
     """
