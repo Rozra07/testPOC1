@@ -6,43 +6,22 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
 ###############################################################################
-# Load Machine Learning Model and Scaler with Debugging Checks
-###############################################################################
-def load_pickle(file_path):
-    """Helper function to load pickle files safely."""
-    try:
-        with open(file_path, "rb") as f:
-            obj = pickle.load(f)
-        return obj
-    except Exception as e:
-        st.error(f"Error loading {file_path}: {e}")
-        return None
-
-# Load Model, Scaler, and Feature Columns
-model = load_pickle("logistic_regression_model.pkl")
-scaler = load_pickle("scaler.pkl")
-feature_columns = load_pickle("feature_columns.pkl")
-
-# Ensure the model is correctly loaded
-if not hasattr(model, "predict_proba"):
-    st.error("Loaded model is invalid. Please check the logistic_regression_model.pkl file.")
-    st.stop()
-
-###############################################################################
-# Prediction Function
+# Load Machine Learning Model and Scaler
 ###############################################################################
 def predict_attrition(employee_data):
+    with open("logistic_regression_model.pkl", "rb") as f:
+        model = pickle.load(f)
+    with open("scaler.pkl", "rb") as f:
+        scaler = pickle.load(f)
+    with open("feature_columns.pkl", "rb") as f:
+        feature_columns = pickle.load(f)
+
     df_input = pd.DataFrame([employee_data])
     df_input = pd.get_dummies(df_input)
     df_input = df_input.reindex(columns=feature_columns, fill_value=0)
-
-    # Scale the input features
     X_scaled = scaler.transform(df_input)
 
-    # Predict probability using ML model
     ml_probability = model.predict_proba(X_scaled)[:, 1][0] * 100
-
-    # Compute rule-based probability
     rule_probability = compute_weighted_attrition(employee_data)
 
     # ✅ Override ML Probability for Extreme Cases
