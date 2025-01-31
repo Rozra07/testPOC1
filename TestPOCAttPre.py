@@ -111,7 +111,7 @@ def predict_attrition(employee_data):
 ###############################################################################
 # Step 4: Streamlit UI
 ###############################################################################
-st.title("Employee Attrition Prediction Tool")
+st.title("🌟 Employee Attrition Prediction Tool 🚀")
 
 with st.form("attrition_form"):
     employee_data = {
@@ -129,14 +129,12 @@ with st.form("attrition_form"):
         "Compa Ratio": st.slider("Compa Ratio (%)", 50, 150, 100)
     }
     
-    submit_button = st.form_submit_button("Predict")
+    submit_button = st.form_submit_button("🚀 Predict")
 
 if submit_button:
     prediction = predict_attrition(employee_data)
-if submit_button:
-    prediction = predict_attrition(employee_data)
     
-if prediction >= 90:
+    if prediction >= 90:
         st.markdown(
             f'<div style="background-color:#ff4d4d; color:white; padding:15px; border-radius:10px; text-align:center; font-size:24px; font-weight:bold;">'
             f'⚠️ HIGH Attrition Risk! <br> {prediction:.2f}% 🚨</div>',
@@ -160,4 +158,3 @@ if prediction >= 90:
             f'✅ SAFE! Low Attrition Risk <br> {prediction:.2f}% 🌱</div>',
             unsafe_allow_html=True
         )
-
