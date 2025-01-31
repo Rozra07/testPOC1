@@ -107,7 +107,7 @@ def predict_attrition(employee_data):
     ml_probability = model.predict_proba(X_scaled)[:, 1][0] * 100
     rule_probability = compute_weighted_attrition(employee_data)
 
-    combined_score = 0.6 * ml_probability + 0.4 * rule_probability
+    combined_score = 0.35 * ml_probability + 0.65 * rule_probability
     return combined_score
 
 ###############################################################################
