@@ -1,4 +1,77 @@
 import streamlit as st
+import pandas as pd
+import numpy as np
+import pickle
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
+
+###############################################################################
+# Load Model and Preprocessing Objects
+###############################################################################
+def load_model():
+    with open("logistic_regression_model.pkl", "rb") as f:
+        model = pickle.load(f)
+    with open("scaler.pkl", "rb") as f:
+        scaler = pickle.load(f)
+    with open("feature_columns.pkl", "rb") as f:
+        feature_columns = pickle.load(f)
+    return model, scaler, feature_columns
+
+model, scaler, feature_columns = load_model()
+
+###############################################################################
+# Rule-Based Scoring with Empathetic Explanations
+###############################################################################
+def compute_weighted_attrition(employee):
+    score = 0
+    extreme_factors = 0
+    reasons = []
+    
+    if employee["Gender"] == "Female" and employee["Female Employee Ratio"] <= 15:
+        score += 30
+        extreme_factors += 1  
+        reasons.append("Low gender diversity may create an unsupportive environment for female employees.")
+    if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
+        score += 30
+        extreme_factors += 1
+        reasons.append("The employee has waited too long for a promotion, which may cause dissatisfaction.")
+    if employee["Last Performance Rating"] == 1:
+        score += 25
+        extreme_factors += 1
+        reasons.append("Poor performance ratings could indicate a lack of motivation or support.")
+    if employee["Compa Ratio"] < 70:
+        score += 30
+        extreme_factors += 1
+        reasons.append("Compensation may not be competitive, leading to higher attrition risk.")
+    if employee["College Tier Retention"] < 15:
+        score += 15
+        extreme_factors += 1
+        reasons.append("Employees from certain college tiers may not feel valued in the organization.")
+    if employee["Industry Retention"] < 15:
+        score += 15
+        extreme_factors += 1
+        reasons.append("The industry-wide retention is low, meaning employees may have better external opportunities.")
+    if employee["Company Type Retention"] < 15:
+        score += 15
+        extreme_factors += 1
+        reasons.append("Company reputation may be impacting retention rates.")
+    
+    if extreme_factors == 2:
+        score = min(100, score * 1.3)
+    if extreme_factors == 3:
+        score = min(100, score * 1.6)
+    if extreme_factors >= 4:
+        score = min(100, score * 2)
+    
+    return min(100, max(0, score)), reasons
+
+###############################################################################
+# Machine Learning Prediction
+###############################################################################
+def predict_attrition(employee_data):
+    df_input = pd.DataFrame([employee_data])
+    df_input = pd.get_dummies(df_input)
+    df_input = df_input.reindex(columns=feature_columns, fill_value=0)
     X_scaled = scaler.transform(df_input)
 
     ml_probability = model.predict_proba(X_scaled)[:, 1][0] * 100
