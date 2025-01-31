@@ -385,7 +385,7 @@ def generate_sample_csv():
     Returns a string of CSV data containing the required columns 
     with 2 example rows.
     """
-    sample_data = pd.DataFrame({
+    sample_csv = pd.DataFrame({
         "Employee Age": [30, 45],
         "Average Employee Age": [35, 40],
         "Gender": ["Male", "Female"],
@@ -401,7 +401,7 @@ def generate_sample_csv():
         "Compa Ratio": [90, 65]
     })
     csv_buffer = io.StringIO()
-    sample_data.to_csv(csv_buffer, index=False)
+    sample_csv.to_csv(csv_buffer, index=False)
     return csv_buffer.getvalue()
 
 ###############################################################################
