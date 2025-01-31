@@ -126,7 +126,6 @@ def predict_attrition(employee_data):
 ###############################################################################
 # Step 4: Streamlit UI
 ###############################################################################
-st.title("🌟 Employee Attrition Prediction Tool 🚀")
 # Streamlit Title with Reduced Size
 st.markdown(
     "<h2 style='text-align: center; color: #4CAF50;'>🌟 Employee Attrition Prediction Tool 🚀</h2>",
