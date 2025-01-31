@@ -82,7 +82,7 @@ def compute_weighted_attrition(employee):
         extreme_factors += 1
 
     if extreme_factors >= 3:
-        multiplier = 1.3 if extreme_factors == 3 else (1.5 if extreme_factors == 4 else 1.8)
+        multiplier = 1.5 if extreme_factors == 3 else (1.8 if extreme_factors == 4 else 2)
         score = min(100, score * multiplier)
 
     score = max(0, score - 20)
