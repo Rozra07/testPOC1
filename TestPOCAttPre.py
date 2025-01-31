@@ -133,4 +133,31 @@ with st.form("attrition_form"):
 
 if submit_button:
     prediction = predict_attrition(employee_data)
-    st.write(f"**Estimated Attrition Probability**: {prediction:.2f}%")
+    if submit_button:
+    prediction = predict_attrition(employee_data)
+    
+    if prediction >= 90:
+        st.markdown(
+            f'<div style="background-color:#ff4d4d; color:white; padding:15px; border-radius:10px; text-align:center; font-size:24px; font-weight:bold;">'
+            f'⚠️ HIGH Attrition Risk! <br> {prediction:.2f}% 🚨</div>',
+            unsafe_allow_html=True
+        )
+    elif 70 <= prediction < 90:
+        st.markdown(
+            f'<div style="background-color:#ff9933; color:white; padding:15px; border-radius:10px; text-align:center; font-size:24px; font-weight:bold;">'
+            f'⚠️ Moderate to High Risk <br> {prediction:.2f}% ⚡</div>',
+            unsafe_allow_html=True
+        )
+    elif 35 <= prediction < 70:
+        st.markdown(
+            f'<div style="background-color:#ffd700; color:black; padding:15px; border-radius:10px; text-align:center; font-size:24px; font-weight:bold;">'
+            f'⚖️ Moderate Attrition Risk <br> {prediction:.2f}% 📉</div>',
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown(
+            f'<div style="background-color:#28a745; color:white; padding:15px; border-radius:10px; text-align:center; font-size:24px; font-weight:bold;">'
+            f'✅ SAFE! Low Attrition Risk <br> {prediction:.2f}% 🌱</div>',
+            unsafe_allow_html=True
+        )
+
