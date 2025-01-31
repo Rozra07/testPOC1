@@ -61,51 +61,54 @@ def compute_weighted_attrition(employee):
     score = 0
     extreme_factors = 0  # Counter for extreme attrition cases
 
-    # Age Weighting (6%)
+    # Age Weighting (6%) - Normalizing the impact
     age_diff = abs(employee["Employee Age"] - employee["Average Employee Age"])
-    score += 6 if age_diff >= 25 else (age_diff / 25) * 6
+    score += (age_diff / 25) * 6 if age_diff >= 5 else 0  # Small changes shouldn't matter
 
     # Extreme Case: Female in Male-Dominated Workplace (<10% Female Ratio)
     if employee.get("Gender", "Male") == "Female" and employee["Female Employee Ratio"] < 10:
         score += 12
         extreme_factors += 1
 
-    # Tenure Weighting (6%)
-    score += 6 if employee["Tenure (Months)"] >= 24 else (3 if employee["Tenure (Months)"] >= 10 else 0)
+    # Tenure Weighting (6%) - Adjusted to reduce low-tenure bias
+    score += 6 if employee["Tenure (Months)"] >= 36 else (3 if employee["Tenure (Months)"] >= 12 else 0)
 
-    # Extreme Case: Promotion Delay (Now 25%)
+    # Extreme Case: Promotion Delay (Now 25%) - Adjusted to trigger only for severe cases
     if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
         score += 25  
         extreme_factors += 1
 
     # Extreme Case: Last Performance Rating = 1 (30%)
     performance_map = {1: 30, 2: 20, 3: 10, 4: 5, 5: 0}
-    score += performance_map.get(employee["Last Performance Rating"], 10)
+    score += performance_map.get(employee["Last Performance Rating"], 5)  # Lower default for neutral cases
     if employee["Last Performance Rating"] == 1:
         extreme_factors += 1
 
-    # Extreme Case: Compa Ratio <70% (Now 30%)
-    if employee["Compa Ratio"] < 70:
+    # Extreme Case: Compa Ratio <70% (Now 30%) - Slightly relaxed threshold
+    if employee["Compa Ratio"] < 65:
         score += 30  
         extreme_factors += 1
 
     # Extreme Cases for Low Retention Rates
-    if employee["College Tier Retention"] < 20:
+    if employee["College Tier Retention"] < 15:
         score += 10
         extreme_factors += 1
-    if employee["Industry Retention"] < 20:
+    if employee["Industry Retention"] < 15:
         score += 10
         extreme_factors += 1
-    if employee["Company Type Retention"] < 20:
+    if employee["Company Type Retention"] < 15:
         score += 10
         extreme_factors += 1
 
     # ✅ Apply Non-Linear Compounding Effect for 3+ Extreme Factors
     if extreme_factors >= 3:
-        multiplier = 1.2 if extreme_factors == 3 else (1.4 if extreme_factors == 4 else 1.7)
+        multiplier = 1.1 if extreme_factors == 3 else (1.25 if extreme_factors == 4 else 1.5)
         score = min(100, score * multiplier)  
 
-    return min(100, max(0, score))
+    # ✅ Baseline Correction - Reduce score for "normal" cases
+    score = max(0, score - 15)  # Reduce neutral employee scores by 15%
+
+    return min(100, score)
 
 ###############################################################################
 # Step 3: Machine Learning Prediction (Logistic Regression)
