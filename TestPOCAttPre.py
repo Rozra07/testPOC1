@@ -590,65 +590,89 @@ if mode == "Single Employee":
 # ========================= BULK EMPLOYEE MODE =========================== #
 elif mode == "Bulk Employees":
     st.write("""
-    Upload a **CSV or Excel** file with the exact columns:
+    ### Bulk Employee Attrition Prediction
+    Upload a **CSV or Excel** file with the following columns:
     - Employee Age
-    - Average Employee Age
     - Gender
-    - Female Employee Ratio
-    - Tenure (Months)
     - Pulse
     - Hasn't been promoted
     - Minimum Promotion Cycle
-    - College Tier Retention
-    - Industry Retention
-    - Company Type Retention
     - Last Performance Rating
     - Compa Ratio
+    - College Tier
+    - Industry
+    - Company Type
     """)
 
-    uploaded_file = st.file_uploader("Upload CSV/Excel", type=["csv", "xlsx"])
+    # 1. Introduce Sliders for Fixed Data Points
+    st.sidebar.header("🔧 Set Fixed Attributes for All Employees")
+
+    # Fixed Attributes Sliders
+    fixed_attributes = {
+        "Average Employee Age": st.sidebar.slider("Average Employee Age", 18, 65, 35),
+        "Female Employee Ratio": st.sidebar.slider("Female Employee Ratio (%)", 0, 100, 40),
+        "College Tier Retention": st.sidebar.slider("College Tier Retention (%)", 10, 100, 60),
+        "Industry Retention": st.sidebar.slider("Industry Retention (%)", 10, 100, 60),
+        "Company Type Retention": st.sidebar.slider("Company Type Retention (%)", 10, 100, 60)
+    }
+
+    # 2. File Uploader
+    uploaded_file = st.file_uploader("📁 Upload CSV/Excel File", type=["csv", "xlsx"])
 
     if uploaded_file is not None:
-        # 1. Read file
+        # 3. Read the Uploaded File
         if uploaded_file.name.endswith(".csv"):
             df_bulk = pd.read_csv(uploaded_file)
         else:
             df_bulk = pd.read_excel(uploaded_file)
 
-        st.write("**Uploaded Data Preview:**")
+        st.write("**📊 Uploaded Data Preview:**")
         st.dataframe(df_bulk.head())
 
-        # 2. Validate columns
+        # 4. Validate Columns
         required_cols = [
-            "Employee Age", "Average Employee Age", "Gender", "Female Employee Ratio",
-            "Tenure (Months)", "Pulse", "Hasn't been promoted", "Minimum Promotion Cycle",
-            "College Tier Retention", "Industry Retention", "Company Type Retention",
-            "Last Performance Rating", "Compa Ratio"
+            "Employee Age", "Gender", "Pulse",
+            "Hasn't been promoted", "Minimum Promotion Cycle",
+            "Last Performance Rating", "Compa Ratio",
+            "College Tier", "Industry", "Company Type"
         ]
         missing = [c for c in required_cols if c not in df_bulk.columns]
         if missing:
-            st.error(f"Missing columns: {missing}")
+            st.error(f"❌ Missing columns: {missing}")
         else:
-            if st.button("Run Bulk Prediction"):
+            if st.button("🚀 Run Bulk Prediction"):
                 scores = []
                 triggers_list = []
 
                 for idx, row in df_bulk.iterrows():
+                    # Convert row to dictionary
                     row_dict = row.to_dict()
+
+                    # 5. Apply Fixed Attributes from Sliders
+                    row_dict["Average Employee Age"] = fixed_attributes["Average Employee Age"]
+                    row_dict["Female Employee Ratio"] = fixed_attributes["Female Employee Ratio"]
+                    row_dict["College Tier Retention"] = fixed_attributes["College Tier Retention"]
+                    row_dict["Industry Retention"] = fixed_attributes["Industry Retention"]
+                    row_dict["Company Type Retention"] = fixed_attributes["Company Type Retention"]
+
+                    # 6. Predict Attrition
                     bulk_score, bulk_trigs = predict_attrition(row_dict)
                     scores.append(bulk_score)
+
+                    # Filter negative triggers
                     neg_trigs = [t for t in bulk_trigs if t in TRIGGER_DETAILS]
                     triggers_str = ", ".join(neg_trigs)
                     triggers_list.append(triggers_str)
 
+                # 7. Append Results to DataFrame
                 df_bulk["Attrition Score"] = scores
                 df_bulk["Negative Triggers"] = triggers_list
 
-                st.success("Bulk Prediction Completed!")
+                st.success("✅ Bulk Prediction Completed!")
                 st.dataframe(df_bulk)
 
-                # Basic insights
-                st.write("### Aggregate Insights")
+                # 8. Basic Insights
+                st.write("### 📈 Aggregate Insights")
 
                 high_risk = (df_bulk["Attrition Score"] >= 75).sum()
                 mod_high = ((df_bulk["Attrition Score"] >= 60) & (df_bulk["Attrition Score"] < 75)).sum()
@@ -659,10 +683,10 @@ elif mode == "Bulk Employees":
                     "Risk Category": ["High (>=75)", "Mod-High (60-74)", "Moderate (35-59)", "Low (<35)"],
                     "Count": [high_risk, mod_high, moderate, low]
                 })
-                st.write("**Risk Distribution**")
+                st.write("**📊 Risk Distribution**")
                 st.bar_chart(risk_df.set_index("Risk Category"))
 
-                # Negative triggers frequency
+                # Negative Triggers Frequency
                 all_trigs = []
                 for val in df_bulk["Negative Triggers"]:
                     if pd.notna(val) and val.strip() != "":
@@ -671,22 +695,22 @@ elif mode == "Bulk Employees":
 
                 if all_trigs:
                     trig_series = pd.Series(all_trigs).value_counts()
-                    st.write("**Top Negative Triggers**")
+                    st.write("**🔻 Top Negative Triggers**")
                     st.bar_chart(trig_series)
                 else:
-                    st.info("No negative triggers found across the batch.")
+                    st.info("ℹ️ No negative triggers found across the batch.")
 
-                # Drill-down
-                st.write("### Drill Down into Individual Row")
+                # Drill-down into Individual Rows
+                st.write("### 🔍 Drill Down into Individual Rows")
                 df_bulk_reset = df_bulk.reset_index(drop=True)
                 row_options = list(range(len(df_bulk_reset)))
-                sel_row = st.selectbox("Pick an Employee (Row Index)", row_options)
+                sel_row = st.selectbox("📌 Select an Employee (Row Index)", row_options)
 
                 if sel_row is not None:
                     row_info = df_bulk_reset.loc[sel_row].to_dict()
-                    st.write("**Row Data**:")
+                    st.write("**📄 Row Data:**")
                     st.json(row_info)
                     st.write("""
-                    *You could expand to let the user see sub-problem selections for each row
-                    or scenario planning in a batch context, but this is a basic overview.*
+                    *You can expand this section to include more detailed analysis or individual scenario planning for each employee.*
                     """)
+
