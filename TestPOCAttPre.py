@@ -9,7 +9,6 @@ from sklearn.preprocessing import StandardScaler
 # Step 1: Train and Save a Dummy Logistic Regression Model (UNCHANGED)
 ###############################################################################
 def train_and_save_model():
-    # Same code as your original
     np.random.seed(42)
     n_samples = 500
 
@@ -31,19 +30,15 @@ def train_and_save_model():
 
     y = np.random.randint(0, 2, size=n_samples)
 
-    # Encode categorical variables
     df_encoded = pd.get_dummies(df, columns=["Gender", "Pulse"])
     feature_columns = df_encoded.columns
 
-    # Scale
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(df_encoded)
 
-    # Train logistic regression
     model = LogisticRegression(solver="liblinear", random_state=42)
     model.fit(X_scaled, y)
 
-    # Save model, scaler, and feature columns
     with open("logistic_regression_model.pkl", "wb") as f:
         pickle.dump(model, f)
     with open("scaler.pkl", "wb") as f:
@@ -51,40 +46,237 @@ def train_and_save_model():
     with open("feature_columns.pkl", "wb") as f:
         pickle.dump(list(feature_columns), f)
 
-# Run training once (you can comment this out after the first run to avoid overwriting)
+# Uncomment if you only want to train the model once, otherwise it re-trains every run.
 train_and_save_model()
 
 ###############################################################################
-# Step 2: Rule-Based Scoring (Including All Conditions & Trigger Collection)
+# Step 2: Define the Master Dictionary for Triggers, Sub-Problems, and Solutions
+###############################################################################
+# Each trigger -> { "subproblems": {key: label}, "solutions": {key: solution} }
+TRIGGER_DETAILS = {
+    "Low gender diversity": {
+        "subproblems": {
+            "lack_female_applicants": "We are not getting enough female applicants",
+            "lack_female_mentors": "We have few female mentors or leaders",
+            "rigid_policies": "We do not offer flexible policies (e.g., maternity, remote, etc.)"
+        },
+        "solutions": {
+            "lack_female_applicants": (
+                "- **Partner with Women’s Universities** or female-oriented professional groups.\n"
+                "- **Highlight DEI** (Diversity, Equity, Inclusion) in your recruitment materials."
+            ),
+            "lack_female_mentors": (
+                "- **Implement formal mentorship** programs.\n"
+                "- **Sponsor leadership development** for existing female employees."
+            ),
+            "rigid_policies": (
+                "- Introduce **flexible working hours** and remote/hybrid options.\n"
+                "- Improve **maternity/paternity benefits** and family-friendly leave."
+            )
+        }
+    },
+
+    "Stagnant promotions": {
+        "subproblems": {
+            "unclear_criteria": "Promotion criteria are unclear or inconsistent",
+            "no_mentorship": "No proper mentorship or upskilling tracks exist",
+            "bureaucratic_structure": "The organization structure is too bureaucratic"
+        },
+        "solutions": {
+            "unclear_criteria": (
+                "- **Publish transparent promotion guidelines** linked to clear KPIs.\n"
+                "- Provide employees with **regular promotion readiness feedback**."
+            ),
+            "no_mentorship": (
+                "- Launch **formal mentoring** or buddy programs.\n"
+                "- Offer **upskilling opportunities** and learning stipends."
+            ),
+            "bureaucratic_structure": (
+                "- **Streamline decision-making** or reduce hierarchical layers.\n"
+                "- Consider more **agile or cross-functional** teams to encourage skill growth."
+            )
+        }
+    },
+
+    "Very low performance rating": {
+        "subproblems": {
+            "misaligned_role": "Job role or expectations are unclear or mismatched",
+            "no_feedback": "Lack of continuous feedback or 1-on-1 sessions",
+            "skill_gaps": "Skill gaps or training needs not addressed"
+        },
+        "solutions": {
+            "misaligned_role": (
+                "- **Clarify job responsibilities** and set SMART goals.\n"
+                "- Ensure roles align with employees’ **strengths** and career aspirations."
+            ),
+            "no_feedback": (
+                "- Implement **frequent 1:1 check-ins** and agile feedback loops.\n"
+                "- Use **performance dashboards** for real-time updates."
+            ),
+            "skill_gaps": (
+                "- Provide **targeted training** and eLearning modules.\n"
+                "- Offer **certification reimbursements** and skill-building workshops."
+            )
+        }
+    },
+
+    "Low performance rating": {  # same subproblems/solutions as Very low performance rating
+        "subproblems": {
+            "misaligned_role": "Job role or expectations are unclear or mismatched",
+            "no_feedback": "Lack of continuous feedback or 1-on-1 sessions",
+            "skill_gaps": "Skill gaps or training needs not addressed"
+        },
+        "solutions": {
+            "misaligned_role": (
+                "- **Clarify job responsibilities** and set SMART goals.\n"
+                "- Align roles with employees’ strengths and preferences."
+            ),
+            "no_feedback": (
+                "- Implement **regular 1:1 check-ins**.\n"
+                "- Provide ongoing **coaching and feedback** rather than annual appraisals."
+            ),
+            "skill_gaps": (
+                "- Offer **targeted training** in needed skill areas.\n"
+                "- Encourage **peer-to-peer learning** or cross-functional rotations."
+            )
+        }
+    },
+
+    # Positive triggers (like "Excellent performance rating", "High compensation ratio", "Low dissatisfaction (Pulse)")
+    # typically reduce risk. We won't add sub-problems for them.
+
+    "Low compensation competitiveness": {
+        "subproblems": {
+            "below_market": "Base salary is below market rates",
+            "minimal_bonus": "Bonuses or variable pay are minimal or non-existent",
+            "poor_benefits": "Benefits package is lacking (insurance, retirement, etc.)"
+        },
+        "solutions": {
+            "below_market": (
+                "- **Conduct market benchmarking** to adjust salaries to median or above.\n"
+                "- Consider **geographic pay differentials** if applicable."
+            ),
+            "minimal_bonus": (
+                "- Introduce **performance-based incentives** or profit-sharing.\n"
+                "- Evaluate **RSUs (Restricted Stock Units)** or equity grants for retention."
+            ),
+            "poor_benefits": (
+                "- Offer **competitive health insurance**, retirement contributions.\n"
+                "- Provide **flexible schedules**, wellness programs, and other perks."
+            )
+        }
+    },
+
+    "Low college tier retention": {
+        "subproblems": {
+            "high_turnover_talent_pools": "High turnover among certain colleges or entry-level hires",
+            "mismatch_culture": "Mismatch between background and company culture",
+            "poor_onboarding": "Insufficient onboarding or assimilation for these hires"
+        },
+        "solutions": {
+            "high_turnover_talent_pools": (
+                "- Investigate root causes via **exit interviews**.\n"
+                "- Build **campus ambassador** programs to attract the right fit."
+            ),
+            "mismatch_culture": (
+                "- Provide better **orientation** on company culture.\n"
+                "- Pair new hires with **mentors** from similar backgrounds."
+            ),
+            "poor_onboarding": (
+                "- Enhance **onboarding programs** with structured check-ins (30/60/90 days).\n"
+                "- Offer a **buddy system** for new graduates."
+            )
+        }
+    },
+
+    "Low industry retention": {
+        "subproblems": {
+            "high_turnover_talent_pools": "High turnover among employees from this industry",
+            "mismatch_culture": "Mismatch between industry norms and your company's culture",
+            "poor_onboarding": "Insufficient onboarding for these lateral hires"
+        },
+        "solutions": {
+            "high_turnover_talent_pools": (
+                "- Conduct **benchmarking** to see if salaries and roles align with industry standards.\n"
+                "- Explore **targeted retention strategies** (mentorship, training)."
+            ),
+            "mismatch_culture": (
+                "- Emphasize **company values** and create inclusive teams.\n"
+                "- Have **town halls** or Q&A sessions for lateral hires to assimilate."
+            ),
+            "poor_onboarding": (
+                "- Develop **structured assimilation** for mid-career folks.\n"
+                "- Provide a **transition buddy** who understands both industries."
+            )
+        }
+    },
+
+    "Low company type retention": {
+        "subproblems": {
+            "high_turnover_talent_pools": "High turnover among employees from certain company backgrounds",
+            "mismatch_culture": "Mismatch between prior company culture and current environment",
+            "poor_onboarding": "Onboarding doesn’t address differences in processes, tools, or structures"
+        },
+        "solutions": {
+            "high_turnover_talent_pools": (
+                "- Identify if certain **company backgrounds** always churn quickly.\n"
+                "- Adapt your onboarding or project assignments accordingly."
+            ),
+            "mismatch_culture": (
+                "- Provide **culture assimilation** sessions or manager training.\n"
+                "- Encourage **peer networking** to help them adapt faster."
+            ),
+            "poor_onboarding": (
+                "- Have a **comprehensive onboarding** covering your processes & tools.\n"
+                "- Assign **buddies** who previously transitioned from similar backgrounds."
+            )
+        }
+    },
+
+    "High dissatisfaction (Pulse)": {
+        "subproblems": {
+            "work_life_imbalance": "Work-life imbalance or excessive workload",
+            "poor_manager_relationships": "Employees feel managers are unsupportive",
+            "limited_growth": "Limited growth or recognition opportunities"
+        },
+        "solutions": {
+            "work_life_imbalance": (
+                "- Offer **flexible scheduling** and **mental health** resources.\n"
+                "- Encourage **healthy boundaries** around work hours."
+            ),
+            "poor_manager_relationships": (
+                "- Train managers on **emotional intelligence** and communication.\n"
+                "- Collect **360-degree feedback** to identify manager blind spots."
+            ),
+            "limited_growth": (
+                "- Implement **career development** paths and internal mobility.\n"
+                "- Recognize achievements publicly and **reward** top performers."
+            )
+        }
+    }
+}
+
+###############################################################################
+# Step 3: Rule-Based Scoring (No Changes, Just Return Triggers) 
 ###############################################################################
 def compute_weighted_attrition(employee, return_triggers=False):
-    """
-    Computes the rule-based score and optionally returns triggers (factors)
-    that increased or decreased the score.
-    """
     score = 0
     extreme_factors = 0
-    triggers = []  # Will store text explanations for each triggered condition
+    triggers = []
 
-    # -------------------------------------------------------------------------
-    # Condition 1: Gender Diversity
-    # -------------------------------------------------------------------------
+    # 1. Gender Diversity
     if employee["Gender"] == "Female" and employee["Female Employee Ratio"] <= 15:
         score += 30
         extreme_factors += 1
         triggers.append("Low gender diversity")
 
-    # -------------------------------------------------------------------------
-    # Condition 2: Stagnant Promotions
-    # -------------------------------------------------------------------------
+    # 2. Stagnant Promotions
     if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
         score += 30
         extreme_factors += 1
         triggers.append("Stagnant promotions")
 
-    # -------------------------------------------------------------------------
-    # Condition 3: Performance Ratings
-    # -------------------------------------------------------------------------
+    # 3. Performance Rating
     if employee["Last Performance Rating"] == 1:
         score += 25
         extreme_factors += 1
@@ -98,9 +290,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
         extreme_factors -= 0.5
         triggers.append("Excellent performance rating")
 
-    # -------------------------------------------------------------------------
-    # Condition 4: Compensation Ratio
-    # -------------------------------------------------------------------------
+    # 4. Compa Ratio
     if employee["Compa Ratio"] < 70:
         score += 30
         extreme_factors += 1
@@ -110,9 +300,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
         extreme_factors -= 0.5
         triggers.append("High compensation ratio")
 
-    # -------------------------------------------------------------------------
-    # Condition 5: Retention Metrics
-    # -------------------------------------------------------------------------
+    # 5. Retention
     if employee["College Tier Retention"] < 15:
         score += 15
         extreme_factors += 0.5
@@ -128,9 +316,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
         extreme_factors += 0.5
         triggers.append("Low company type retention")
 
-    # -------------------------------------------------------------------------
-    # Condition 6: Pulse
-    # -------------------------------------------------------------------------
+    # 6. Pulse
     if employee["Pulse"] == "High":
         score += 20
         extreme_factors += 0.5
@@ -140,9 +326,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
         extreme_factors -= 0.5
         triggers.append("Low dissatisfaction (Pulse)")
 
-    # -------------------------------------------------------------------------
     # Extreme Factor Scaling
-    # -------------------------------------------------------------------------
     if extreme_factors == 2:
         score = min(100, score * 1.3)
     elif extreme_factors == 3:
@@ -150,24 +334,16 @@ def compute_weighted_attrition(employee, return_triggers=False):
     elif extreme_factors >= 4:
         score = min(100, score * 2)
 
-    # Final Clamping
     final_score = min(100, max(0, score))
-
-    # Return triggers if requested
     if return_triggers:
         return final_score, triggers
     else:
         return final_score
 
 ###############################################################################
-# Step 3: Machine Learning Prediction (UNCHANGED, except we now extract triggers)
+# Step 4: ML Prediction (Unchanged except returning triggers)
 ###############################################################################
 def predict_attrition(employee_data):
-    """
-    Returns the combined attrition score (ML + Rule-based) and
-    also the triggers that contributed to the rule-based risk.
-    """
-    # Load model artifacts
     with open("logistic_regression_model.pkl", "rb") as f:
         model = pickle.load(f)
     with open("scaler.pkl", "rb") as f:
@@ -175,232 +351,35 @@ def predict_attrition(employee_data):
     with open("feature_columns.pkl", "rb") as f:
         feature_columns = pickle.load(f)
 
-    # Prepare input for ML
     df_input = pd.DataFrame([employee_data])
     df_input = pd.get_dummies(df_input)
     df_input = df_input.reindex(columns=feature_columns, fill_value=0)
     X_scaled = scaler.transform(df_input)
-
-    # ML Probability
     ml_probability = model.predict_proba(X_scaled)[:, 1][0] * 100
 
-    # Rule-based Score + triggers
     rule_probability, triggers = compute_weighted_attrition(employee_data, return_triggers=True)
-
-    # Combine Score
     combined_score = 0.75 * rule_probability + 0.25 * ml_probability
     return combined_score, triggers
 
 ###############################################################################
-# Step 4: Explanation / Recommendation Logic
-###############################################################################
-def provide_explanations(triggers, industry):
-    """
-    For each triggered condition, provide tailored recommendations or insights.
-    We'll do it systematically by checking if each condition is in triggers,
-    then referencing the selected 'industry'.
-    """
-    # -- Low gender diversity -------------------------------------------------
-    if "Low gender diversity" in triggers:
-        if industry == "Manufacturing":
-            st.write(
-                "**Low Gender Diversity in Manufacturing:**\n"
-                "- Historically, manufacturing has underrepresented female employees.\n"
-                "- Consider targeted recruitment, mentorship programs, and improved workplace amenities.\n"
-                "- Example: XYZ Corp increased female hires by 20% via specialized campus programs."
-            )
-        elif industry == "IT/ITES":
-            st.write(
-                "**Low Gender Diversity in IT/ITES:**\n"
-                "- Tech roles often skew male, especially in senior engineering.\n"
-                "- Sponsor or partner with programs that support women in tech (e.g., Women Who Code).\n"
-                "- Encourage leadership training for mid-level female employees."
-            )
-        elif industry == "BFSI":
-            st.write(
-                "**Low Gender Diversity in BFSI:**\n"
-                "- Financial services can benefit from bridging the female leadership gap.\n"
-                "- Offer flexible policies for working mothers, sponsor women leadership forums.\n"
-                "- Case study: ABC Bank improved gender ratio by introducing flexible hours + childcare."
-            )
-        elif industry == "Retail":
-            st.write(
-                "**Low Gender Diversity in Retail:**\n"
-                "- Retail frontline roles can be balanced, but back-office/leadership may be skewed.\n"
-                "- Consider leadership development tracks for female employees.\n"
-                "- Mentorship programs and clear promotion paths help retention."
-            )
-        else:
-            st.write(
-                "**Low Gender Diversity (General):**\n"
-                "- Focus on inclusive hiring, mentorship, and flexible work arrangements.\n"
-                "- Engage with diversity consultancies and track retention metrics by gender.\n"
-            )
-
-    # -- Stagnant promotions --------------------------------------------------
-    if "Stagnant promotions" in triggers:
-        if industry == "Manufacturing":
-            st.write(
-                "**Stagnant Promotions in Manufacturing:**\n"
-                "- Rotational programs can help employees gain cross-functional skills.\n"
-                "- Recognize high performers with on-floor responsibilities or team lead roles.\n"
-            )
-        elif industry == "IT/ITES":
-            st.write(
-                "**Stagnant Promotions in IT/ITES:**\n"
-                "- Consider shorter promotion cycles in agile environments.\n"
-                "- Provide certification/training credits to encourage skill growth.\n"
-            )
-        elif industry == "BFSI":
-            st.write(
-                "**Stagnant Promotions in BFSI:**\n"
-                "- Implement transparent promotion criteria tied to clear KPIs.\n"
-                "- Offer cross-training in different financial products for skill variety.\n"
-            )
-        elif industry == "Retail":
-            st.write(
-                "**Stagnant Promotions in Retail:**\n"
-                "- Identify and fast-track high-potential employees for store or regional management.\n"
-                "- Introduce clear leadership track with quarterly reviews.\n"
-            )
-        else:
-            st.write(
-                "**Stagnant Promotions (General):**\n"
-                "- Publish clear promotion guidelines.\n"
-                "- Offer mentorship and skill development to pave a clear path upward.\n"
-            )
-
-    # -- Very low performance rating / Low performance rating -----------------
-    if "Very low performance rating" in triggers or "Low performance rating" in triggers:
-        if industry == "Manufacturing":
-            st.write(
-                "**Performance Improvement in Manufacturing:**\n"
-                "- Use frequent on-floor observations & skill-based training.\n"
-                "- Implement buddy systems for new hires and continuous improvement programs.\n"
-            )
-        elif industry == "IT/ITES":
-            st.write(
-                "**Performance Improvement in IT/ITES:**\n"
-                "- Leverage agile methodology for short feedback loops.\n"
-                "- Provide upskilling or certifications in trending tech domains.\n"
-            )
-        elif industry == "BFSI":
-            st.write(
-                "**Performance Improvement in BFSI:**\n"
-                "- Ensure employees have clarity on key financial targets.\n"
-                "- Provide product & compliance training to reduce errors and increase confidence.\n"
-            )
-        elif industry == "Retail":
-            st.write(
-                "**Performance Improvement in Retail:**\n"
-                "- Regularly measure customer service metrics.\n"
-                "- Coach employees on sales techniques and product knowledge.\n"
-            )
-        else:
-            st.write(
-                "**Performance Improvement (General):**\n"
-                "- Implement frequent 1:1 check-ins and set SMART goals.\n"
-                "- Offer personal development plans and targeted training programs.\n"
-            )
-
-    # -- Excellent performance rating (positive factor) -----------------------
-    if "Excellent performance rating" in triggers:
-        st.write(
-            "**Excellent Performance Rating:**\n"
-            "- This factor *reduces* the attrition risk by showing strong engagement.\n"
-            "- Continue recognition and career growth opportunities to retain top performers.\n"
-        )
-
-    # -- Low compensation competitiveness / High compensation ratio -----------
-    if "Low compensation competitiveness" in triggers:
-        if industry == "Manufacturing":
-            st.write(
-                "**Low Compensation in Manufacturing:**\n"
-                "- Conduct market benchmarking to ensure wages are competitive.\n"
-                "- Introduce productivity-based bonuses or skill allowances.\n"
-            )
-        elif industry == "IT/ITES":
-            st.write(
-                "**Low Compensation in IT/ITES:**\n"
-                "- Tech roles are highly competitive.\n"
-                "- Offer stock options, flexible hours, or remote work perks if direct salary hikes aren't feasible.\n"
-            )
-        elif industry == "BFSI":
-            st.write(
-                "**Low Compensation in BFSI:**\n"
-                "- Provide performance-based incentives or profit-sharing.\n"
-                "- Benchmark roles against industry peers for fairness.\n"
-            )
-        elif industry == "Retail":
-            st.write(
-                "**Low Compensation in Retail:**\n"
-                "- Retail tends to have high turnover if wages are below market.\n"
-                "- Offer bonus structures tied to store/individual performance.\n"
-            )
-        else:
-            st.write(
-                "**Low Compensation Competitiveness (General):**\n"
-                "- Ensure compensation aligns with market rates.\n"
-                "- Consider total rewards approach (benefits, bonuses, flexibility) beyond base pay.\n"
-            )
-
-    if "High compensation ratio" in triggers:
-        st.write(
-            "**High Compensation Ratio:**\n"
-            "- This *reduces* attrition risk, as employees are well-paid compared to market.\n"
-            "- Maintain fairness internally, ensuring no major pay gaps.\n"
-        )
-
-    # -- Low college tier / industry / company type retention -----------------
-    if "Low college tier retention" in triggers:
-        st.write(
-            "**Low College Tier Retention:**\n"
-            "- Possibly indicates that hires from certain colleges leave quickly.\n"
-            "- Investigate if those employees face skill or culture gaps.\n"
-            "- Offer targeted onboarding or mentorship for new grads.\n"
-        )
-
-    if "Low industry retention" in triggers:
-        st.write(
-            "**Low Industry Retention:**\n"
-            "- Suggests employees from your industry have shorter tenures.\n"
-            "- Evaluate if there's intense competition or frequent poaching.\n"
-            "- Provide career paths, skill enhancement, and leadership opportunities to retain them.\n"
-        )
-
-    if "Low company type retention" in triggers:
-        st.write(
-            "**Low Company Type Retention:**\n"
-            "- Possibly employees from certain corporate backgrounds exit sooner.\n"
-            "- Revisit your company's onboarding, culture assimilation, or role clarity.\n"
-            "- Pair them with mentors who understand that specific background.\n"
-        )
-
-    # -- High dissatisfaction (Pulse) / Low dissatisfaction (Pulse) ----------
-    if "High dissatisfaction (Pulse)" in triggers:
-        st.write(
-            "**High Dissatisfaction (Pulse):**\n"
-            "- Pulse surveys indicate employees are unhappy.\n"
-            "- Explore open-ended feedback, 1-on-1 check-ins, and quick-win changes.\n"
-            "- Employee recognition programs or mental health support can help.\n"
-        )
-
-    if "Low dissatisfaction (Pulse)" in triggers:
-        st.write(
-            "**Low Dissatisfaction (Pulse):**\n"
-            "- This factor *reduces* attrition risk.\n"
-            "- Maintain good practices: feedback loops, engagement activities, and recognition.\n"
-        )
-
-###############################################################################
 # Step 5: Streamlit UI
 ###############################################################################
-st.markdown(
-    "<h2 style='text-align: center; color: #4CAF50;'>🌟 Employee Attrition Prediction Tool 🚀</h2>",
-    unsafe_allow_html=True
-)
+# We use session_state to handle a two-step process:
+# 1. The user inputs data and sees the triggers.
+# 2. The user selects relevant sub-problems for each trigger to get solutions.
 
-with st.form("attrition_form"):
+st.markdown("<h2 style='text-align: center; color: #4CAF50;'>🌟 Employee Attrition Prediction Tool 🚀</h2>", unsafe_allow_html=True)
+
+# ------------- Step A: Collect Employee Data Form -------------
+if "prediction_made" not in st.session_state:
+    st.session_state.prediction_made = False
+if "score" not in st.session_state:
+    st.session_state.score = None
+if "triggers" not in st.session_state:
+    st.session_state.triggers = []
+
+with st.form("attrition_form", clear_on_submit=False):
+    st.write("### 1. Enter Employee/Company Details")
     employee_data = {
         "Employee Age": st.slider("Employee Age", 18, 65, 30),
         "Average Employee Age": st.slider("Avg Employee Age", 18, 65, 35),
@@ -417,53 +396,94 @@ with st.form("attrition_form"):
         "Compa Ratio": st.slider("Compa Ratio (%)", 50, 150, 100)
     }
 
-    # Add a new field for Industry
-    industry = st.selectbox(
-        "Which Industry Are You From?",
-        ["Manufacturing", "BFSI", "IT/ITES", "Retail", "Others"],
-        index=4
-    )
-
+    industry = st.selectbox("Which Industry Are You From?", ["Manufacturing", "BFSI", "IT/ITES", "Retail", "Others"], index=4)
     submit_button = st.form_submit_button("🚀 Predict")
 
-if submit_button:
-    # 1. Make the Prediction
-    prediction, triggers = predict_attrition(employee_data)
+    if submit_button:
+        score, triggers = predict_attrition(employee_data)
+        st.session_state.score = score
+        st.session_state.triggers = triggers
+        st.session_state.prediction_made = True
 
-    # 2. Display the Risk Category
-    if prediction >= 75:
+# ------------- Step B: If Prediction is made, show results -------------
+if st.session_state.prediction_made:
+    score = st.session_state.score
+    triggers = st.session_state.triggers
+
+    # 1. Show the Risk Category
+    if score >= 75:
         st.markdown(
             f'<div style="background-color:#ff4d4d; color:white; padding:15px; border-radius:10px; text-align:center; font-size:24px; font-weight:bold;">'
-            f'⚠️ HIGH Attrition Risk! <br> {prediction:.2f}% 🚨</div>',
+            f'⚠️ HIGH Attrition Risk! <br> {score:.2f}% 🚨</div>',
             unsafe_allow_html=True
         )
-    elif 60 <= prediction < 75:
+    elif 60 <= score < 75:
         st.markdown(
             f'<div style="background-color:#ff9933; color:white; padding:15px; border-radius:10px; text-align:center; font-size:24px; font-weight:bold;">'
-            f'⚠️ Moderate to High Risk <br> {prediction:.2f}% ⚡</div>',
+            f'⚠️ Moderate to High Risk <br> {score:.2f}% ⚡</div>',
             unsafe_allow_html=True
         )
-    elif 35 <= prediction < 60:
+    elif 35 <= score < 60:
         st.markdown(
             f'<div style="background-color:#ffd700; color:black; padding:15px; border-radius:10px; text-align:center; font-size:24px; font-weight:bold;">'
-            f'⚖️ Moderate Attrition Risk <br> {prediction:.2f}% 📉</div>',
+            f'⚖️ Moderate Attrition Risk <br> {score:.2f}% 📉</div>',
             unsafe_allow_html=True
         )
     else:
         st.markdown(
             f'<div style="background-color:#28a745; color:white; padding:15px; border-radius:10px; text-align:center; font-size:24px; font-weight:bold;">'
-            f'✅ SAFE! Low Attrition Risk <br> {prediction:.2f}% 🌱</div>',
+            f'✅ SAFE! Low Attrition Risk <br> {score:.2f}% 🌱</div>',
             unsafe_allow_html=True
         )
 
-    # 3. Show Triggers (i.e., 'Reasons' for the Score)
-    st.subheader("Key Contributing Factors to Attrition Risk")
+    # 2. List the triggers
+    st.write("### 2. Key Contributing Factors")
     if triggers:
         for t in triggers:
             st.markdown(f"- **{t}**")
     else:
         st.markdown("*No major negative triggers identified.*")
 
-    # 4. Provide Explanations and Recommendations Based on Those Triggers
-    st.subheader("Customized Explanations & Recommendations")
-    provide_explanations(triggers, industry)
+    # 3. Ask the user to pick sub-problems for each trigger
+    st.write("---")
+    st.write("### 3. Select Sub-Problems That Apply to Your Organization")
+    sub_problem_selections = {}
+    for trig in triggers:
+        # If the trigger is actually a "positive" factor or not in TRIGGER_DETAILS, skip
+        if trig not in TRIGGER_DETAILS:
+            continue
+        st.write(f"**{trig}**: Which of these sub-problems do you see in your organization?")
+        
+        # Display checkboxes for each possible sub-problem
+        subproblem_dict = TRIGGER_DETAILS[trig]["subproblems"]
+        chosen = []
+        for sub_key, sub_label in subproblem_dict.items():
+            check_val = st.checkbox(f"{sub_label}", key=f"{trig}-{sub_key}")
+            if check_val:
+                chosen.append(sub_key)
+        sub_problem_selections[trig] = chosen
+
+    # Button to "Show me solutions"
+    if st.button("💡 Show Customized Solutions"):
+        st.write("### 4. Customized Recommendations and Action Points")
+        any_selection = False
+
+        for trig in triggers:
+            if trig not in TRIGGER_DETAILS:
+                # Possibly a positive factor or not in the dictionary
+                continue
+
+            chosen_subproblems = sub_problem_selections[trig]
+            if chosen_subproblems:
+                any_selection = True
+                st.write(f"**For Trigger: {trig}**")
+                for sub_key in chosen_subproblems:
+                    # Get the solution text
+                    solution_text = TRIGGER_DETAILS[trig]["solutions"].get(sub_key, "")
+                    sub_label = TRIGGER_DETAILS[trig]["subproblems"][sub_key]
+                    st.markdown(f"**Sub-Problem:** {sub_label}")
+                    st.markdown(f"**Suggested Approach:**\n{solution_text}\n")
+
+        if not any_selection:
+            st.info("No sub-problems were selected. Hence, no additional solutions to display.")
+
