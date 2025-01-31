@@ -359,27 +359,24 @@ def predict_attrition(employee_data):
     return combined_score, triggers
 
 ###############################################################################
-# Step 5: Streamlit UI
+# Step 5: Streamlit UI - Now with Side-by-Side Scenario Planning
 ###############################################################################
-# We use session_state to handle a multi-step process:
-# 1. Collect employee data -> Display base prediction.
-# 2. Show triggers -> user picks sub-problems.
-# 3. Show solutions.
-# 4. (New) Show "What-If" scenario sliders to see updated risk if certain features change.
-
 st.markdown("<h2 style='text-align: center; color: #4CAF50;'>🌟 Employee Attrition Prediction Tool 🚀</h2>", unsafe_allow_html=True)
 
-# ------------- Step A: Collect Employee Data Form -------------
+# Session state flags
 if "prediction_made" not in st.session_state:
     st.session_state.prediction_made = False
 if "score" not in st.session_state:
     st.session_state.score = None
 if "triggers" not in st.session_state:
     st.session_state.triggers = []
+if "employee_data" not in st.session_state:
+    st.session_state.employee_data = {}
 
+# Step A: Collect Employee Data Form
 with st.form("attrition_form", clear_on_submit=False):
     st.write("### 1. Enter Employee/Company Details")
-    employee_data = {
+    employee_data_input = {
         "Employee Age": st.slider("Employee Age", 18, 65, 30),
         "Average Employee Age": st.slider("Avg Employee Age", 18, 65, 35),
         "Gender": st.radio("Gender", ["Male", "Female"], horizontal=True),
@@ -399,132 +396,150 @@ with st.form("attrition_form", clear_on_submit=False):
     submit_button = st.form_submit_button("🚀 Predict")
 
     if submit_button:
-        score, triggers = predict_attrition(employee_data)
-        st.session_state.score = score
+        combined_score, triggers = predict_attrition(employee_data_input)
+        st.session_state.score = combined_score
         st.session_state.triggers = triggers
         st.session_state.prediction_made = True
+        st.session_state.employee_data = employee_data_input
 
-# ------------- Step B: If Prediction is made, show results -------------
+# Only proceed if user has submitted the form
 if st.session_state.prediction_made:
     score = st.session_state.score
     triggers = st.session_state.triggers
+    employee_data = st.session_state.employee_data
 
-    # 1. Show the Risk Category
-    if score >= 75:
-        st.markdown(
-            f'<div style="background-color:#ff4d4d; color:white; padding:15px; border-radius:10px; text-align:center; font-size:24px; font-weight:bold;">'
-            f'⚠️ HIGH Attrition Risk! <br> {score:.2f}% 🚨</div>',
-            unsafe_allow_html=True
-        )
-    elif 60 <= score < 75:
-        st.markdown(
-            f'<div style="background-color:#ff9933; color:white; padding:15px; border-radius:10px; text-align:center; font-size:24px; font-weight:bold;">'
-            f'⚠️ Moderate to High Risk <br> {score:.2f}% ⚡</div>',
-            unsafe_allow_html=True
-        )
-    elif 35 <= score < 60:
-        st.markdown(
-            f'<div style="background-color:#ffd700; color:black; padding:15px; border-radius:10px; text-align:center; font-size:24px; font-weight:bold;">'
-            f'⚖️ Moderate Attrition Risk <br> {score:.2f}% 📉</div>',
-            unsafe_allow_html=True
-        )
-    else:
-        st.markdown(
-            f'<div style="background-color:#28a745; color:white; padding:15px; border-radius:10px; text-align:center; font-size:24px; font-weight:bold;">'
-            f'✅ SAFE! Low Attrition Risk <br> {score:.2f}% 🌱</div>',
-            unsafe_allow_html=True
-        )
+    # Create two columns: left for original result & triggers, right for scenario
+    col_left, col_right = st.columns(2)
 
-    # 2. List the triggers
-    st.write("### 2. Key Contributing Factors")
-    if triggers:
-        for t in triggers:
-            st.markdown(f"- **{t}**")
-    else:
-        st.markdown("*No major negative triggers identified.*")
+    # ---------------- LEFT COLUMN: Original Results & Problem Selection ----------------
+    with col_left:
+        st.markdown("### 2. Original Prediction Results")
+        # 1. Show the Risk Category
+        if score >= 75:
+            st.markdown(
+                f'<div style="background-color:#ff4d4d; color:white; padding:15px; border-radius:10px; text-align:center; font-size:20px; font-weight:bold;">'
+                f'⚠️ HIGH Attrition Risk! <br> {score:.2f}% 🚨</div>',
+                unsafe_allow_html=True
+            )
+        elif 60 <= score < 75:
+            st.markdown(
+                f'<div style="background-color:#ff9933; color:white; padding:15px; border-radius:10px; text-align:center; font-size:20px; font-weight:bold;">'
+                f'⚠️ Moderate to High Risk <br> {score:.2f}% ⚡</div>',
+                unsafe_allow_html=True
+            )
+        elif 35 <= score < 60:
+            st.markdown(
+                f'<div style="background-color:#ffd700; color:black; padding:15px; border-radius:10px; text-align:center; font-size:20px; font-weight:bold;">'
+                f'⚖️ Moderate Attrition Risk <br> {score:.2f}% 📉</div>',
+                unsafe_allow_html=True
+            )
+        else:
+            st.markdown(
+                f'<div style="background-color:#28a745; color:white; padding:15px; border-radius:10px; text-align:center; font-size:20px; font-weight:bold;">'
+                f'✅ SAFE! Low Attrition Risk <br> {score:.2f}% 🌱</div>',
+                unsafe_allow_html=True
+            )
 
-    # 3. Ask the user to pick sub-problems for each trigger
-    st.write("---")
-    st.write("### 3. Select Sub-Problems That Apply to Your Organization")
-    sub_problem_selections = {}
-    for trig in triggers:
-        # If the trigger is a "positive" factor or not in TRIGGER_DETAILS, skip
-        if trig not in TRIGGER_DETAILS:
-            continue
-        st.write(f"**{trig}**: Which of these sub-problems do you see in your organization?")
-        
-        # Display checkboxes
-        subproblem_dict = TRIGGER_DETAILS[trig]["subproblems"]
-        chosen = []
-        for sub_key, sub_label in subproblem_dict.items():
-            check_val = st.checkbox(f"{sub_label}", key=f"{trig}-{sub_key}")
-            if check_val:
-                chosen.append(sub_key)
-        sub_problem_selections[trig] = chosen
+        # 2. List the triggers
+        st.write("#### Key Contributing Factors")
+        if triggers:
+            for t in triggers:
+                st.markdown(f"- **{t}**")
+        else:
+            st.markdown("*No major negative triggers identified.*")
 
-    # Button to "Show me solutions"
-    if st.button("💡 Show Customized Solutions"):
-        st.write("### 4. Customized Recommendations and Action Points")
-        any_selection = False
+        st.write("---")
+        st.markdown("#### Sub-Problems Selection")
 
+        # 3. Ask the user to pick sub-problems for each trigger
+        sub_problem_selections = {}
         for trig in triggers:
+            # If the trigger is not in TRIGGER_DETAILS (i.e., a positive factor or unknown), skip
             if trig not in TRIGGER_DETAILS:
                 continue
 
-            chosen_subproblems = sub_problem_selections[trig]
-            if chosen_subproblems:
-                any_selection = True
-                st.write(f"**For Trigger: {trig}**")
-                for sub_key in chosen_subproblems:
-                    solution_text = TRIGGER_DETAILS[trig]["solutions"].get(sub_key, "")
-                    sub_label = TRIGGER_DETAILS[trig]["subproblems"][sub_key]
-                    st.markdown(f"**Sub-Problem:** {sub_label}")
-                    st.markdown(f"**Suggested Approach:**\n{solution_text}\n")
+            st.write(f"**{trig}**:")
+            subproblem_dict = TRIGGER_DETAILS[trig]["subproblems"]
+            chosen = []
+            for sub_key, sub_label in subproblem_dict.items():
+                check_val = st.checkbox(f"{sub_label}", key=f"{trig}-{sub_key}")
+                if check_val:
+                    chosen.append(sub_key)
+            sub_problem_selections[trig] = chosen
 
-        if not any_selection:
-            st.info("No sub-problems were selected. Hence, no additional solutions to display.")
+        # Button to "Show me solutions"
+        if st.button("💡 Show Customized Solutions"):
+            st.write("### Recommended Action Points")
+            any_selection = False
 
-    # ------------- NEW Step C: “What-If” Scenario Planning -------------
-    st.write("---")
-    st.write("### 5. What-If Scenario Planning")
-    st.write("Adjust certain factors to see how they could reduce or increase the attrition risk.")
+            for trig in triggers:
+                if trig not in TRIGGER_DETAILS:
+                    continue
 
-    # Create a copy of employee_data for scenario simulation
-    scenario_data = employee_data.copy()
+                chosen_subproblems = sub_problem_selections[trig]
+                if chosen_subproblems:
+                    any_selection = True
+                    st.write(f"**For Trigger: {trig}**")
+                    for sub_key in chosen_subproblems:
+                        solution_text = TRIGGER_DETAILS[trig]["solutions"].get(sub_key, "")
+                        sub_label = TRIGGER_DETAILS[trig]["subproblems"][sub_key]
+                        st.markdown(f"**Sub-Problem:** {sub_label}")
+                        st.markdown(f"**Suggested Approach:**\n{solution_text}\n")
 
-    # Only a subset of features might realistically be changed by HR or can vary quickly.
-    # For demonstration, let's pick a few key ones: Compa Ratio, Last Performance Rating, Pulse
-    scenario_data["Compa Ratio"] = st.slider(
-        "Scenario: Compa Ratio (%)", 50, 150, employee_data["Compa Ratio"]
-    )
-    scenario_data["Last Performance Rating"] = st.slider(
-        "Scenario: Last Performance Rating", 1, 5, employee_data["Last Performance Rating"]
-    )
-    scenario_data["Pulse"] = st.radio(
-        "Scenario: Pulse (Employee dissatisfaction)",
-        ["High", "Medium", "Low"],
-        index=["High", "Medium", "Low"].index(employee_data["Pulse"]),
-        horizontal=True
-    )
+            if not any_selection:
+                st.info("No sub-problems were selected. Hence, no additional solutions to display.")
 
-    # Button to "Recalculate" scenario-based risk
-    if st.button("Recalculate Risk for Scenario"):
-        scenario_score, scenario_triggers = predict_attrition(scenario_data)
-        st.write("**Scenario Attrition Risk:** {:.2f}%".format(scenario_score))
+    # ---------------- RIGHT COLUMN: “What-If” Scenario Planning ----------------
+    with col_right:
+        st.markdown("### 3. What-If Scenario Planning")
+        st.write("Try adjusting some key factors to see how risk might change.")
+        
+        # Create a scenario copy
+        scenario_data = employee_data.copy()
 
-        # Show difference from original
-        score_diff = scenario_score - score
-        if score_diff > 0:
-            st.markdown(f"<p style='color:red;'>Risk increased by +{score_diff:.2f}% compared to original.</p>", unsafe_allow_html=True)
-        elif score_diff < 0:
-            st.markdown(f"<p style='color:green;'>Risk decreased by {score_diff:.2f}% compared to original.</p>", unsafe_allow_html=True)
-        else:
-            st.write("No change in risk compared to original scenario.")
+        # Scenario sliders/radio for policy-relevant features
+        scenario_data["Compa Ratio"] = st.slider(
+            "Compa Ratio (%) [Scenario]", 
+            50, 150, employee_data["Compa Ratio"], 
+            help="Try increasing compensation ratio to see if risk decreases."
+        )
 
-        # Show new triggers
-        if scenario_triggers:
-            st.write("#### Scenario Triggers:")
-            for t in scenario_triggers:
-                st.markdown(f"- **{t}**")
-        else:
-            st.markdown("*No major negative triggers identified in this scenario.*")
+        scenario_data["Last Performance Rating"] = st.slider(
+            "Last Performance Rating [Scenario]", 
+            1, 5, employee_data["Last Performance Rating"], 
+            help="What if performance improves (higher rating) or worsens?"
+        )
+
+        scenario_data["Pulse"] = st.radio(
+            "Pulse (Employee dissatisfaction) [Scenario]",
+            ["High", "Medium", "Low"],
+            index=["High", "Medium", "Low"].index(employee_data["Pulse"])
+        )
+
+        # Recalculate scenario-based risk
+        if st.button("Recalculate for Scenario"):
+            scenario_score, scenario_triggers = predict_attrition(scenario_data)
+
+            st.markdown(f"**Scenario Attrition Risk:** {scenario_score:.2f}%")
+
+            score_diff = scenario_score - score
+            if score_diff > 0:
+                st.markdown(
+                    f"<p style='color:red;'>Risk increased by +{score_diff:.2f}% compared to original.</p>",
+                    unsafe_allow_html=True
+                )
+            elif score_diff < 0:
+                st.markdown(
+                    f"<p style='color:green;'>Risk decreased by {score_diff:.2f}% compared to original.</p>",
+                    unsafe_allow_html=True
+                )
+            else:
+                st.write("No change in risk compared to original scenario.")
+
+            # Show scenario triggers
+            if scenario_triggers:
+                st.write("#### Scenario Triggers:")
+                for t in scenario_triggers:
+                    st.markdown(f"- **{t}**")
+            else:
+                st.markdown("*No major negative triggers identified in this scenario.*")
