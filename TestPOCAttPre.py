@@ -418,7 +418,7 @@ mode = st.selectbox("Select Mode", ["Single Employee", "Bulk Employees"])
 # Only show sample CSV download in Bulk Mode
 if mode == "Bulk Employees":
     st.write("**Download a Sample Bulk CSV** if you want to see the required columns:")
-    sample_csv = generate_bulk_sample_csv()
+    sample_csv = generate_sample_csv()
     st.download_button(
         label="Download Sample Bulk CSV",
         data=sample_csv,
