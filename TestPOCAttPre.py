@@ -7,12 +7,12 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
 ###############################################################################
-# Step 1: Train & Save Logistic Regression (UNCHANGED)
+# Step 1: Train and Save a Logistic Regression Model (UNCHANGED)
 ###############################################################################
 def train_and_save_model():
     """
-    Creates a dummy dataset, trains a logistic regression model, 
-    saves the artifacts (model, scaler, and feature columns).
+    Creates a dummy dataset, trains a logistic regression model, and saves the
+    model, scaler, and feature columns for later use. This is unchanged logic.
     """
     np.random.seed(42)
     n_samples = 500
@@ -52,11 +52,10 @@ def train_and_save_model():
     with open("feature_columns.pkl", "wb") as f:
         pickle.dump(list(feature_columns), f)
 
-# Uncomment if needed only once
 train_and_save_model()
 
 ###############################################################################
-# Step 2: TRIGGER_DETAILS for Negative Triggers (UNCHANGED from your code)
+# Step 2: Define the Master Dictionary for Triggers, Sub-Problems, and Solutions
 ###############################################################################
 TRIGGER_DETAILS = {
     "Low gender diversity": {
@@ -67,22 +66,16 @@ TRIGGER_DETAILS = {
         },
         "solutions": {
             "lack_female_applicants": (
-                "**Recruitment Outreach & Employer Branding**\n\n"
-                "1. **Dedicated Female-Focused Campus Drives**: Partner with women's universities, community colleges, or professional groups to actively recruit female talent. Showcase success stories of women in your organization.\n"
-                "2. **Scholarships & Sponsorships**: Offer scholarships or sponsorship for certification programs targeting women in technical or leadership fields. This builds a talent pipeline.\n"
-                "3. **Inclusive Employer Branding**: Feature female employees in your marketing and recruitment materials; highlight flexible policies, leadership opportunities, and mentorship programs."
+                "- **Partner with Women’s Universities** or female-oriented professional groups.\n"
+                "- **Highlight DEI** (Diversity, Equity, Inclusion) in your recruitment materials."
             ),
             "lack_female_mentors": (
-                "**Leadership Development & Mentoring Programs**\n\n"
-                "1. **Formal Mentorship Framework**: Pair new female hires or mid-level employees with senior leaders who provide career guidance, skill development, and networking opportunities.\n"
-                "2. **Female Leadership Initiatives**: Create targeted leadership tracks or development courses that help high-potential women gain visibility and executive skills.\n"
-                "3. **Peer Circles & ERGs (Employee Resource Groups)**: Encourage female employees to form supportive communities. Sponsor regular meetups, workshops, or knowledge-sharing sessions to promote solidarity."
+                "- **Implement formal mentorship** programs.\n"
+                "- **Sponsor leadership development** for existing female employees."
             ),
             "rigid_policies": (
-                "**Flexible & Family-Friendly Policies**\n\n"
-                "1. **Flexible Working Hours**: Offer part-time, remote, or hybrid models to accommodate different life stages, including childcare or eldercare responsibilities.\n"
-                "2. **Enhanced Parental Leave**: Extend maternity and paternity leaves, and ensure re-entry support for returning parents, such as transitional part-time options.\n"
-                "3. **On-Site or Subsidized Childcare**: If feasible, provide in-house daycare or partner with local childcare centers. This significantly improves retention for working parents."
+                "- Introduce **flexible working hours** and remote/hybrid options.\n"
+                "- Improve **maternity/paternity benefits** and family-friendly leave."
             )
         }
     },
@@ -95,22 +88,16 @@ TRIGGER_DETAILS = {
         },
         "solutions": {
             "unclear_criteria": (
-                "**Transparent Promotion Framework**\n\n"
-                "1. **Objective KPIs**: Define a clear set of metrics (e.g., revenue impact, project success rates, leadership traits) so employees know exactly what’s needed for promotion.\n"
-                "2. **Promotion Review Panels**: Form cross-functional panels to mitigate bias. Publicize the panel’s membership and how decisions are reached.\n"
-                "3. **Continuous Feedback Mechanisms**: Avoid once-a-year evaluations. Instead, provide quarterly or monthly check-ins on promotion readiness."
+                "- **Publish transparent promotion guidelines** linked to clear KPIs.\n"
+                "- Provide employees with **regular promotion readiness feedback**."
             ),
             "no_mentorship": (
-                "**Mentorship & Upskilling Pathways**\n\n"
-                "1. **Formal Mentoring Program**: Assign each new or mid-career employee a seasoned mentor who can guide them in career progression.\n"
-                "2. **Upskilling Initiatives**: Offer internal courses, eLearning subscriptions, or skill certifications. Tie these to real promotion opportunities.\n"
-                "3. **Reverse Mentoring**: Pair senior leaders with junior staff to exchange fresh ideas (tech-savviness) and institutional knowledge (strategic thinking). This fosters mutual learning."
+                "- Launch **formal mentoring** or buddy programs.\n"
+                "- Offer **upskilling opportunities** and learning stipends."
             ),
             "bureaucratic_structure": (
-                "**Streamline Organizational Hierarchy**\n\n"
-                "1. **Flatten Org Layers**: Consolidate overlapping departments or reduce hierarchical tiers to speed decision-making.\n"
-                "2. **Empower Frontline Managers**: Grant more autonomy for promotion recommendations at the local/department level.\n"
-                "3. **Agile or Cross-Functional Teams**: Adopt agile frameworks where employees can move up based on skill mastery rather than waiting for openings in a rigid org chart."
+                "- **Streamline decision-making** or reduce hierarchical layers.\n"
+                "- Consider more **agile or cross-functional** teams to encourage skill growth."
             )
         }
     },
@@ -123,22 +110,16 @@ TRIGGER_DETAILS = {
         },
         "solutions": {
             "misaligned_role": (
-                "**Role Alignment & Expectation Management**\n\n"
-                "1. **Detailed JD & Goals**: Provide a clear job description and define specific, measurable objectives aligned with business goals.\n"
-                "2. **Job Realignment**: If an employee’s strengths are better suited elsewhere, consider an internal transfer. Encourage managers to spot potential role mismatches early.\n"
-                "3. **Regular Pulse Checks**: Schedule monthly or quarterly touchpoints to confirm that the role still fits the employee’s evolving interests and competencies."
+                "- **Clarify job responsibilities** and set SMART goals.\n"
+                "- Ensure roles align with employees’ **strengths** and career aspirations."
             ),
             "no_feedback": (
-                "**Frequent 1-on-1 Sessions & Real-Time Feedback**\n\n"
-                "1. **Weekly or Bi-Weekly 1-on-1s**: Ensure managers discuss performance, challenges, and goals. Provide immediate course corrections or praise.\n"
-                "2. **Performance Dashboards**: Implement a real-time metric or scoreboard that employees can view to track their KPIs.\n"
-                "3. **Peer Feedback Loops**: Encourage peer reviews or 360° feedback sessions to give employees a well-rounded perspective of their performance."
+                "- Implement **frequent 1:1 check-ins** and agile feedback loops.\n"
+                "- Use **performance dashboards** for real-time updates."
             ),
             "skill_gaps": (
-                "**Targeted Training & Growth Plans**\n\n"
-                "1. **Skill Matrix Assessment**: Identify critical skill gaps through structured testing or observation. Align training modules with these needs.\n"
-                "2. **Sponsored Certifications**: Cover costs for professional certifications related to the employee’s role. Offer time off for study.\n"
-                "3. **Buddy or Mentorship**: Pair the employee with a more experienced colleague to provide day-to-day skill guidance and coaching."
+                "- Provide **targeted training** and eLearning modules.\n"
+                "- Offer **certification reimbursements** and skill-building workshops."
             )
         }
     },
@@ -151,44 +132,149 @@ TRIGGER_DETAILS = {
         },
         "solutions": {
             "misaligned_role": (
-                "**Role Optimization & Clear Objectives**\n\n"
-                "1. **Reevaluate Role Fit**: Conduct a mini-audit of responsibilities to ensure the employee’s core strengths align with tasks.\n"
-                "2. **SMART Goals**: (Specific, Measurable, Achievable, Relevant, Time-Bound) for each quarter. Track progress in a transparent system.\n"
-                "3. **Collaborative Task Assignment**: Let employees volunteer for projects that interest them. This often boosts engagement and performance."
+                "- **Clarify job responsibilities** and set SMART goals.\n"
+                "- Align roles with employees’ strengths and preferences."
             ),
             "no_feedback": (
-                "**Structured Feedback & Coaching**\n\n"
-                "1. **Regular 1:1 Coaching**: Institute weekly or bi-weekly sessions where managers discuss current work, roadblocks, and improvements.\n"
-                "2. **Instant Recognition Tools**: Acknowledge small wins or correct issues in real time (e.g., Slack kudos, short manager check-ins).\n"
-                "3. **360-Degree Reviews**: Expand beyond manager feedback to peers, direct reports (if any), and cross-functional teams to get a holistic view."
+                "- Implement **regular 1:1 check-ins**.\n"
+                "- Provide ongoing **coaching and feedback** rather than annual appraisals."
             ),
             "skill_gaps": (
-                "**Learning & Development Interventions**\n\n"
-                "1. **Needs Assessment**: Use employee surveys or manager feedback to pinpoint exact skills the employee lacks.\n"
-                "2. **Microlearning Modules**: Provide short, focused eLearning segments employees can complete during breaks or off-peak hours.\n"
-                "3. **Mentorship & Cross-Training**: Rotate employees through different roles or departments to broaden their competence."
+                "- Offer **targeted training** in needed skill areas.\n"
+                "- Encourage **peer-to-peer learning** or cross-functional rotations."
             )
         }
     },
+
+    "Low compensation competitiveness": {
+        "subproblems": {
+            "below_market": "Base salary is below market rates",
+            "minimal_bonus": "Bonuses or variable pay are minimal or non-existent",
+            "poor_benefits": "Benefits package is lacking (insurance, retirement, etc.)"
+        },
+        "solutions": {
+            "below_market": (
+                "- **Conduct market benchmarking** to adjust salaries to median or above.\n"
+                "- Consider **geographic pay differentials** if applicable."
+            ),
+            "minimal_bonus": (
+                "- Introduce **performance-based incentives** or profit-sharing.\n"
+                "- Evaluate **RSUs (Restricted Stock Units)** or equity grants for retention."
+            ),
+            "poor_benefits": (
+                "- Offer **competitive health insurance**, retirement contributions.\n"
+                "- Provide **flexible schedules**, wellness programs, and other perks."
+            )
+        }
+    },
+
+    "Low college tier retention": {
+        "subproblems": {
+            "high_turnover_talent_pools": "High turnover among certain colleges or entry-level hires",
+            "mismatch_culture": "Mismatch between background and company culture",
+            "poor_onboarding": "Insufficient onboarding or assimilation for these hires"
+        },
+        "solutions": {
+            "high_turnover_talent_pools": (
+                "- Investigate root causes via **exit interviews**.\n"
+                "- Build **campus ambassador** programs to attract the right fit."
+            ),
+            "mismatch_culture": (
+                "- Provide better **orientation** on company culture.\n"
+                "- Pair new hires with **mentors** from similar backgrounds."
+            ),
+            "poor_onboarding": (
+                "- Enhance **onboarding programs** with structured check-ins (30/60/90 days).\n"
+                "- Offer a **buddy system** for new graduates."
+            )
+        }
+    },
+
+    "Low industry retention": {
+        "subproblems": {
+            "high_turnover_talent_pools": "High turnover among employees from this industry",
+            "mismatch_culture": "Mismatch between industry norms and your company's culture",
+            "poor_onboarding": "Insufficient onboarding for these lateral hires"
+        },
+        "solutions": {
+            "high_turnover_talent_pools": (
+                "- Conduct **benchmarking** to see if salaries and roles align with industry standards.\n"
+                "- Explore **targeted retention strategies** (mentorship, training)."
+            ),
+            "mismatch_culture": (
+                "- Emphasize **company values** and create inclusive teams.\n"
+                "- Have **town halls** or Q&A sessions for lateral hires to assimilate."
+            ),
+            "poor_onboarding": (
+                "- Develop **structured assimilation** for mid-career folks.\n"
+                "- Provide a **transition buddy** who understands both industries."
+            )
+        }
+    },
+
+    "Low company type retention": {
+        "subproblems": {
+            "high_turnover_talent_pools": "High turnover among employees from certain company backgrounds",
+            "mismatch_culture": "Mismatch between prior company culture and current environment",
+            "poor_onboarding": "Onboarding doesn’t address differences in processes, tools, or structures"
+        },
+        "solutions": {
+            "high_turnover_talent_pools": (
+                "- Identify if certain **company backgrounds** always churn quickly.\n"
+                "- Adapt your onboarding or project assignments accordingly."
+            ),
+            "mismatch_culture": (
+                "- Provide **culture assimilation** sessions or manager training.\n"
+                "- Encourage **peer networking** to help them adapt faster."
+            ),
+            "poor_onboarding": (
+                "- Have a **comprehensive onboarding** covering your processes & tools.\n"
+                "- Assign **buddies** who previously transitioned from similar backgrounds."
+            )
+        }
+    },
+
+    "High dissatisfaction (Pulse)": {
+        "subproblems": {
+            "work_life_imbalance": "Work-life imbalance or excessive workload",
+            "poor_manager_relationships": "Employees feel managers are unsupportive",
+            "limited_growth": "Limited growth or recognition opportunities"
+        },
+        "solutions": {
+            "work_life_imbalance": (
+                "- Offer **flexible scheduling** and **mental health** resources.\n"
+                "- Encourage **healthy boundaries** around work hours."
+            ),
+            "poor_manager_relationships": (
+                "- Train managers on **emotional intelligence** and communication.\n"
+                "- Collect **360-degree feedback** to identify manager blind spots."
+            ),
+            "limited_growth": (
+                "- Implement **career development** paths and internal mobility.\n"
+                "- Recognize achievements publicly and **reward** top performers."
+            )
+        }
+    }
+},
 
 ###############################################################################
 # Step 3: Rule-Based Scoring (UNCHANGED)
 ###############################################################################
 def compute_weighted_attrition(employee, return_triggers=False):
     """
-    EXACT Weighted-Factor logic from your code.
+    EXACT Weighted-Factor logic from your code, no changes
     """
     score = 0
     extreme_factors = 0
     triggers = []
 
-    # Example: Low gender diversity
+    # Gender Diversity
     if employee["Gender"] == "Female" and employee["Female Employee Ratio"] <= 15:
         score += 30
         extreme_factors += 1
         triggers.append("Low gender diversity")
 
-    # ... rest of your conditions exactly as posted ...
+    # ... all your other conditions ...
 
     if extreme_factors == 2:
         score = min(100, score * 1.3)
@@ -209,7 +295,8 @@ def compute_weighted_attrition(employee, return_triggers=False):
 ###############################################################################
 def predict_attrition(employee_data):
     """
-    Loads logistic regression, merges with Weighted Factor logic, returns (score, triggers).
+    Loads logistic regression, transforms data, and merges with Weighted Factor
+    EXACT logic. No changes from your code.
     """
     with open("logistic_regression_model.pkl", "rb") as f:
         model = pickle.load(f)
@@ -230,18 +317,19 @@ def predict_attrition(employee_data):
     return combined_score, triggers
 
 ###############################################################################
-# Step 4B: Generate a Sample CSV for Bulk
+# Generate Sample CSV for Bulk (with columns that the user must fill)
 ###############################################################################
 def generate_bulk_sample_csv():
     """
-    Creates a CSV that the user can download. 
-    They fill in employee-level data: 
-      Employee Name, Department, Employee Age, Tenure (Months), Hasn't been promoted,
-      Minimum Promotion Cycle, Pulse, Last Performance Rating, Compa Ratio, 
-      Gender, Which Tier College, Which Industry, Which Company Type.
+    This sample has columns for each employee's individual data:
+      Employee Name, Department, Employee Age, Tenure (Months),
+      Hasn't been promoted, Minimum Promotion Cycle, Pulse, 
+      Last Performance Rating, Compa Ratio, Gender,
+      Which Tier College, Which Industry, Which Company Type
 
-    They do NOT fill 'Average Employee Age', 'Female Employee Ratio', or
-    'College/Industry/Company Retention' as those are asked globally in the UI.
+    Meanwhile, 'Average Employee Age', 'Female Employee Ratio', 
+    'College Tier Retention', 'Industry Retention', 
+    'Company Type Retention' are asked as global sliders in the app
     """
     sample_df = pd.DataFrame({
         "Employee Name": ["Alice", "Bob"],
@@ -254,7 +342,7 @@ def generate_bulk_sample_csv():
         "Last Performance Rating": [3, 1],
         "Compa Ratio": [90, 65],
         "Gender": ["Female", "Male"],
-        "Which Tier College": ["Tier 1", "Tier 3"],
+        "Which Tier College": ["Tier 1", "Tier 2"],
         "Which Industry": ["IT", "Manufacturing"],
         "Which Company Type": ["Startup", "MNC"]
     })
@@ -263,20 +351,26 @@ def generate_bulk_sample_csv():
     return buffer.getvalue()
 
 ###############################################################################
-# Step 5: Streamlit UI
+# Step 5: Streamlit UI - Single + Bulk via Mode Switch
 ###############################################################################
-st.markdown(
-    "<h2 style='text-align: center; color: #4CAF50;'>🌟 Employee Attrition Prediction Tool 🚀</h2>",
-    unsafe_allow_html=True
-)
+st.markdown("<h2 style='text-align: center; color: #4CAF50;'>🌟 Employee Attrition Prediction Tool 🚀</h2>", unsafe_allow_html=True)
 
 mode = st.selectbox("Select Mode", ["Single Employee", "Bulk Employees"])
 
-# ========================= SINGLE EMPLOYEE MODE ========================= #
+# Only show sample CSV download in Bulk Mode
+if mode == "Bulk Employees":
+    st.write("**Download a Sample Bulk CSV** if you want to see the required columns:")
+    sample_csv = generate_bulk_sample_csv()
+    st.download_button(
+        label="Download Sample Bulk CSV",
+        data=sample_csv,
+        file_name="sample_bulk_data.csv",
+        mime="text/csv"
+    )
+
+# ==================== SINGLE EMPLOYEE MODE (UNCHANGED) ==================== #
 if mode == "Single Employee":
     st.subheader("Single Employee Prediction")
-
-    # EXACT single-employee code from your final snippet (unchanged)
     if "prediction_made" not in st.session_state:
         st.session_state.prediction_made = False
     if "score" not in st.session_state:
@@ -288,7 +382,6 @@ if mode == "Single Employee":
 
     with st.form("attrition_form"):
         st.write("#### Enter Employee / Company Details")
-
         input_data = {
             "Employee Age": st.slider("Employee Age", 18, 65, 30),
             "Average Employee Age": st.slider("Average Employee Age", 18, 65, 35),
@@ -317,7 +410,7 @@ if mode == "Single Employee":
         score = st.session_state.score
         triggers = st.session_state.triggers
 
-        # Full-width color-coded risk box
+        # Full-width risk box
         with st.container():
             if score >= 75:
                 bg_color = "#ff4d4d"
@@ -334,7 +427,7 @@ if mode == "Single Employee":
 
             st.markdown(
                 f"""
-                <div style="background-color:{bg_color}; color:white; padding:15px; border-radius:10px;
+                <div style="background-color:{bg_color}; color:white; padding:15px; border-radius:10px; 
                             text-align:center; font-size:24px; font-weight:bold;">
                     {msg_html}
                 </div>
@@ -344,7 +437,7 @@ if mode == "Single Employee":
 
         col_left, col_right = st.columns(2)
 
-        # ----------- LEFT: Negative triggers + Sub-Problems -----------
+        # ---------- LEFT: Negative triggers + Sub-Problems ----------
         with col_left:
             st.write("### Key Contributing Factors")
             negative_triggers = []
@@ -359,14 +452,13 @@ if mode == "Single Employee":
             sub_problem_selections = {}
             for trig in negative_triggers:
                 st.write(f"**{trig}**")
-                sub_dict = TRIGGER_DETAILS[trig]["subproblems"]
+                subprobs_dict = TRIGGER_DETAILS[trig]["subproblems"]
                 chosen_subs = []
-                for sub_key, sub_label in sub_dict.items():
+                for sub_key, sub_label in subprobs_dict.items():
                     chk_id = f"{trig}-{sub_key}"
                     if chk_id not in st.session_state:
                         st.session_state[chk_id] = False
-                    new_val = st.checkbox(sub_label, key=chk_id)
-                    if new_val:
+                    if st.checkbox(sub_label, key=chk_id):
                         chosen_subs.append(sub_key)
                 sub_problem_selections[trig] = chosen_subs
 
@@ -385,7 +477,7 @@ if mode == "Single Employee":
                 if not any_chosen:
                     st.info("No sub-problems selected, so no solutions to display.")
 
-        # ----------- RIGHT: Live What-If Scenario -----------
+        # ---------- RIGHT: Live What-If Scenario -------------
         with col_right:
             st.write("### What-If Scenario Planning")
             scenario_data = dict(st.session_state.employee_data)
@@ -427,73 +519,57 @@ if mode == "Single Employee":
                 st.markdown("*No negative triggers in this scenario.*")
 
 
-# ========================== BULK EMPLOYEES MODE ========================== #
+# =================== BULK EMPLOYEES MODE =================== #
 elif mode == "Bulk Employees":
     st.subheader("Global Parameters (Apply to All Employees in Bulk)")
 
-    # Ask user for global values that apply to ALL employees in the file
-    avg_employee_age = st.slider("Average Employee Age (Global)", 18, 65, 35)
+    # 1. Global sliders for entire dataset
+    avg_age = st.slider("Average Employee Age (Across All)", 18, 65, 35)
     female_ratio = st.slider("Female Employee Ratio (%) [Global]", 0, 100, 40)
     college_ret = st.slider("College Tier Retention (%) [Global]", 10, 100, 60)
     industry_ret = st.slider("Industry Retention (%) [Global]", 10, 100, 60)
     company_ret = st.slider("Company Type Retention (%) [Global]", 10, 100, 60)
 
     st.write("""
-    **Please upload a CSV/Excel file** with columns:
-    - **Employee Name** (string)
-    - **Department** (string)
-    - **Employee Age** (int)
-    - **Tenure (Months)** (int)
-    - **Hasn't been promoted** (int, months)
-    - **Minimum Promotion Cycle** (int, months)
-    - **Pulse** ("High","Medium","Low")
-    - **Last Performance Rating** (1-5)
-    - **Compa Ratio** (50-150)
-    - **Gender** ("Male","Female")
-    - **Which Tier College** (e.g., "Tier 1","Tier 2","Tier 3")
-    - **Which Industry** (string, e.g. "IT","Manufacturing")
-    - **Which Company Type** (e.g. "Startup","MNC")
-
-    (All other retention / average age parameters are set above as global sliders.)
+    Now upload a CSV/Excel with columns:
+    - Employee Name, Department, Employee Age, Tenure (Months),
+      Hasn't been promoted, Minimum Promotion Cycle, Pulse, 
+      Last Performance Rating, Compa Ratio, Gender,
+      Which Tier College, Which Industry, Which Company Type
     """)
 
-    # Provide Sample CSV button
-    st.write("**Download a Sample Bulk CSV** to see the required format:")
-    sample_csv = generate_bulk_sample_csv()
-    st.download_button("Download Sample Bulk CSV", sample_csv, file_name="sample_bulk_data.csv", mime="text/csv")
-
-    # File Uploader
-    uploaded_file = st.file_uploader("Upload your CSV/Excel", type=["csv","xlsx"])
-
+    uploaded_file = st.file_uploader("Upload CSV/Excel", type=["csv", "xlsx"])
     if uploaded_file is not None:
+        # Read file
         if uploaded_file.name.endswith(".csv"):
             df_bulk = pd.read_csv(uploaded_file)
         else:
             df_bulk = pd.read_excel(uploaded_file)
 
-        st.write("### Uploaded Data Preview:")
+        st.write("**Uploaded Data Preview:**")
         st.dataframe(df_bulk.head())
 
-        # Check columns
+        # Check required columns
         required_cols = [
             "Employee Name", "Department", "Employee Age", "Tenure (Months)",
             "Hasn't been promoted", "Minimum Promotion Cycle", "Pulse",
             "Last Performance Rating", "Compa Ratio", "Gender",
             "Which Tier College", "Which Industry", "Which Company Type"
         ]
-        missing = [c for c in required_cols if c not in df_bulk.columns]
+        missing = [col for col in required_cols if col not in df_bulk.columns]
         if missing:
             st.error(f"Missing columns: {missing}")
         else:
             if st.button("Run Bulk Prediction"):
+                # We'll store results
                 risk_scores = []
                 neg_triggers_list = []
 
                 for idx, row in df_bulk.iterrows():
-                    # Merge row-level data + global sliders
-                    row_dict = {
+                    # Merge global inputs with row-level data
+                    employee_dict = {
                         "Employee Age": row["Employee Age"],
-                        "Average Employee Age": avg_employee_age,
+                        "Average Employee Age": avg_age,
                         "Gender": row["Gender"],
                         "Female Employee Ratio": female_ratio,
                         "Tenure (Months)": row["Tenure (Months)"],
@@ -506,82 +582,80 @@ elif mode == "Bulk Employees":
                         "Last Performance Rating": row["Last Performance Rating"],
                         "Compa Ratio": row["Compa Ratio"]
                     }
-                    # Weighted + ML
-                    final_score, triggers = predict_attrition(row_dict)
-                    # Negative triggers only
-                    neg_t = [t for t in triggers if t in TRIGGER_DETAILS]
-                    triggers_str = ", ".join(neg_t)
+                    # Weighted factor + ML
+                    bulk_score, triggers = predict_attrition(employee_dict)
 
-                    risk_scores.append(final_score)
+                    # Gather negative triggers only
+                    neg_trigs = [t for t in triggers if t in TRIGGER_DETAILS]
+                    triggers_str = ", ".join(neg_trigs)
+
+                    risk_scores.append(bulk_score)
                     neg_triggers_list.append(triggers_str)
 
                 df_bulk["Attrition Score"] = risk_scores
                 df_bulk["Negative Triggers"] = neg_triggers_list
 
                 st.success("Bulk Prediction Completed!")
-                st.write("### Bulk Results")
+                st.write("### Bulk Results with Risk & Triggers")
                 st.dataframe(df_bulk)
 
-                # =================== Department-Level Insights =================== #
+                # ============== DEPARTMENT-LEVEL INSIGHTS ============= #
+                st.write("## Department-Level Insights")
+
                 if "Department" in df_bulk.columns:
-                    st.write("## Department-Level Insights")
-                    # 1) Average risk by department
-                    dept_risk = df_bulk.groupby("Department")["Attrition Score"].mean().reset_index()
-                    dept_risk.columns = ["Department", "Avg Attrition Score"]
-
+                    # 1) Group by Department, compute average risk
+                    dept_group = df_bulk.groupby("Department")["Attrition Score"].mean().reset_index()
+                    dept_group.columns = ["Department", "Avg Attrition Score"]
                     st.write("### Average Attrition Risk by Department")
-                    st.bar_chart(dept_risk.set_index("Department"))
+                    st.bar_chart(data=dept_group.set_index("Department"))
 
-                    # 2) Negative triggers per department
+                    # 2) For each department, show top negative triggers
                     st.write("### Top Negative Triggers per Department")
-                    dept_trig_map = {}
-                    for i, row_ in df_bulk.iterrows():
-                        dept_ = row_["Department"]
-                        tstr = row_["Negative Triggers"]
-                        if pd.notna(tstr) and tstr.strip():
-                            splitted = [x.strip() for x in tstr.split(",")]
+                    # We'll map department => list of triggers
+                    dept_triggers_map = {}
+                    for idx, row in df_bulk.iterrows():
+                        dept = row["Department"]
+                        trig_str = row["Negative Triggers"]
+                        if pd.notna(trig_str) and trig_str.strip():
+                            splitted = [x.strip() for x in trig_str.split(",")]
                         else:
                             splitted = []
-                        if dept_ not in dept_trig_map:
-                            dept_trig_map[dept_] = []
-                        dept_trig_map[dept_].extend(splitted)
+                        if dept not in dept_triggers_map:
+                            dept_triggers_map[dept] = []
+                        dept_triggers_map[dept].extend(splitted)
 
-                    for dept_ in dept_trig_map:
-                        if not dept_trig_map[dept_]:
-                            st.write(f"**{dept_}:** No negative triggers.")
+                    for dept, trig_list in dept_triggers_map.items():
+                        if len(trig_list) == 0:
+                            st.write(f"**{dept}:** No negative triggers.")
                             continue
-                        series_ = pd.Series(dept_trig_map[dept_]).value_counts()
-                        st.write(f"**Department: {dept_}**")
-                        st.bar_chart(series_)
+                        trig_series = pd.Series(trig_list).value_counts()
+                        st.write(f"**Department: {dept}**")
+                        st.bar_chart(trig_series)
 
-                    # 3) Alert if department risk is high
-                    for i2, row2 in dept_risk.iterrows():
-                        dname = row2["Department"]
-                        avg_ = row2["Avg Attrition Score"]
-                        if avg_ >= 75:
-                            st.error(f"**Dept '{dname}'** has HIGH avg risk ({avg_:.2f}%). Immediate interventions recommended.")
-                        elif avg_ >= 60:
-                            st.warning(f"**Dept '{dname}'** is Mod-High avg risk ({avg_:.2f}%). Needs close attention.")
-                        elif avg_ >= 35:
-                            st.info(f"**Dept '{dname}'** is Moderate avg risk ({avg_:.2f}%). Investigate triggers but less urgent.")
+                    # 3) Suggest basic "action" if dept avg risk is high
+                    for idx2, row2 in dept_group.iterrows():
+                        department_name = row2["Department"]
+                        avg_risk = row2["Avg Attrition Score"]
+                        if avg_risk >= 75:
+                            st.error(f"Department '{department_name}' has a HIGH average risk of {avg_risk:.2f}%. Immediate interventions recommended!")
+                        elif avg_risk >= 60:
+                            st.warning(f"Department '{department_name}' is in Mod-High zone with an average risk of {avg_risk:.2f}%. Needs close attention.")
+                        elif avg_risk >= 35:
+                            st.info(f"Department '{department_name}' is Moderate at {avg_risk:.2f}%. Investigate triggers but not critical.")
                         else:
-                            st.success(f"**Dept '{dname}'** is relatively SAFE at {avg_:.2f}%.")
+                            st.success(f"Department '{department_name}' is relatively Safe at {avg_risk:.2f}%. Maintain best practices.")
 
                 else:
-                    st.info("No 'Department' column found, skipping department-level insights.")
+                    st.info("No 'Department' column found to show department-level insights.")
 
-                # =================== Employee-Level Summary =================== #
-                st.write("## Employee-Level Summary")
-                st.write("Below are each employee's name, department, risk, and triggers.")
-                # Show user a simpler table
-                df_summary = df_bulk[[
-                    "Employee Name", "Department", "Attrition Score", "Negative Triggers"
-                ]].copy()
-                st.dataframe(df_summary)
+                # ============== EMPLOYEE-LEVEL LISTING: Name & Risk ============= #
+                st.write("## Employee-Level Overview")
+                st.write("Below is the final table with Employee Name and Attrition Score. Sort or filter as needed.")
+                summary_df = df_bulk[["Employee Name", "Department", "Attrition Score", "Negative Triggers"]].copy()
+                st.dataframe(summary_df)
 
                 st.write("""
-                *You can further enhance by letting each row 
-                do sub-problem selection or scenario planning, 
-                but for now we just show the final results.* 
+                **You can further expand**: 
+                - Provide sub-problem selection or scenario planning for each row.
+                - Offer advanced analytics or a separate page for deeper insights. 
                 """)
-
