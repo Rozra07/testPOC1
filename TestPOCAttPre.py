@@ -64,6 +64,12 @@ def compute_weighted_attrition(employee):
     if employee["Last Performance Rating"] == 1:
         score += 25
         extreme_factors += 1
+    if employee["Last Performance Rating"] == 2:
+        score += 15
+        extreme_factors += 0.5
+    if employee["Last Performance Rating"] == 5:
+        score -= 15
+        extreme_factors -= 0.5
     if employee["Compa Ratio"] < 70:
         score += 30
         extreme_factors += 1
