@@ -4,7 +4,6 @@ import numpy as np
 import pickle
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
-import os
 
 ###############################################################################
 # Step 1: Train a Dummy Logistic Regression Model (or Use Existing .pkl)
@@ -56,10 +55,11 @@ if RUN_TRAINING:
     train_and_save_model()
 
 ###############################################################################
-# Step 2: Rule-Based Scoring with Extreme Case Adjustments
+# Step 2: Rule-Based Scoring with Extreme Case Adjustments (Compounding Effect)
 ###############################################################################
 def compute_weighted_attrition(employee):
     score = 0
+    extreme_factors = 0  # Counter for extreme attrition cases
 
     # Age Weighting (6%)
     age_diff = abs(employee["Employee Age"] - employee["Average Employee Age"])
@@ -68,6 +68,7 @@ def compute_weighted_attrition(employee):
     # Extreme Case: Female in Male-Dominated Workplace (<10% Female Ratio)
     if employee.get("Gender", "Male") == "Female" and employee["Female Employee Ratio"] < 10:
         score += 12
+        extreme_factors += 1
 
     # Tenure Weighting (6%)
     score += 6 if employee["Tenure (Months)"] >= 24 else (3 if employee["Tenure (Months)"] >= 10 else 0)
@@ -75,31 +76,34 @@ def compute_weighted_attrition(employee):
     # Extreme Case: Promotion Delay (Now 25%)
     if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
         score += 25  
-    elif employee["Hasn't been promoted"] <= employee["Minimum Promotion Cycle"]:
-        score += 0
-    else:
-        diff = employee["Hasn't been promoted"] - employee["Minimum Promotion Cycle"]
-        score += (diff / employee["Minimum Promotion Cycle"]) * 10
+        extreme_factors += 1
 
     # Extreme Case: Last Performance Rating = 1 (30%)
     performance_map = {1: 30, 2: 20, 3: 10, 4: 5, 5: 0}
     score += performance_map.get(employee["Last Performance Rating"], 10)
+    if employee["Last Performance Rating"] == 1:
+        extreme_factors += 1
 
     # Extreme Case: Compa Ratio <70% (Now 30%)
     if employee["Compa Ratio"] < 70:
         score += 30  
-    elif employee["Compa Ratio"] >= 110:
-        score += 0
-    else:
-        score += (1 - (employee["Compa Ratio"] - 80) / 30) * 15
+        extreme_factors += 1
 
     # Extreme Cases for Low Retention Rates
     if employee["College Tier Retention"] < 20:
         score += 10
+        extreme_factors += 1
     if employee["Industry Retention"] < 20:
         score += 10
+        extreme_factors += 1
     if employee["Company Type Retention"] < 20:
         score += 10
+        extreme_factors += 1
+
+    # ✅ Apply Non-Linear Compounding Effect for 3+ Extreme Factors
+    if extreme_factors >= 3:
+        multiplier = 1.2 if extreme_factors == 3 else (1.4 if extreme_factors == 4 else 1.7)
+        score = min(100, score * multiplier)  
 
     return min(100, max(0, score))
 
@@ -131,40 +135,24 @@ def predict_attrition(employee_data):
 st.title("Employee Attrition Prediction Tool")
 
 with st.form("attrition_form"):
-    employee_age = st.slider("Employee Age", 18, 65, 30)
-    avg_employee_age = st.slider("Avg Employee Age", 18, 65, 35)
-    gender = st.radio("Gender", ["Male", "Female"], horizontal=True)
-    female_ratio = st.slider("Female Employee Ratio (%)", 0, 100, 40)
-    tenure = st.slider("Tenure (Months)", 0, 240, 36)
-    hasnt_promoted = st.slider("Months Since Last Promotion", 0, 60, 12)
-    min_promo_cycle = st.slider("Min Promotion Cycle (Months)", 12, 60, 24)
-    pulse = st.radio("Pulse", ["High", "Medium", "Low"], horizontal=True)
-    college_retention = st.slider("College Tier Retention (%)", 10, 100, 60)
-    industry_retention = st.slider("Industry Retention (%)", 10, 100, 60)
-    company_retention = st.slider("Company Type Retention (%)", 10, 100, 60)
-    last_perf_rating = st.slider("Last Performance Rating", 1, 5, 3)
-    num_promotions = st.number_input("Number of Promotions", 0, 10, 1)
-    compa_ratio = st.slider("Compa Ratio (%)", 50, 150, 100)
+    employee_data = {
+        "Employee Age": st.slider("Employee Age", 18, 65, 30),
+        "Average Employee Age": st.slider("Avg Employee Age", 18, 65, 35),
+        "Gender": st.radio("Gender", ["Male", "Female"], horizontal=True),
+        "Female Employee Ratio": st.slider("Female Employee Ratio (%)", 0, 100, 40),
+        "Tenure (Months)": st.slider("Tenure (Months)", 0, 240, 36),
+        "Hasn't been promoted": st.slider("Months Since Last Promotion", 0, 60, 12),
+        "Minimum Promotion Cycle": st.slider("Min Promotion Cycle (Months)", 12, 60, 24),
+        "College Tier Retention": st.slider("College Tier Retention (%)", 10, 100, 60),
+        "Industry Retention": st.slider("Industry Retention (%)", 10, 100, 60),
+        "Company Type Retention": st.slider("Company Type Retention (%)", 10, 100, 60),
+        "Last Performance Rating": st.slider("Last Performance Rating", 1, 5, 3),
+        "No. of Promotion": st.number_input("Number of Promotions", 0, 10, 1),
+        "Compa Ratio": st.slider("Compa Ratio (%)", 50, 150, 100)
+    }
 
     submit_button = st.form_submit_button("Predict")
 
 if submit_button:
-    employee_data = {
-        "Employee Age": employee_age,
-        "Average Employee Age": avg_employee_age,
-        "Gender": gender,
-        "Female Employee Ratio": female_ratio,
-        "Tenure (Months)": tenure,
-        "Hasn't been promoted": hasnt_promoted,
-        "Minimum Promotion Cycle": min_promo_cycle,
-        "Pulse": pulse,
-        "College Tier Retention": college_retention,
-        "Industry Retention": industry_retention,
-        "Company Type Retention": company_retention,
-        "Last Performance Rating": last_perf_rating,
-        "No. of Promotion": num_promotions,
-        "Compa Ratio": compa_ratio
-    }
-
     prediction = predict_attrition(employee_data)
     st.write(f"**Estimated Attrition Probability**: {prediction:.2f}%")
