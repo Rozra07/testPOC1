@@ -592,16 +592,17 @@ elif mode == "Bulk Employees":
     st.write("""
     ### 📁 Bulk Employee Attrition Prediction
     Upload a **CSV or Excel** file with the following columns:
-    - Employee Age
-    - Gender
-    - Pulse
-    - Hasn't been promoted
-    - Minimum Promotion Cycle
-    - Last Performance Rating
-    - Compa Ratio
-    - College Tier
-    - Industry
-    - Company Type
+    - **Name**
+    - **Employee Age**
+    - **Gender**
+    - **Chances of employee leaving (High, Medium, Low)**
+    - **Hasn't been promoted (in months)**
+    - **Min. Promotion cycle (in months)**
+    - **Performance rating out of 5**
+    - **Compa Ratio**
+    - **College Tier (Tier 1, Tier 2, Tier 3)**
+    - **Industry**
+    - **Company Type**
     """)
 
     # 1. Introduce Inputs for Fixed Attributes and Tier-Based Retention Percentages
@@ -697,10 +698,17 @@ elif mode == "Bulk Employees":
 
         # 5. Validate Columns
         required_cols = [
-            "Employee Age", "Gender", "Pulse",
-            "Hasn't been promoted", "Minimum Promotion Cycle",
-            "Last Performance Rating", "Compa Ratio",
-            "College Tier", "Industry", "Company Type"
+            "Name",
+            "Employee Age",
+            "Gender",
+            "Chances of employee leaving (High, Medium, Low)",
+            "Hasn't been promoted (in months)",
+            "Min. Promotion cycle (in months)",
+            "Performance rating out of 5",
+            "Compa Ratio",
+            "College Tier (Tier 1, Tier 2, Tier 3)",
+            "Industry",
+            "Company Type"
         ]
         missing = [c for c in required_cols if c not in df_bulk.columns]
         if missing:
@@ -709,16 +717,38 @@ elif mode == "Bulk Employees":
             if st.button("🚀 Run Bulk Prediction"):
                 scores = []
                 triggers_list = []
+                names = []
 
                 for idx, row in df_bulk.iterrows():
                     # Convert row to dictionary
                     row_dict = row.to_dict()
 
-                    # 6. Apply Fixed Attributes from Sliders
+                    # a. Extract and store the Name
+                    employee_name = row_dict.get("Name")
+                    names.append(employee_name)
+
+                    # 6. Rename Descriptive Columns to Internal Names
+                    rename_mapping = {
+                        "Chances of employee leaving (High, Medium, Low)": "Pulse",
+                        "Hasn't been promoted (in months)": "Hasn't been promoted",
+                        "Min. Promotion cycle (in months)": "Minimum Promotion Cycle",
+                        "Performance rating out of 5": "Last Performance Rating",
+                        "College Tier (Tier 1, Tier 2, Tier 3)": "College Tier"
+                        # "Industry" and "Company Type" remain the same
+                    }
+
+                    for desc_col, internal_col in rename_mapping.items():
+                        if desc_col in row_dict:
+                            row_dict[internal_col] = row_dict.pop(desc_col)
+                        else:
+                            st.warning(f"Row {idx}: Missing column '{desc_col}'. Skipping this row.")
+                            row_dict[internal_col] = np.nan  # Assign NaN or a default value
+
+                    # 7. Apply Fixed Attributes from Sliders
                     row_dict["Average Employee Age"] = fixed_attributes["Average Employee Age"]
                     row_dict["Female Employee Ratio"] = fixed_attributes["Female Employee Ratio"]
 
-                    # 7. Apply Tier-Based Retention Percentages
+                    # 8. Apply Tier-Based Retention Percentages
                     # a. College Tier Retention
                     college_tier = row_dict.get("College Tier")
                     if college_tier in college_retention:
@@ -743,7 +773,10 @@ elif mode == "Bulk Employees":
                         st.warning(f"Row {idx}: Unknown Company Type '{company_type}'. Using default retention of 50%.")
                         row_dict["Company Type Retention"] = 50  # Default value
 
-                    # 8. Predict Attrition
+                    # d. Handle Missing or NaN Values (Optional)
+                    # You can add code here to handle missing values if necessary
+
+                    # 9. Predict Attrition
                     bulk_score, bulk_trigs = predict_attrition(row_dict)
                     scores.append(bulk_score)
 
@@ -752,14 +785,17 @@ elif mode == "Bulk Employees":
                     triggers_str = ", ".join(neg_trigs)
                     triggers_list.append(triggers_str)
 
-                # 9. Append Results to DataFrame
+                # 10. Append Results to DataFrame
                 df_bulk["Attrition Score"] = scores
                 df_bulk["Negative Triggers"] = triggers_list
+
+                # 11. Retain and Display the Name Column
+                df_bulk["Name"] = names
 
                 st.success("✅ Bulk Prediction Completed!")
                 st.dataframe(df_bulk)
 
-                # 10. Basic Insights
+                # 12. Basic Insights
                 st.write("### 📈 Aggregate Insights")
 
                 high_risk = (df_bulk["Attrition Score"] >= 75).sum()
