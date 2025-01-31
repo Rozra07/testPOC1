@@ -6,112 +6,85 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
 ###############################################################################
-# Step 1: Train and Save a Dummy Logistic Regression Model
+# Load Model and Preprocessing Objects
 ###############################################################################
-def train_and_save_model():
-    np.random.seed(42)
-    n_samples = 500
-
-    df = pd.DataFrame({
-        "Employee Age": np.random.randint(20, 60, size=n_samples),
-        "Average Employee Age": np.random.randint(25, 50, size=n_samples),
-        "Female Employee Ratio": np.random.randint(0, 100, size=n_samples),
-        "Tenure (Months)": np.random.randint(0, 240, size=n_samples),
-        "Hasn't been promoted": np.random.randint(0, 60, size=n_samples),
-        "Minimum Promotion Cycle": np.random.randint(12, 60, size=n_samples),
-        "College Tier Retention": np.random.randint(10, 80, size=n_samples),
-        "Industry Retention": np.random.randint(10, 80, size=n_samples),
-        "Company Type Retention": np.random.randint(10, 80, size=n_samples),
-        "Last Performance Rating": np.random.randint(1, 6, size=n_samples),
-        "Compa Ratio": np.random.randint(50, 120, size=n_samples),
-        "Gender": np.random.choice(["Male", "Female"], size=n_samples),
-        "Pulse": np.random.choice(["High", "Medium", "Low"], size=n_samples)
-    })
-
-    y = np.random.randint(0, 2, size=n_samples)
-
-    df_encoded = pd.get_dummies(df, columns=["Gender", "Pulse"])
-    feature_columns = df_encoded.columns
-
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(df_encoded)
-
-    model = LogisticRegression(solver="liblinear", random_state=42)
-    model.fit(X_scaled, y)
-
-    with open("logistic_regression_model.pkl", "wb") as f:
-        pickle.dump(model, f)
-    with open("scaler.pkl", "wb") as f:
-        pickle.dump(scaler, f)
-    with open("feature_columns.pkl", "wb") as f:
-        pickle.dump(list(feature_columns), f)
-
-train_and_save_model()
-
-###############################################################################
-# Step 2: Rule-Based Scoring with Extreme Case Adjustments
-###############################################################################
-def compute_weighted_attrition(employee):
-    score = 0
-    extreme_factors = 0
-
-    if employee["Gender"] == "Female" and employee["Female Employee Ratio"] <= 15:
-        score += 30
-        extreme_factors += 1  
-    if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
-        score += 30
-        extreme_factors += 1
-    if employee["Last Performance Rating"] == 1:
-        score += 25
-        extreme_factors += 1
-    if employee["Compa Ratio"] < 70:
-        score += 30
-        extreme_factors += 1
-    if employee["College Tier Retention"] < 15:
-        score += 15
-        extreme_factors += 1
-    if employee["Industry Retention"] < 15:
-        score += 15
-        extreme_factors += 1
-    if employee["Company Type Retention"] < 15:
-        score += 15
-        extreme_factors += 1
-
-    if extreme_factors == 2:
-        score = min(100, score * 1.3)
-    if extreme_factors == 3:
-        score = min(100, score * 1.6)
-    if extreme_factors >= 4:
-        score = min(100, score * 2)
-
-    return min(100, max(0, score))
-
-###############################################################################
-# Step 3: Machine Learning Prediction
-###############################################################################
-def predict_attrition(employee_data):
+def load_model():
     with open("logistic_regression_model.pkl", "rb") as f:
         model = pickle.load(f)
     with open("scaler.pkl", "rb") as f:
         scaler = pickle.load(f)
     with open("feature_columns.pkl", "rb") as f:
         feature_columns = pickle.load(f)
+    return model, scaler, feature_columns
 
+model, scaler, feature_columns = load_model()
+
+###############################################################################
+# Rule-Based Scoring with Empathetic Explanations
+###############################################################################
+def compute_weighted_attrition(employee):
+    score = 0
+    extreme_factors = 0
+    reasons = []
+    
+    if employee["Gender"] == "Female" and employee["Female Employee Ratio"] <= 15:
+        score += 30
+        extreme_factors += 1  
+        reasons.append("Low gender diversity may create an unsupportive environment for female employees.")
+    if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
+        score += 30
+        extreme_factors += 1
+        reasons.append("The employee has waited too long for a promotion, which may cause dissatisfaction.")
+    if employee["Last Performance Rating"] == 1:
+        score += 25
+        extreme_factors += 1
+        reasons.append("Poor performance ratings could indicate a lack of motivation or support.")
+    if employee["Compa Ratio"] < 70:
+        score += 30
+        extreme_factors += 1
+        reasons.append("Compensation may not be competitive, leading to higher attrition risk.")
+    if employee["College Tier Retention"] < 15:
+        score += 15
+        extreme_factors += 1
+        reasons.append("Employees from certain college tiers may not feel valued in the organization.")
+    if employee["Industry Retention"] < 15:
+        score += 15
+        extreme_factors += 1
+        reasons.append("The industry-wide retention is low, meaning employees may have better external opportunities.")
+    if employee["Company Type Retention"] < 15:
+        score += 15
+        extreme_factors += 1
+        reasons.append("Company reputation may be impacting retention rates.")
+    
+    if extreme_factors == 2:
+        score = min(100, score * 1.3)
+    if extreme_factors == 3:
+        score = min(100, score * 1.6)
+    if extreme_factors >= 4:
+        score = min(100, score * 2)
+    
+    return min(100, max(0, score)), reasons
+
+###############################################################################
+# Machine Learning Prediction
+###############################################################################
+def predict_attrition(employee_data):
     df_input = pd.DataFrame([employee_data])
     df_input = pd.get_dummies(df_input)
     df_input = df_input.reindex(columns=feature_columns, fill_value=0)
     X_scaled = scaler.transform(df_input)
 
     ml_probability = model.predict_proba(X_scaled)[:, 1][0] * 100
-    rule_probability = compute_weighted_attrition(employee_data)
+    rule_probability, reasons = compute_weighted_attrition(employee_data)
 
     combined_score = 0.75 * rule_probability + 0.25 * ml_probability
-    return combined_score
+    return combined_score, reasons
 
 ###############################################################################
-# Step 4: Streamlit UI
+# Streamlit UI
 ###############################################################################
-st.title("Employee Attrition Prediction Tool")
+st.title("📊 Employee Attrition Prediction Tool")
+st.markdown("### Identify potential attrition risks and gain insights into employee retention.")
 
 with st.form("attrition_form"):
     employee_data = {
@@ -129,8 +102,31 @@ with st.form("attrition_form"):
         "Compa Ratio": st.slider("Compa Ratio (%)", 50, 150, 100)
     }
     
-    submit_button = st.form_submit_button("Predict")
+    submit_button = st.form_submit_button("🚀 Predict")
 
 if submit_button:
-    prediction = predict_attrition(employee_data)
-    st.write(f"**Estimated Attrition Probability**: {prediction:.2f}%")
+    prediction, reasons = predict_attrition(employee_data)
+    
+    st.markdown("---")
+    
+    if prediction > 70:
+        st.markdown(f"## ⚠️ High Attrition Risk: {prediction:.2f}%")
+        st.write("This employee has a high likelihood of leaving the organization. Below are some potential reasons:")
+        for reason in reasons:
+            st.markdown(f"- {reason}")
+        
+        st.markdown("### 🤔 Why do you think this is happening?")
+        employer_response = st.text_area("Your thoughts on the reasons above:")
+        
+        if st.button("💡 Get AI Suggestions"):
+            if employer_response.strip():
+                st.write("### AI-Driven Suggestions for Improvement")
+                st.write("Based on your insights, here are some ways to mitigate attrition risk:")
+                
+                for reason in reasons:
+                    st.markdown(f"- **{reason}**")
+            else:
+                st.write("### Please share your thoughts above for AI-driven suggestions!")
+    else:
+        st.markdown(f"## ✅ Low Attrition Risk: {prediction:.2f}%")
+        st.write("This employee has a low likelihood of leaving the organization. Keep up the good work!")
