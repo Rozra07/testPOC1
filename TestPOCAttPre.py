@@ -590,7 +590,7 @@ if mode == "Single Employee":
 # ========================= BULK EMPLOYEE MODE =========================== #
 elif mode == "Bulk Employees":
     st.write("""
-    ### 📁 Bulk Employee Attrition Prediction
+    ### 📁 Bulk Employee [NOT READY YET]
     Upload a **CSV or Excel** file with the following columns:
     - **Name**
     - **Employee Age**
