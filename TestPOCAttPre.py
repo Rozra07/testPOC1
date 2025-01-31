@@ -127,7 +127,11 @@ def predict_attrition(employee_data):
 # Step 4: Streamlit UI
 ###############################################################################
 st.title("🌟 Employee Attrition Prediction Tool 🚀")
-
+# Streamlit Title with Reduced Size
+st.markdown(
+    "<h2 style='text-align: center; color: #4CAF50;'>🌟 Employee Attrition Prediction Tool 🚀</h2>",
+    unsafe_allow_html=True
+)
 with st.form("attrition_form"):
     employee_data = {
         "Employee Age": st.slider("Employee Age", 18, 65, 30),
