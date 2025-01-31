@@ -21,14 +21,24 @@ def predict_attrition(employee_data):
     df_input = df_input.reindex(columns=feature_columns, fill_value=0)
     X_scaled = scaler.transform(df_input)
 
-    ml_probability = model.predict_proba(X_scaled)[:, 1][0] * 100
+    # Debugging Logs
+    print("Model type:", type(model))
+    print("Expected Features:", feature_columns)
+    print("Input Data Columns:", df_input.columns)
+
+    # Check if predict_proba exists
+    if hasattr(model, "predict_proba"):
+        ml_probability = model.predict_proba(X_scaled)[:, 1][0] * 100
+    else:
+        ml_probability = model.predict(X_scaled)[0] * 100  # Fallback
+
     rule_probability = compute_weighted_attrition(employee_data)
 
-    # ✅ Override ML Probability for Extreme Cases
+    # Override ML Probability for Extreme Cases
     if rule_probability >= 80:
         ml_probability = max(ml_probability, rule_probability)
 
-    # ✅ Adjust ML weight to 30% and Rule-Based to 70%
+    # Adjust ML weight to 30% and Rule-Based to 70%
     combined_score = (0.3 * ml_probability) + (0.7 * rule_probability)
 
     return min(100, combined_score)
@@ -42,7 +52,7 @@ def compute_weighted_attrition(employee):
 
     # Age Weighting (6%) - Normalizing the impact
     age_diff = abs(employee["Employee Age"] - employee["Average Employee Age"])
-    score += (age_diff / 25) * 6 if age_diff >= 5 else 0  # Small changes shouldn't matter
+    score += (age_diff / 25) * 6 if age_diff >= 5 else 0
 
     # Extreme Case: Female in Male-Dominated Workplace (<10% Female Ratio)
     if employee.get("Gender", "Male") == "Female" and employee["Female Employee Ratio"] < 10:
@@ -54,18 +64,18 @@ def compute_weighted_attrition(employee):
 
     # Extreme Case: Promotion Delay (Now 35%) - Stronger weight
     if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
-        score += 35  # Increased from 30 → 35
+        score += 35
         extreme_factors += 1
 
     # Extreme Case: Last Performance Rating = 1 (40%) - Stronger impact
-    performance_map = {1: 40, 2: 25, 3: 15, 4: 5, 5: 0}  # Increased from 35 → 40
+    performance_map = {1: 40, 2: 25, 3: 15, 4: 5, 5: 0}
     score += performance_map.get(employee["Last Performance Rating"], 5)
     if employee["Last Performance Rating"] == 1:
         extreme_factors += 1
 
     # Extreme Case: Compa Ratio <70% (Now 40%) - Stronger impact
     if employee["Compa Ratio"] < 70:
-        score += 40  # Increased from 35 → 40
+        score += 40
         extreme_factors += 1
 
     # Extreme Cases for Low Retention Rates
