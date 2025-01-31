@@ -64,25 +64,25 @@ def compute_weighted_attrition(employee):
     # Apply weightage for different factors
     if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
         score += 30
-        extreme_factors += 2
+        extreme_factors += 1
     if employee["Last Performance Rating"] == 1:
         score += 40
-        extreme_factors += 2
+        extreme_factors += 1
     if employee["Compa Ratio"] < 70:
         score += 35
         extreme_factors += 1
     if employee["College Tier Retention"] < 15:
         score += 15
-        extreme_factors += 2
+        extreme_factors += 1
     if employee["Industry Retention"] < 15:
         score += 15
-        extreme_factors += 2
+        extreme_factors += 1
     if employee["Company Type Retention"] < 15:
         score += 15
-        extreme_factors += 2
+        extreme_factors += 1
 
     if extreme_factors >= 3:
-        multiplier = 1.6 if extreme_factors == 3 else (1.8 if extreme_factors == 4 else 2)
+        multiplier = 1.3 if extreme_factors == 3 else (1.5 if extreme_factors == 4 else 1.8)
         score = min(100, score * multiplier)
 
     score = max(0, score - 20)
