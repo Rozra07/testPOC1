@@ -133,10 +133,10 @@ with st.form("attrition_form"):
 
 if submit_button:
     prediction = predict_attrition(employee_data)
-    if submit_button:
+if submit_button:
     prediction = predict_attrition(employee_data)
     
-    if prediction >= 90:
+if prediction >= 90:
         st.markdown(
             f'<div style="background-color:#ff4d4d; color:white; padding:15px; border-radius:10px; text-align:center; font-size:24px; font-weight:bold;">'
             f'⚠️ HIGH Attrition Risk! <br> {prediction:.2f}% 🚨</div>',
