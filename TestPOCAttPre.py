@@ -408,7 +408,7 @@ def generate_sample_csv():
 # Step 5: Streamlit UI - Original Single Code + Bulk Code with Mode Switch
 ###############################################################################
 st.markdown(
-    "<h2 style='text-align: center; color: #141414;'>🌟 Employee Attrition Prediction Tool</h2>",
+    "<h2 style='text-align: center; color: #141414;'>Employee Attrition Prediction Tool</h2>",
     unsafe_allow_html=True
 )
 
