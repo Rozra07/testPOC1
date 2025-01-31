@@ -589,8 +589,12 @@ if mode == "Single Employee":
 
 # ========================= BULK EMPLOYEE MODE =========================== #
 elif mode == "Bulk Employees":
+    st.markdown(
+    "<h5 style='text-align: center; color: #FF2400;'>[NOT READY YET]</h5>",
+    unsafe_allow_html=True
+)
     st.write("""
-    ### 📁 Bulk Employee [NOT READY YET]
+    ### 📁 Bulk Employee Attrition Prediction
     Upload a **CSV or Excel** file with the following columns:
     - **Name**
     - **Employee Age**
