@@ -63,209 +63,254 @@ train_and_save_model()
 ###############################################################################
 # NOTE: Only include triggers that *increase* risk. Positive triggers won't have sub-problems.
 TRIGGER_DETAILS = {
-    # 1. "Low gender diversity"
     "Low gender diversity": {
         "subproblems": {
-            "lack_female_applicants": "Not enough female applicants",
-            "lack_female_mentors": "Few female mentors/leaders",
-            "rigid_policies": "Rigid policies (no flexible working, limited maternity/paternity)"
+            "lack_female_applicants": "We are not getting enough female applicants",
+            "lack_female_mentors": "We have few female mentors or leaders",
+            "rigid_policies": "We do not offer flexible policies (e.g., maternity, remote, etc.)"
         },
         "solutions": {
             "lack_female_applicants": (
-                "- **Partner with Women’s Universities** or women-focused professional networks.\n"
-                "- **Highlight DEI** in your job postings and employer branding."
+                "**Recruitment Outreach & Employer Branding**\n\n"
+                "1. **Dedicated Female-Focused Campus Drives**: Partner with women's universities, community colleges, or professional groups to actively recruit female talent. Showcase success stories of women in your organization.\n"
+                "2. **Scholarships & Sponsorships**: Offer scholarships or sponsorship for certification programs targeting women in technical or leadership fields. This builds a talent pipeline.\n"
+                "3. **Inclusive Employer Branding**: Feature female employees in your marketing and recruitment materials; highlight flexible policies, leadership opportunities, and mentorship programs."
             ),
             "lack_female_mentors": (
-                "- **Implement formal mentorship** programs.\n"
-                "- **Sponsor leadership development** for existing female employees."
+                "**Leadership Development & Mentoring Programs**\n\n"
+                "1. **Formal Mentorship Framework**: Pair new female hires or mid-level employees with senior leaders who provide career guidance, skill development, and networking opportunities.\n"
+                "2. **Female Leadership Initiatives**: Create targeted leadership tracks or development courses that help high-potential women gain visibility and executive skills.\n"
+                "3. **Peer Circles & ERGs (Employee Resource Groups)**: Encourage female employees to form supportive communities. Sponsor regular meetups, workshops, or knowledge-sharing sessions to promote solidarity."
             ),
             "rigid_policies": (
-                "- Introduce **flexible/hybrid** work schedules.\n"
-                "- Enhance **maternity/paternity benefits** and on-site childcare if possible."
+                "**Flexible & Family-Friendly Policies**\n\n"
+                "1. **Flexible Working Hours**: Offer part-time, remote, or hybrid models to accommodate different life stages, including childcare or eldercare responsibilities.\n"
+                "2. **Enhanced Parental Leave**: Extend maternity and paternity leaves, and ensure re-entry support for returning parents, such as transitional part-time options.\n"
+                "3. **On-Site or Subsidized Childcare**: If feasible, provide in-house daycare or partner with local childcare centers. This significantly improves retention for working parents."
             )
         }
     },
 
-    # 2. "Stagnant promotions"
     "Stagnant promotions": {
         "subproblems": {
             "unclear_criteria": "Promotion criteria are unclear or inconsistent",
-            "no_mentorship": "No mentorship/upskilling programs",
-            "bureaucratic_structure": "Too many hierarchical layers/bureaucracy"
+            "no_mentorship": "No proper mentorship or upskilling tracks exist",
+            "bureaucratic_structure": "The organization structure is too bureaucratic"
         },
         "solutions": {
             "unclear_criteria": (
-                "- **Publish transparent criteria** linked to clear KPIs.\n"
-                "- Provide **regular feedback** on promotion readiness."
+                "**Transparent Promotion Framework**\n\n"
+                "1. **Objective KPIs**: Define a clear set of metrics (e.g., revenue impact, project success rates, leadership traits) so employees know exactly what’s needed for promotion.\n"
+                "2. **Promotion Review Panels**: Form cross-functional panels to mitigate bias. Publicize the panel’s membership and how decisions are reached.\n"
+                "3. **Continuous Feedback Mechanisms**: Avoid once-a-year evaluations. Instead, provide quarterly or monthly check-ins on promotion readiness."
             ),
             "no_mentorship": (
-                "- Launch **formal mentoring** or buddy programs.\n"
-                "- Offer **upskilling** and learning stipends."
+                "**Mentorship & Upskilling Pathways**\n\n"
+                "1. **Formal Mentoring Program**: Assign each new or mid-career employee a seasoned mentor who can guide them in career progression.\n"
+                "2. **Upskilling Initiatives**: Offer internal courses, eLearning subscriptions, or skill certifications. Tie these to real promotion opportunities.\n"
+                "3. **Reverse Mentoring**: Pair senior leaders with junior staff to exchange fresh ideas (tech-savviness) and institutional knowledge (strategic thinking). This fosters mutual learning."
             ),
             "bureaucratic_structure": (
-                "- **Streamline decision-making** or reduce hierarchy.\n"
-                "- Adopt more **agile, cross-functional** teams."
+                "**Streamline Organizational Hierarchy**\n\n"
+                "1. **Flatten Org Layers**: Consolidate overlapping departments or reduce hierarchical tiers to speed decision-making.\n"
+                "2. **Empower Frontline Managers**: Grant more autonomy for promotion recommendations at the local/department level.\n"
+                "3. **Agile or Cross-Functional Teams**: Adopt agile frameworks where employees can move up based on skill mastery rather than waiting for openings in a rigid org chart."
             )
         }
     },
 
-    # 3. "Very low performance rating"
     "Very low performance rating": {
         "subproblems": {
-            "misaligned_role": "Job role/expectations are unclear or mismatched",
-            "no_feedback": "Lack of continuous feedback / 1-on-1s",
+            "misaligned_role": "Job role or expectations are unclear or mismatched",
+            "no_feedback": "Lack of continuous feedback or 1-on-1 sessions",
             "skill_gaps": "Skill gaps or training needs not addressed"
         },
         "solutions": {
             "misaligned_role": (
-                "- **Clarify job responsibilities** and set SMART goals.\n"
-                "- Align tasks with employees’ **strengths**."
+                "**Role Alignment & Expectation Management**\n\n"
+                "1. **Detailed JD & Goals**: Provide a clear job description and define specific, measurable objectives aligned with business goals.\n"
+                "2. **Job Realignment**: If an employee’s strengths are better suited elsewhere, consider an internal transfer. Encourage managers to spot potential role mismatches early.\n"
+                "3. **Regular Pulse Checks**: Schedule monthly or quarterly touchpoints to confirm that the role still fits the employee’s evolving interests and competencies."
             ),
             "no_feedback": (
-                "- Implement **regular 1:1 check-ins** and agile feedback loops.\n"
-                "- Provide **real-time dashboards** or frequent reviews."
+                "**Frequent 1-on-1 Sessions & Real-Time Feedback**\n\n"
+                "1. **Weekly or Bi-Weekly 1-on-1s**: Ensure managers discuss performance, challenges, and goals. Provide immediate course corrections or praise.\n"
+                "2. **Performance Dashboards**: Implement a real-time metric or scoreboard that employees can view to track their KPIs.\n"
+                "3. **Peer Feedback Loops**: Encourage peer reviews or 360° feedback sessions to give employees a well-rounded perspective of their performance."
             ),
             "skill_gaps": (
-                "- Offer **targeted training** and eLearning modules.\n"
-                "- Provide **certification reimbursements** and skill workshops."
+                "**Targeted Training & Growth Plans**\n\n"
+                "1. **Skill Matrix Assessment**: Identify critical skill gaps through structured testing or observation. Align training modules with these needs.\n"
+                "2. **Sponsored Certifications**: Cover costs for professional certifications related to the employee’s role. Offer time off for study.\n"
+                "3. **Buddy or Mentorship**: Pair the employee with a more experienced colleague to provide day-to-day skill guidance and coaching."
             )
         }
     },
 
-    # 4. "Low performance rating"
     "Low performance rating": {
         "subproblems": {
-            "misaligned_role": "Role or expectations unclear/mismatched",
-            "no_feedback": "Lack of feedback or performance discussions",
-            "skill_gaps": "Employee lacks key skills/training"
+            "misaligned_role": "Job role or expectations are unclear or mismatched",
+            "no_feedback": "Lack of continuous feedback or 1-on-1 sessions",
+            "skill_gaps": "Skill gaps or training needs not addressed"
         },
         "solutions": {
             "misaligned_role": (
-                "- **Re-assess job responsibilities** to ensure good fit.\n"
-                "- Set **SMART** performance goals and accountability."
+                "**Role Optimization & Clear Objectives**\n\n"
+                "1. **Reevaluate Role Fit**: Conduct a mini-audit of responsibilities to ensure the employee’s core strengths align with tasks.\n"
+                "2. **SMART Goals**: (Specific, Measurable, Achievable, Relevant, Time-Bound) for each quarter. Track progress in a transparent system.\n"
+                "3. **Collaborative Task Assignment**: Let employees volunteer for projects that interest them. This often boosts engagement and performance."
             ),
             "no_feedback": (
-                "- **Frequent check-ins** with manager.\n"
-                "- Peer coaching or **weekly sprints** for feedback."
+                "**Structured Feedback & Coaching**\n\n"
+                "1. **Regular 1:1 Coaching**: Institute weekly or bi-weekly sessions where managers discuss current work, roadblocks, and improvements.\n"
+                "2. **Instant Recognition Tools**: Acknowledge small wins or correct issues in real time (e.g., Slack kudos, short manager check-ins).\n"
+                "3. **360-Degree Reviews**: Expand beyond manager feedback to peers, direct reports (if any), and cross-functional teams to get a holistic view."
             ),
             "skill_gaps": (
-                "- Implement **upskilling** or cross-functional training.\n"
-                "- Use a **mentorship** or buddy system for knowledge-sharing."
+                "**Learning & Development Interventions**\n\n"
+                "1. **Needs Assessment**: Use employee surveys or manager feedback to pinpoint exact skills the employee lacks.\n"
+                "2. **Microlearning Modules**: Provide short, focused eLearning segments employees can complete during breaks or off-peak hours.\n"
+                "3. **Mentorship & Cross-Training**: Rotate employees through different roles or departments to broaden their competence."
             )
         }
     },
 
-    # 5. "Low compensation competitiveness"
     "Low compensation competitiveness": {
         "subproblems": {
-            "below_market": "Base salary below market benchmarks",
-            "minimal_bonus": "Bonuses/variable pay are minimal",
-            "poor_benefits": "Benefits package lacking (insurance, retirement, etc.)"
+            "below_market": "Base salary is below market rates",
+            "minimal_bonus": "Bonuses or variable pay are minimal or non-existent",
+            "poor_benefits": "Benefits package is lacking (insurance, retirement, etc.)"
         },
         "solutions": {
             "below_market": (
-                "- **Benchmark** salaries and adjust to median or above.\n"
-                "- Consider **geo-based pay** if relevant."
+                "**Market Benchmarking & Salary Adjustments**\n\n"
+                "1. **Annual/Quarterly Market Surveys**: Regularly compare your salary bands to industry standards in your region.\n"
+                "2. **Equitable Pay Structures**: Eliminate internal pay disparities by implementing transparent pay bands for each role tier.\n"
+                "3. **Communication on Pay Philosophy**: Clearly explain how raises and adjustments occur—employees value transparency even if you can’t match top-tier competitors."
             ),
             "minimal_bonus": (
-                "- Introduce **performance-based incentives** or profit-sharing.\n"
-                "- Evaluate **RSUs** or equity for retention."
+                "**Performance-Based & Variable Pay**\n\n"
+                "1. **Individual & Team Bonuses**: Reward both personal achievements and collaborative results, ensuring transparency on bonus formulas.\n"
+                "2. **Profit-Sharing or RSUs**: Offer equity or profit-sharing to tie compensation to overall company success.\n"
+                "3. **Spot Bonuses & Micro-Incentives**: Give immediate micro-bonuses or gift cards for exceptional work. Small gestures can significantly boost morale."
             ),
             "poor_benefits": (
-                "- Offer **competitive health & retirement** benefits.\n"
-                "- Provide **flexible schedules** and wellness programs."
+                "**Robust Benefits & Perks**\n\n"
+                "1. **Health & Wellness**: Provide comprehensive medical insurance, mental health support, gym reimbursements, or wellness stipends.\n"
+                "2. **Retirement / Pension Plans**: Match or partially match employees’ contributions to encourage long-term loyalty.\n"
+                "3. **Flexible Work & Additional Leave**: Beyond standard PTO, consider sabbaticals, volunteer days, or bereavement expansions. Benefits that show empathy can greatly improve retention."
             )
         }
     },
 
-    # 6. "Low college tier retention"
     "Low college tier retention": {
         "subproblems": {
-            "high_turnover_talent_pools": "High turnover among certain colleges / new grads",
-            "mismatch_culture": "Mismatch between background & company culture",
-            "poor_onboarding": "Onboarding not tailored for entry-level hires"
+            "high_turnover_talent_pools": "High turnover among certain colleges or entry-level hires",
+            "mismatch_culture": "Mismatch between background and company culture",
+            "poor_onboarding": "Insufficient onboarding or assimilation for these hires"
         },
         "solutions": {
             "high_turnover_talent_pools": (
-                "- Investigate root causes via **exit interviews**.\n"
-                "- Build **campus ambassador** programs for targeted hiring."
+                "**Strategic Campus Engagement**\n\n"
+                "1. **Focused College Partnerships**: Identify top feeder schools and partner on internships, case competitions, or hackathons. This builds familiarity and loyalty.\n"
+                "2. **Ambassador Programs**: Send young alumni or enthusiastic employees as brand ambassadors to campus. Authentic stories are powerful.\n"
+                "3. **Structured Internship-to-Fulltime Pipeline**: Offer guaranteed interviews or fast-track promotions for top interns to reduce post-graduation attrition."
             ),
             "mismatch_culture": (
-                "- Offer better **orientation** on company culture.\n"
-                "- **Mentorship** for new grads from similar backgrounds."
+                "**Pre-Placement Orientation & Culture Fit**\n\n"
+                "1. **Culture Previews**: Invite prospective hires to an on-site “day in the life” or an online “virtual office tour” showing real team dynamics.\n"
+                "2. **Post-Hire Assimilation Sessions**: Provide a series of culture classes, leadership Q&As, or team-building exercises for new grads.\n"
+                "3. **Peer-Led Communities**: Encourage new hires from similar backgrounds to form support circles, championed by a senior sponsor."
             ),
             "poor_onboarding": (
-                "- Enhance **onboarding** with 30/60/90 check-ins.\n"
-                "- Create a **buddy system** for new grads."
+                "**Comprehensive Onboarding & Mentorship**\n\n"
+                "1. **30/60/90-Day Check-Ins**: Conduct structured reviews at monthly intervals to tackle any confusion or skill gap before it leads to disengagement.\n"
+                "2. **Buddy Systems**: Pair each new grad with a ‘buddy’ who can handle day-to-day queries about company norms.\n"
+                "3. **Accelerated Learning Tracks**: Provide tailored training programs focusing on foundational professional skills (e.g., communication, project management)."
             )
         }
     },
 
-    # 7. "Low industry retention"
     "Low industry retention": {
         "subproblems": {
-            "high_turnover_talent_pools": "High turnover from employees with certain industry backgrounds",
-            "mismatch_culture": "Mismatch between industry norms & your org culture",
-            "poor_onboarding": "Onboarding insufficient for lateral hires"
+            "high_turnover_talent_pools": "High turnover among employees from this industry",
+            "mismatch_culture": "Mismatch between industry norms and your company's culture",
+            "poor_onboarding": "Insufficient onboarding for these lateral hires"
         },
         "solutions": {
             "high_turnover_talent_pools": (
-                "- **Benchmark** comp & roles vs. industry.\n"
-                "- Provide **targeted retention** (mentorship, training)."
+                "**Industry-Focused Retention Strategies**\n\n"
+                "1. **Talent Mapping**: Identify critical roles that have highest churn and reassess compensation, growth opportunities, or team fit.\n"
+                "2. **Retention Interviews**: Conduct stay interviews with experienced hires from the same industry to glean what they value.\n"
+                "3. **Cross-Functional Opportunities**: Offer lateral hires the chance to learn about other departments, broadening skill sets and increasing engagement."
             ),
             "mismatch_culture": (
-                "- Emphasize **company values** & inclusive culture.\n"
-                "- Host **town halls** or Q&A sessions for lateral hires."
+                "**Bridging Cultural Gaps**\n\n"
+                "1. **Internal Culture Guides**: Provide easy-to-read documents or videos explaining your corporate ethos, mission, and do’s/don’ts.\n"
+                "2. **Town Halls & Q&A**: Host open sessions where new lateral hires can anonymously ask culture-related questions.\n"
+                "3. **Peer Networking**: Assign culture ambassadors who themselves transitioned from the same industry, easing the new hires’ cultural adjustments."
             ),
             "poor_onboarding": (
-                "- Structure **assimilation** for mid-career folks.\n"
-                "- Provide a **transition buddy** with industry experience."
+                "**Customized Lateral Onboarding**\n\n"
+                "1. **Curated Mentorship**: Pair each lateral hire with a mentor from a similar background who succeeded in your company.\n"
+                "2. **Timeline of Integration**: Create a structured plan where, in the first 60 days, they meet key stakeholders and understand cross-team dynamics.\n"
+                "3. **Frequent Feedback & Early Wins**: Encourage quick projects or tasks that yield early wins, fostering confidence and belonging."
             )
         }
     },
 
-    # 8. "Low company type retention"
     "Low company type retention": {
         "subproblems": {
-            "high_turnover_talent_pools": "High turnover among employees from certain prior companies",
-            "mismatch_culture": "Mismatch between previous company culture & current environment",
-            "poor_onboarding": "Onboarding doesn’t address new processes/tools"
+            "high_turnover_talent_pools": "High turnover among employees from certain company backgrounds",
+            "mismatch_culture": "Mismatch between prior company culture and current environment",
+            "poor_onboarding": "Onboarding doesn’t address differences in processes, tools, or structures"
         },
         "solutions": {
             "high_turnover_talent_pools": (
-                "- Identify if certain backgrounds churn quickly.\n"
-                "- Adapt projects / roles for better alignment."
+                "**Targeted Hiring & Retention for Specific Backgrounds**\n\n"
+                "1. **Pre-Hire Assessment**: Identify recurring skill or mindset gaps from certain company backgrounds. Adjust hiring rubrics to screen or prepare better.\n"
+                "2. **Referral Programs**: Engage employees who excelled after coming from that same background as referral ambassadors.\n"
+                "3. **Exit Data Analysis**: Examine exit interviews from these employees to isolate patterns (compensation mismatch, rigid structure, etc.). Then address root causes."
             ),
             "mismatch_culture": (
-                "- Provide **culture assimilation** sessions.\n"
-                "- Encourage **peer networking** for new hires."
+                "**Culture Bridging & Alignment**\n\n"
+                "1. **Inter-Company Culture Workshops**: Host mini-sessions explaining your core values vs. typical values from the prior company type. Emphasize the benefits of your approach.\n"
+                "2. **Role Models & Storytelling**: Highlight employees who successfully navigated the transition from similar backgrounds.\n"
+                "3. **Frequent Q&A Sessions**: Encourage managers to hold open Q&A so new hires can openly discuss the differences they see and seek alignment."
             ),
             "poor_onboarding": (
-                "- Have a **comprehensive onboarding** about processes/tools.\n"
-                "- **Pair** with employees who made similar transitions."
+                "**Onboarding for Different Corporate DNA**\n\n"
+                "1. **Process Training**: Explicitly teach your unique processes, tools, and communication norms. Don’t assume they’ll ‘figure it out’.\n"
+                "2. **Compare & Contrast**: Provide a quick reference: “Here is how we do X vs. how you might have done it before.” This reduces confusion.\n"
+                "3. **Mentoring**: Assign a buddy who had a similar background transition, so they can mentor on culture, processes, and career growth."
             )
         }
     },
 
-    # 9. "High dissatisfaction (Pulse)"
     "High dissatisfaction (Pulse)": {
         "subproblems": {
-            "work_life_imbalance": "Employees overworked or no work-life balance",
-            "poor_manager_relationships": "Unsupportive or distant managers",
-            "limited_growth": "Limited career growth or recognition"
+            "work_life_imbalance": "Work-life imbalance or excessive workload",
+            "poor_manager_relationships": "Employees feel managers are unsupportive",
+            "limited_growth": "Limited growth or recognition opportunities"
         },
         "solutions": {
             "work_life_imbalance": (
-                "- Offer **flexible hours** / remote options.\n"
-                "- Provide **mental health** resources and reduce after-hours calls."
+                "**Workplace Wellness & Flexibility**\n\n"
+                "1. **Workload Audits**: Periodically assess team workloads and reallocate resources if certain roles are overwhelmed.\n"
+                "2. **Policy Revisions**: Offer flexible start/end times, remote days, or compressed work weeks to alleviate stress.\n"
+                "3. **Wellness Initiatives**: Sponsor gym memberships, meditation apps, or mental health counseling. Encourage managers to model good work-life boundaries."
             ),
             "poor_manager_relationships": (
-                "- Train managers in **emotional intelligence**.\n"
-                "- Collect **360-degree feedback** on leadership."
+                "**Manager Training & Empathy Building**\n\n"
+                "1. **Emotional Intelligence Workshops**: Train managers in active listening, conflict resolution, and supportive leadership.\n"
+                "2. **360-Degree Feedback**: Collect anonymous feedback from direct reports and peers. Include manager training if multiple employees highlight the same issues.\n"
+                "3. **Mentorship by Senior Leaders**: Senior executives can mentor line managers, sharing best practices in fostering trust and open dialogue."
             ),
             "limited_growth": (
-                "- Establish **career development** paths.\n"
-                "- Recognize achievements publicly & frequently."
+                "**Career Path Clarity & Recognition**\n\n"
+                "1. **Defined Promotion Tracks**: Publish a transparent career path framework. Show employees how they can progress from entry to senior roles.\n"
+                "2. **Regular Skill Assessments**: Provide personal development plans, sponsor certifications, or leadership courses.\n"
+                "3. **Frequent Acknowledgment**: Offer public recognition for milestones, top performances, or innovative ideas. Feeling valued is crucial for retention."
             )
         }
     }
