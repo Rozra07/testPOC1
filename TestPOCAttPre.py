@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
+import np
 import pickle
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
@@ -61,35 +61,16 @@ def compute_weighted_attrition(employee):
     score = 0
     extreme_factors = 0
 
-    # Age Weighting (6%)
-    age_diff = abs(employee["Employee Age"] - employee["Average Employee Age"])
-    score += (age_diff / 25) * 6 if age_diff >= 5 else 0
-
-    # Extreme Case: Female in Male-Dominated Workplace (<10% Female Ratio)
-    if employee.get("Gender", "Male") == "Female" and employee["Female Employee Ratio"] < 10:
-        score += 15  # Increased weightage
-        extreme_factors += 1
-
-    # Tenure Weighting (6%)
-    score += 6 if employee["Tenure (Months)"] >= 36 else (3 if employee["Tenure (Months)"] >= 12 else 0)
-
-    # Extreme Case: Promotion Delay (Now 30%)
+    # Apply weightage for different factors
     if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
-        score += 30  # Increased weightage
+        score += 30
         extreme_factors += 1
-
-    # Extreme Case: Last Performance Rating = 1 (40%)
-    performance_map = {1: 40, 2: 25, 3: 15, 4: 5, 5: 0}
-    score += performance_map.get(employee["Last Performance Rating"], 5)
     if employee["Last Performance Rating"] == 1:
+        score += 40
         extreme_factors += 1
-
-    # Extreme Case: Compa Ratio <70% (Now 35%)
     if employee["Compa Ratio"] < 70:
-        score += 35  # Increased weightage
+        score += 35
         extreme_factors += 1
-
-    # Extreme Cases for Low Retention Rates
     if employee["College Tier Retention"] < 15:
         score += 15
         extreme_factors += 1
@@ -100,11 +81,11 @@ def compute_weighted_attrition(employee):
         score += 15
         extreme_factors += 1
 
-    # Apply Non-Linear Compounding Effect for 3+ Extreme Factors
     if extreme_factors >= 3:
         multiplier = 1.3 if extreme_factors == 3 else (1.5 if extreme_factors == 4 else 1.8)
         score = min(100, score * multiplier)
 
+    score = max(0, score - 20)
     return min(100, score)
 
 ###############################################################################
