@@ -6,9 +6,13 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
 ###############################################################################
-# Step 1: Train and Save Logistic Regression Model (Same as Before)
+# Step 1: Train and Save a Logistic Regression Model
 ###############################################################################
 def train_and_save_model():
+    """
+    Creates a dummy dataset, trains a logistic regression model, and saves the
+    model, scaler, and feature columns for later use. This is unchanged logic.
+    """
     np.random.seed(42)
     n_samples = 500
 
@@ -28,17 +32,22 @@ def train_and_save_model():
         "Pulse": np.random.choice(["High", "Medium", "Low"], size=n_samples)
     })
 
+    # Dummy binary target
     y = np.random.randint(0, 2, size=n_samples)
 
+    # One-hot encode
     df_encoded = pd.get_dummies(df, columns=["Gender", "Pulse"])
     feature_columns = df_encoded.columns
 
+    # Scale
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(df_encoded)
 
+    # Train logistic regression
     model = LogisticRegression(solver="liblinear", random_state=42)
     model.fit(X_scaled, y)
 
+    # Save artifacts
     with open("logistic_regression_model.pkl", "wb") as f:
         pickle.dump(model, f)
     with open("scaler.pkl", "wb") as f:
@@ -46,56 +55,252 @@ def train_and_save_model():
     with open("feature_columns.pkl", "wb") as f:
         pickle.dump(list(feature_columns), f)
 
-# Comment out if you only want to train once
+# (Uncomment next line if you only want to train the model once)
 train_and_save_model()
 
 ###############################################################################
-# Step 2: Trigger Dictionary (Same as Before)
+# Step 2: TRIGGER_DETAILS for Negative Triggers
 ###############################################################################
+# NOTE: Only include triggers that *increase* risk. Positive triggers won't have sub-problems.
 TRIGGER_DETAILS = {
+    # 1. "Low gender diversity"
     "Low gender diversity": {
         "subproblems": {
-            "lack_female_applicants": "We are not getting enough female applicants",
-            "lack_female_mentors": "We have few female mentors or leaders",
-            "rigid_policies": "We do not offer flexible policies (e.g., maternity, remote, etc.)"
+            "lack_female_applicants": "Not enough female applicants",
+            "lack_female_mentors": "Few female mentors/leaders",
+            "rigid_policies": "Rigid policies (no flexible working, limited maternity/paternity)"
         },
         "solutions": {
             "lack_female_applicants": (
-                "- **Partner with Women’s Universities** or female-oriented groups.\n"
-                "- **Highlight DEI** in recruitment materials."
+                "- **Partner with Women’s Universities** or women-focused professional networks.\n"
+                "- **Highlight DEI** in your job postings and employer branding."
             ),
             "lack_female_mentors": (
                 "- **Implement formal mentorship** programs.\n"
-                "- **Sponsor leadership development** for female employees."
+                "- **Sponsor leadership development** for existing female employees."
             ),
             "rigid_policies": (
-                "- Offer **flexible working hours** and remote/hybrid options.\n"
-                "- Improve **maternity/paternity** benefits."
+                "- Introduce **flexible/hybrid** work schedules.\n"
+                "- Enhance **maternity/paternity benefits** and on-site childcare if possible."
             )
         }
     },
-    # ... other triggers omitted for brevity (same structure) ...
+
+    # 2. "Stagnant promotions"
+    "Stagnant promotions": {
+        "subproblems": {
+            "unclear_criteria": "Promotion criteria are unclear or inconsistent",
+            "no_mentorship": "No mentorship/upskilling programs",
+            "bureaucratic_structure": "Too many hierarchical layers/bureaucracy"
+        },
+        "solutions": {
+            "unclear_criteria": (
+                "- **Publish transparent criteria** linked to clear KPIs.\n"
+                "- Provide **regular feedback** on promotion readiness."
+            ),
+            "no_mentorship": (
+                "- Launch **formal mentoring** or buddy programs.\n"
+                "- Offer **upskilling** and learning stipends."
+            ),
+            "bureaucratic_structure": (
+                "- **Streamline decision-making** or reduce hierarchy.\n"
+                "- Adopt more **agile, cross-functional** teams."
+            )
+        }
+    },
+
+    # 3. "Very low performance rating"
+    "Very low performance rating": {
+        "subproblems": {
+            "misaligned_role": "Job role/expectations are unclear or mismatched",
+            "no_feedback": "Lack of continuous feedback / 1-on-1s",
+            "skill_gaps": "Skill gaps or training needs not addressed"
+        },
+        "solutions": {
+            "misaligned_role": (
+                "- **Clarify job responsibilities** and set SMART goals.\n"
+                "- Align tasks with employees’ **strengths**."
+            ),
+            "no_feedback": (
+                "- Implement **regular 1:1 check-ins** and agile feedback loops.\n"
+                "- Provide **real-time dashboards** or frequent reviews."
+            ),
+            "skill_gaps": (
+                "- Offer **targeted training** and eLearning modules.\n"
+                "- Provide **certification reimbursements** and skill workshops."
+            )
+        }
+    },
+
+    # 4. "Low performance rating"
+    "Low performance rating": {
+        "subproblems": {
+            "misaligned_role": "Role or expectations unclear/mismatched",
+            "no_feedback": "Lack of feedback or performance discussions",
+            "skill_gaps": "Employee lacks key skills/training"
+        },
+        "solutions": {
+            "misaligned_role": (
+                "- **Re-assess job responsibilities** to ensure good fit.\n"
+                "- Set **SMART** performance goals and accountability."
+            ),
+            "no_feedback": (
+                "- **Frequent check-ins** with manager.\n"
+                "- Peer coaching or **weekly sprints** for feedback."
+            ),
+            "skill_gaps": (
+                "- Implement **upskilling** or cross-functional training.\n"
+                "- Use a **mentorship** or buddy system for knowledge-sharing."
+            )
+        }
+    },
+
+    # 5. "Low compensation competitiveness"
+    "Low compensation competitiveness": {
+        "subproblems": {
+            "below_market": "Base salary below market benchmarks",
+            "minimal_bonus": "Bonuses/variable pay are minimal",
+            "poor_benefits": "Benefits package lacking (insurance, retirement, etc.)"
+        },
+        "solutions": {
+            "below_market": (
+                "- **Benchmark** salaries and adjust to median or above.\n"
+                "- Consider **geo-based pay** if relevant."
+            ),
+            "minimal_bonus": (
+                "- Introduce **performance-based incentives** or profit-sharing.\n"
+                "- Evaluate **RSUs** or equity for retention."
+            ),
+            "poor_benefits": (
+                "- Offer **competitive health & retirement** benefits.\n"
+                "- Provide **flexible schedules** and wellness programs."
+            )
+        }
+    },
+
+    # 6. "Low college tier retention"
+    "Low college tier retention": {
+        "subproblems": {
+            "high_turnover_talent_pools": "High turnover among certain colleges / new grads",
+            "mismatch_culture": "Mismatch between background & company culture",
+            "poor_onboarding": "Onboarding not tailored for entry-level hires"
+        },
+        "solutions": {
+            "high_turnover_talent_pools": (
+                "- Investigate root causes via **exit interviews**.\n"
+                "- Build **campus ambassador** programs for targeted hiring."
+            ),
+            "mismatch_culture": (
+                "- Offer better **orientation** on company culture.\n"
+                "- **Mentorship** for new grads from similar backgrounds."
+            ),
+            "poor_onboarding": (
+                "- Enhance **onboarding** with 30/60/90 check-ins.\n"
+                "- Create a **buddy system** for new grads."
+            )
+        }
+    },
+
+    # 7. "Low industry retention"
+    "Low industry retention": {
+        "subproblems": {
+            "high_turnover_talent_pools": "High turnover from employees with certain industry backgrounds",
+            "mismatch_culture": "Mismatch between industry norms & your org culture",
+            "poor_onboarding": "Onboarding insufficient for lateral hires"
+        },
+        "solutions": {
+            "high_turnover_talent_pools": (
+                "- **Benchmark** comp & roles vs. industry.\n"
+                "- Provide **targeted retention** (mentorship, training)."
+            ),
+            "mismatch_culture": (
+                "- Emphasize **company values** & inclusive culture.\n"
+                "- Host **town halls** or Q&A sessions for lateral hires."
+            ),
+            "poor_onboarding": (
+                "- Structure **assimilation** for mid-career folks.\n"
+                "- Provide a **transition buddy** with industry experience."
+            )
+        }
+    },
+
+    # 8. "Low company type retention"
+    "Low company type retention": {
+        "subproblems": {
+            "high_turnover_talent_pools": "High turnover among employees from certain prior companies",
+            "mismatch_culture": "Mismatch between previous company culture & current environment",
+            "poor_onboarding": "Onboarding doesn’t address new processes/tools"
+        },
+        "solutions": {
+            "high_turnover_talent_pools": (
+                "- Identify if certain backgrounds churn quickly.\n"
+                "- Adapt projects / roles for better alignment."
+            ),
+            "mismatch_culture": (
+                "- Provide **culture assimilation** sessions.\n"
+                "- Encourage **peer networking** for new hires."
+            ),
+            "poor_onboarding": (
+                "- Have a **comprehensive onboarding** about processes/tools.\n"
+                "- **Pair** with employees who made similar transitions."
+            )
+        }
+    },
+
+    # 9. "High dissatisfaction (Pulse)"
+    "High dissatisfaction (Pulse)": {
+        "subproblems": {
+            "work_life_imbalance": "Employees overworked or no work-life balance",
+            "poor_manager_relationships": "Unsupportive or distant managers",
+            "limited_growth": "Limited career growth or recognition"
+        },
+        "solutions": {
+            "work_life_imbalance": (
+                "- Offer **flexible hours** / remote options.\n"
+                "- Provide **mental health** resources and reduce after-hours calls."
+            ),
+            "poor_manager_relationships": (
+                "- Train managers in **emotional intelligence**.\n"
+                "- Collect **360-degree feedback** on leadership."
+            ),
+            "limited_growth": (
+                "- Establish **career development** paths.\n"
+                "- Recognize achievements publicly & frequently."
+            )
+        }
+    }
 }
 
+# Positive triggers (these reduce the score):
+#   - "Excellent performance rating"
+#   - "High compensation ratio"
+#   - "Low dissatisfaction (Pulse)"
+# We skip them in TRIGGER_DETAILS (no sub-problems needed).
+
 ###############################################################################
-# Step 3: Rule-Based Scoring (Unchanged)
+# Step 3: Rule-Based Scoring
 ###############################################################################
 def compute_weighted_attrition(employee, return_triggers=False):
+    """
+    Computes a 0-100 rule-based score. Returns (score, triggers) if return_triggers=True.
+    """
     score = 0
     extreme_factors = 0
     triggers = []
 
-    # Example triggers
+    # Gender Diversity
     if employee["Gender"] == "Female" and employee["Female Employee Ratio"] <= 15:
         score += 30
         extreme_factors += 1
         triggers.append("Low gender diversity")
 
+    # Stagnant Promotions
     if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
         score += 30
         extreme_factors += 1
         triggers.append("Stagnant promotions")
 
+    # Performance Rating
     if employee["Last Performance Rating"] == 1:
         score += 25
         extreme_factors += 1
@@ -107,8 +312,9 @@ def compute_weighted_attrition(employee, return_triggers=False):
     elif employee["Last Performance Rating"] == 5:
         score -= 15
         extreme_factors -= 0.5
-        triggers.append("Excellent performance rating")
+        triggers.append("Excellent performance rating")  # positive
 
+    # Compensation
     if employee["Compa Ratio"] < 70:
         score += 30
         extreme_factors += 1
@@ -116,10 +322,35 @@ def compute_weighted_attrition(employee, return_triggers=False):
     elif employee["Compa Ratio"] > 110:
         score -= 15
         extreme_factors -= 0.5
-        triggers.append("High compensation ratio")
+        triggers.append("High compensation ratio")  # positive
 
-    # ... other conditions omitted for brevity ...
+    # Retention
+    if employee["College Tier Retention"] < 15:
+        score += 15
+        extreme_factors += 0.5
+        triggers.append("Low college tier retention")
 
+    if employee["Industry Retention"] < 15:
+        score += 15
+        extreme_factors += 0.5
+        triggers.append("Low industry retention")
+
+    if employee["Company Type Retention"] < 15:
+        score += 15
+        extreme_factors += 0.5
+        triggers.append("Low company type retention")
+
+    # Pulse
+    if employee["Pulse"] == "High":
+        score += 20
+        extreme_factors += 0.5
+        triggers.append("High dissatisfaction (Pulse)")
+    elif employee["Pulse"] == "Low":
+        score -= 20
+        extreme_factors -= 0.5
+        triggers.append("Low dissatisfaction (Pulse)")  # positive
+
+    # Extreme Factors
     if extreme_factors == 2:
         score = min(100, score * 1.3)
     elif extreme_factors == 3:
@@ -128,15 +359,21 @@ def compute_weighted_attrition(employee, return_triggers=False):
         score = min(100, score * 2)
 
     final_score = min(100, max(0, score))
+
     if return_triggers:
         return final_score, triggers
     else:
         return final_score
 
 ###############################################################################
-# Step 4: ML Prediction (Unchanged, Just Returns Score & Triggers)
+# Step 4: Machine Learning Combination
 ###############################################################################
 def predict_attrition(employee_data):
+    """
+    Loads the saved logistic regression model, transforms the data,
+    and combines ML probability with rule-based score.
+    Returns (combined_score, triggers).
+    """
     with open("logistic_regression_model.pkl", "rb") as f:
         model = pickle.load(f)
     with open("scaler.pkl", "rb") as f:
@@ -151,15 +388,19 @@ def predict_attrition(employee_data):
 
     ml_probability = model.predict_proba(X_scaled)[:, 1][0] * 100
     rule_probability, triggers = compute_weighted_attrition(employee_data, return_triggers=True)
+
     combined_score = 0.75 * rule_probability + 0.25 * ml_probability
     return combined_score, triggers
 
 ###############################################################################
-# Step 5: Streamlit UI with Full-Width Risk Box & Live Scenario Updates
+# Step 5: Streamlit UI - Side-by-Side & Full-Width Risk Box
 ###############################################################################
-st.markdown("<h2 style='text-align: center; color: #4CAF50;'>🌟 Employee Attrition Prediction Tool 🚀</h2>", unsafe_allow_html=True)
+st.markdown(
+    "<h2 style='text-align: center; color: #4CAF50;'>🌟 Employee Attrition Prediction Tool 🚀</h2>",
+    unsafe_allow_html=True
+)
 
-# Store user input in session state
+# Session state
 if "prediction_made" not in st.session_state:
     st.session_state.prediction_made = False
 if "score" not in st.session_state:
@@ -169,16 +410,16 @@ if "triggers" not in st.session_state:
 if "employee_data" not in st.session_state:
     st.session_state.employee_data = {}
 
-# --- A. Collect Employee Data ---
-with st.form("attrition_form", clear_on_submit=False):
+# --- A) Input Form ---
+with st.form("attrition_form"):
     st.write("#### Enter Employee / Company Details")
-    user_data = {
+    input_data = {
         "Employee Age": st.slider("Employee Age", 18, 65, 30),
         "Average Employee Age": st.slider("Average Employee Age", 18, 65, 35),
         "Gender": st.radio("Gender", ["Male", "Female"], horizontal=True),
         "Female Employee Ratio": st.slider("Female Employee Ratio (%)", 0, 100, 40),
         "Tenure (Months)": st.slider("Tenure (Months)", 0, 240, 36),
-        "Pulse": st.radio("Pulse (Employee dissatisfaction)", ["High", "Medium", "Low"], horizontal=True),
+        "Pulse": st.radio("Employee dissatisfaction (Pulse)", ["High", "Medium", "Low"], horizontal=True),
         "Hasn't been promoted": st.slider("Months Since Last Promotion", 0, 60, 12),
         "Minimum Promotion Cycle": st.slider("Min Promotion Cycle (Months)", 12, 60, 24),
         "College Tier Retention": st.slider("College Tier Retention (%)", 10, 100, 60),
@@ -189,108 +430,107 @@ with st.form("attrition_form", clear_on_submit=False):
     }
 
     if st.form_submit_button("🚀 Predict"):
-        combined_score, triggers = predict_attrition(user_data)
-        st.session_state.score = combined_score
+        final_score, triggers = predict_attrition(input_data)
+        st.session_state.score = final_score
         st.session_state.triggers = triggers
         st.session_state.prediction_made = True
-        st.session_state.employee_data = user_data
+        st.session_state.employee_data = input_data
 
-# --- B. If Predict is Clicked, Show the Full-Width Risk Box ---
+# --- B) Show Results if Predicted ---
 if st.session_state.prediction_made:
     score = st.session_state.score
     triggers = st.session_state.triggers
 
-    # Container for the big color-coded risk box, full width
+    # Full-width risk box
     with st.container():
         if score >= 75:
-            color_html = "#ff4d4d"
-            label_html = f"⚠️ HIGH Attrition Risk<br>{score:.2f}% 🚨"
+            bg_color = "#ff4d4d"
+            msg_html = f"⚠️ HIGH Attrition Risk <br> {score:.2f}% 🚨"
         elif score >= 60:
-            color_html = "#ff9933"
-            label_html = f"⚠️ Moderate to High Risk<br>{score:.2f}% ⚡"
+            bg_color = "#ff9933"
+            msg_html = f"⚠️ Moderate to High Risk <br> {score:.2f}% ⚡"
         elif score >= 35:
-            color_html = "#ffd700"
-            label_html = f"⚖️ Moderate Attrition Risk<br>{score:.2f}% 📉"
+            bg_color = "#ffd700"
+            msg_html = f"⚖️ Moderate Attrition Risk <br> {score:.2f}% 📉"
         else:
-            color_html = "#28a745"
-            label_html = f"✅ SAFE! Low Attrition Risk<br>{score:.2f}% 🌱"
+            bg_color = "#28a745"
+            msg_html = f"✅ SAFE! Low Attrition Risk <br> {score:.2f}% 🌱"
 
-        # Display a full-width colored box
         st.markdown(
             f"""
-            <div style="background-color:{color_html}; color:white; padding:15px; 
-                        border-radius:10px; text-align:center; font-size:24px; font-weight:bold;">
-                {label_html}
+            <div style="background-color:{bg_color}; color:white; padding:15px; border-radius:10px; 
+                        text-align:center; font-size:24px; font-weight:bold;">
+                {msg_html}
             </div>
             """,
             unsafe_allow_html=True
         )
 
-    # Create two columns below the full-width risk box
+    # Two columns below
     col_left, col_right = st.columns(2)
 
-    # ---------------- LEFT COLUMN: Original triggers + sub-problems ---------------
+    # ---------- LEFT: Triggers + Sub-Problems ----------
     with col_left:
-        st.write("### 1. Key Contributing Factors")
-        if triggers:
-            for t in triggers:
+        st.write("### Key Contributing Factors")
+        negative_triggers = []
+        for t in triggers:
+            # We only list negative triggers here
+            if t in TRIGGER_DETAILS:
+                negative_triggers.append(t)
                 st.markdown(f"- **{t}**")
-        else:
+            else:
+                # It's a positive or unrecognized trigger
+                # e.g. "Excellent performance rating" => do not show sub-problems
+                pass
+
+        if not negative_triggers:
             st.markdown("*No major negative triggers identified.*")
 
-        st.write("### 2. Sub-Problems Selection")
+        st.write("### Sub-Problems Selection")
         sub_problem_selections = {}
-        for trig in triggers:
-            if trig not in TRIGGER_DETAILS:
-                continue
+        for trig in negative_triggers:
             st.write(f"**{trig}**")
             subprobs = TRIGGER_DETAILS[trig]["subproblems"]
-            chosen = []
+            chosen_list = []
             for sub_key, sub_label in subprobs.items():
-                # We'll store these checks in session state so they persist on re-run
                 chk_id = f"{trig}-{sub_key}"
                 if chk_id not in st.session_state:
                     st.session_state[chk_id] = False
                 new_val = st.checkbox(sub_label, key=chk_id)
                 if new_val:
-                    chosen.append(sub_key)
-            sub_problem_selections[trig] = chosen
+                    chosen_list.append(sub_key)
+            sub_problem_selections[trig] = chosen_list
 
-        # Show Solutions On-Demand
-        if st.button("💡 Show Customized Solutions"):
-            st.write("### Recommended Solutions / Action Points")
-            any_selected = False
-            for trig in triggers:
-                if trig not in TRIGGER_DETAILS:
-                    continue
-                chosen_subproblems = sub_problem_selections[trig]
-                if chosen_subproblems:
-                    any_selected = True
+        if st.button("💡 Show Solutions"):
+            st.write("### Recommended Solutions")
+            any_chosen = False
+            for trig in negative_triggers:
+                chosen_subs = sub_problem_selections[trig]
+                if chosen_subs:
+                    any_chosen = True
                     st.write(f"**Trigger:** {trig}")
-                    for sub_key in chosen_subproblems:
+                    for sub_key in chosen_subs:
                         solution_text = TRIGGER_DETAILS[trig]["solutions"].get(sub_key, "")
-                        st.markdown(f"- **{sub_key}**: {solution_text}")
-            if not any_selected:
-                st.info("No sub-problems were selected; no solutions to display.")
+                        st.markdown(f"**Sub-Problem: {sub_key}**")
+                        st.markdown(f"{solution_text}")
+            if not any_chosen:
+                st.info("No sub-problems selected, so no solutions to display.")
 
-    # ---------------- RIGHT COLUMN: Live Scenario Planning ---------------
+    # ---------- RIGHT: Live What-If Scenario -------------
     with col_right:
-        st.write("### 3. Live What-If Scenario")
-        st.write("Adjust these factors to see how the risk changes instantly.")
+        st.write("### What-If Scenario Planning")
+        scenario_data = dict(st.session_state.employee_data)
 
-        scenario_data = dict(st.session_state.employee_data)  # copy original
-
-        # We'll re-run scenario predict automatically as the user moves the sliders
-        # So we do NOT use a button—just retrieve slider values directly.
+        # Let’s pick a few changeable fields
         scenario_data["Compa Ratio"] = st.slider(
             "Compa Ratio (%) [Scenario]",
             50, 150, scenario_data["Compa Ratio"],
-            help="Try raising or lowering compensation to see effect."
+            help="Adjust to see how risk changes if compensation changes."
         )
         scenario_data["Last Performance Rating"] = st.slider(
             "Last Performance Rating [Scenario]",
             1, 5, scenario_data["Last Performance Rating"],
-            help="What if performance improves or worsens?"
+            help="What if performance improves (higher rating) or worsens?"
         )
         scenario_data["Pulse"] = st.radio(
             "Pulse (Employee dissatisfaction) [Scenario]",
@@ -299,23 +539,24 @@ if st.session_state.prediction_made:
             horizontal=True
         )
 
-        # Now we recalc scenario risk on-the-fly
+        # Recompute scenario risk every time user changes
         scenario_score, scenario_triggers = predict_attrition(scenario_data)
-        st.markdown(f"**Scenario Attrition Risk:** {scenario_score:.2f}%")
+        st.write(f"**Scenario Attrition Risk:** {scenario_score:.2f}%")
 
-        # Compare scenario risk to original
-        diff = scenario_score - st.session_state.score
+        # Compare to original
+        diff = scenario_score - score
         if diff > 0:
-            st.markdown(f"<span style='color:red;'>(+{diff:.2f}%) Higher than original</span>", unsafe_allow_html=True)
+            st.markdown(f"<span style='color:red;'>Risk +{diff:.2f}% higher than original.</span>", unsafe_allow_html=True)
         elif diff < 0:
-            st.markdown(f"<span style='color:green;'>({diff:.2f}%) Lower than original</span>", unsafe_allow_html=True)
+            st.markdown(f"<span style='color:green;'>Risk {diff:.2f}% lower than original.</span>", unsafe_allow_html=True)
         else:
-            st.write("No change from the original scenario.")
+            st.write("No change from original risk.")
 
-        # Display scenario triggers
-        if scenario_triggers:
-            st.write("#### Scenario Triggers")
-            for t in scenario_triggers:
+        # Show triggers for scenario
+        neg_scenario_triggers = [t for t in scenario_triggers if t in TRIGGER_DETAILS]
+        if neg_scenario_triggers:
+            st.write("**Scenario Negative Triggers**")
+            for t in neg_scenario_triggers:
                 st.markdown(f"- **{t}**")
         else:
-            st.markdown("*No major negative triggers in this scenario.*")
+            st.markdown("*No negative triggers in the scenario.*")
