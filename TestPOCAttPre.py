@@ -69,13 +69,13 @@ def compute_weighted_attrition(employee):
         extreme_factors += 1
     if employee["College Tier Retention"] < 15:
         score += 15
-        extreme_factors += 1
+        extreme_factors += 0.5
     if employee["Industry Retention"] < 15:
         score += 15
-        extreme_factors += 1
+        extreme_factors += 0.5
     if employee["Company Type Retention"] < 15:
         score += 15
-        extreme_factors += 1
+        extreme_factors += 0.5
 
     if extreme_factors == 2:
         score = min(100, score * 1.3)
