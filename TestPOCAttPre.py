@@ -605,6 +605,33 @@ elif mode == "Bulk Employees":
     - **Company Type**
     """)
 
+    # 0. Provide a Sample Bulk CSV Download
+    def generate_sample_bulk_csv():
+        sample_df = pd.DataFrame({
+            "Name": ["Alice Johnson", "Bob Smith"],
+            "Employee Age": [30, 45],
+            "Gender": ["Female", "Male"],
+            "Chances of employee leaving (High, Medium, Low)": ["Medium", "High"],
+            "Hasn't been promoted (in months)": [12, 36],
+            "Min. Promotion cycle (in months)": [24, 24],
+            "Performance rating out of 5": [3, 1],
+            "Compa Ratio": [90, 65],
+            "College Tier (Tier 1, Tier 2, Tier 3)": ["Tier 1", "Tier 3"],
+            "Industry": ["Tech", "Finance"],
+            "Company Type": ["Startup", "Enterprise"]
+        })
+        csv_buffer = io.StringIO()
+        sample_df.to_csv(csv_buffer, index=False)
+        return csv_buffer.getvalue()
+
+    st.write("**📄 Download a Sample Bulk CSV** to see the required format:")
+    st.download_button(
+        label="Download Sample Bulk CSV",
+        data=generate_sample_bulk_csv(),
+        file_name="sample_bulk_data.csv",
+        mime="text/csv"
+    )
+
     # 1. Introduce Inputs for Fixed Attributes and Tier-Based Retention Percentages
     st.sidebar.header("🔧 Set Fixed Attributes and Retention Percentages")
 
@@ -688,10 +715,14 @@ elif mode == "Bulk Employees":
 
     if uploaded_file is not None:
         # 4. Read the Uploaded File
-        if uploaded_file.name.endswith(".csv"):
-            df_bulk = pd.read_csv(uploaded_file)
-        else:
-            df_bulk = pd.read_excel(uploaded_file)
+        try:
+            if uploaded_file.name.endswith(".csv"):
+                df_bulk = pd.read_csv(uploaded_file)
+            else:
+                df_bulk = pd.read_excel(uploaded_file)
+        except Exception as e:
+            st.error(f"❌ Error reading the file: {e}")
+            st.stop()
 
         st.write("**📊 Uploaded Data Preview:**")
         st.dataframe(df_bulk.head())
@@ -741,8 +772,19 @@ elif mode == "Bulk Employees":
                         if desc_col in row_dict:
                             row_dict[internal_col] = row_dict.pop(desc_col)
                         else:
-                            st.warning(f"Row {idx}: Missing column '{desc_col}'. Skipping this row.")
-                            row_dict[internal_col] = np.nan  # Assign NaN or a default value
+                            st.warning(f"Row {idx}: Missing column '{desc_col}'. Using default value.")
+                            # Assign a default or skip processing
+                            # Here, assigning a default value
+                            if internal_col == "Pulse":
+                                row_dict[internal_col] = "Medium"  # Default Pulse
+                            elif internal_col == "Hasn't been promoted":
+                                row_dict[internal_col] = 0  # Default months since promotion
+                            elif internal_col == "Minimum Promotion Cycle":
+                                row_dict[internal_col] = 12  # Default promotion cycle
+                            elif internal_col == "Last Performance Rating":
+                                row_dict[internal_col] = 3  # Default rating
+                            elif internal_col == "College Tier":
+                                row_dict[internal_col] = "Tier 3"  # Default tier
 
                     # 7. Apply Fixed Attributes from Sliders
                     row_dict["Average Employee Age"] = fixed_attributes["Average Employee Age"]
@@ -773,16 +815,20 @@ elif mode == "Bulk Employees":
                         st.warning(f"Row {idx}: Unknown Company Type '{company_type}'. Using default retention of 50%.")
                         row_dict["Company Type Retention"] = 50  # Default value
 
-                    # d. Handle Missing or NaN Values (Optional)
-                    # You can add code here to handle missing values if necessary
-
                     # 9. Predict Attrition
-                    bulk_score, bulk_trigs = predict_attrition(row_dict)
+                    try:
+                        bulk_score, bulk_trigs = predict_attrition(row_dict)
+                    except Exception as e:
+                        st.error(f"Row {idx}: Prediction failed due to {e}. Skipping this row.")
+                        scores.append(None)
+                        triggers_list.append("Prediction Failed")
+                        continue
+
                     scores.append(bulk_score)
 
                     # Filter negative triggers
                     neg_trigs = [t for t in bulk_trigs if t in TRIGGER_DETAILS]
-                    triggers_str = ", ".join(neg_trigs)
+                    triggers_str = ", ".join(neg_trigs) if neg_trigs else "None"
                     triggers_list.append(triggers_str)
 
                 # 10. Append Results to DataFrame
@@ -813,7 +859,7 @@ elif mode == "Bulk Employees":
                 # Negative Triggers Frequency
                 all_trigs = []
                 for val in df_bulk["Negative Triggers"]:
-                    if pd.notna(val) and val.strip() != "":
+                    if pd.notna(val) and val.strip() != "" and val != "None":
                         splitted = [x.strip() for x in val.split(",")]
                         all_trigs.extend(splitted)
 
