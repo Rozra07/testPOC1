@@ -82,7 +82,7 @@ def compute_weighted_attrition(employee):
         extreme_factors += 1
 
     if extreme_factors >= 3:
-        multiplier = 1.5 if extreme_factors == 3 else (1.8 if extreme_factors == 4 else 2)
+        multiplier = 1.3 if extreme_factors == 3 else (1.5 if extreme_factors == 4 else 1.8)
         score = min(100, score * multiplier)
 
     score = max(0, score - 20)
@@ -107,7 +107,7 @@ def predict_attrition(employee_data):
     ml_probability = model.predict_proba(X_scaled)[:, 1][0] * 100
     rule_probability = compute_weighted_attrition(employee_data)
 
-    combined_score = 0.35 * ml_probability + 0.65 * rule_probability
+    combined_score = 0.5 * ml_probability + 0.5 * rule_probability
     return combined_score
 
 ###############################################################################
