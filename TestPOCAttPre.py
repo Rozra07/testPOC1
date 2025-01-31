@@ -56,9 +56,9 @@ def compute_weighted_attrition(employee):
     extreme_factors = 0
 
 
-   if employee["Gender"] == "Female" and employee["Female Employee Ratio"] <= 15:
-    score += 30
-    extreme_factors += 1  
+`    if employee["Gender"] == "Female" and employee["Female Employee Ratio"] <= 15:
+        score += 30
+        extreme_factors += 1  
     if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
         score += 30
         extreme_factors += 1
