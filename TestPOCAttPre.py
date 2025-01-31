@@ -5,13 +5,18 @@ import pickle
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
-# NEW: For LLM calls
+# 1) Import openai
 import openai
-# Make sure you store your OpenAI API key securely, e.g., in Streamlit secrets
-# openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 ###############################################################################
-# Step 1: Train and Save a Logistic Regression Model (Same as Phase 1)
+# Step 0: Set your OpenAI API Key
+###############################################################################
+# In a secure environment, load from st.secrets or an environment variable.
+# For demonstration, we are hardcoding the key here (not recommended for production).
+openai.api_key = "xyz"   # <-- Replace "xyz" with your real key
+
+###############################################################################
+# Step 1: Train and Save a Dummy Logistic Regression Model
 ###############################################################################
 def train_and_save_model():
     np.random.seed(42)
@@ -54,8 +59,7 @@ def train_and_save_model():
 train_and_save_model()
 
 ###############################################################################
-# Step 2: Dictionary for Negative Triggers (Same as Phase 1), BUT we'll 
-# demonstrate how we might skip the static "solutions" & rely more on LLM
+# Step 2: Dictionary for Negative Triggers (Example)
 ###############################################################################
 TRIGGER_DETAILS = {
     "Low gender diversity": {
@@ -72,17 +76,18 @@ TRIGGER_DETAILS = {
             "bureaucratic_structure": "Too many hierarchical layers"
         }
     },
-    # ... (include the rest of your triggers) ...
+    # Add more triggers as needed...
 }
 
 ###############################################################################
-# Step 3: Rule-Based Scoring (unchanged)
+# Step 3: Rule-Based Scoring
 ###############################################################################
 def compute_weighted_attrition(employee, return_triggers=False):
     score = 0
     extreme_factors = 0
     triggers = []
 
+    # Example condition
     if employee["Gender"] == "Female" and employee["Female Employee Ratio"] <= 15:
         score += 30
         extreme_factors += 1
@@ -93,7 +98,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
         extreme_factors += 1
         triggers.append("Stagnant promotions")
 
-    # ... and so forth, exactly as in Phase 1 code ...
+    # Add other conditions as in your previous code...
 
     if extreme_factors == 2:
         score = min(100, score * 1.3)
@@ -109,7 +114,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
         return final_score
 
 ###############################################################################
-# Step 4: ML Prediction (unchanged)
+# Step 4: Combine ML + Rule Score
 ###############################################################################
 def predict_attrition(employee_data):
     with open("logistic_regression_model.pkl", "rb") as f:
@@ -131,47 +136,41 @@ def predict_attrition(employee_data):
     return combined_score, triggers
 
 ###############################################################################
-# Step 5: NEW - LLM Explanation Function
+# Step 5: LLM Explanation
 ###############################################################################
-def get_llm_explanation(trig, chosen_subproblems, industry):
+def get_llm_explanation(trigger, chosen_subproblems, industry):
     """
-    Calls an LLM (e.g., OpenAI GPT) to generate dynamic explanations
-    or recommendations. You must have openai.api_key set before calling.
+    Call OpenAI ChatCompletion API to generate dynamic HR solutions.
     """
-    # Build a user-facing description of the subproblems
+    # Build prompt
     subproblem_text = "\n".join([f"- {sub}" for sub in chosen_subproblems])
 
-    # Example prompt
     prompt = f"""
-You are a helpful HR consultant with expertise in employee retention. 
-The user is from the {industry} industry. 
-They have identified a trigger: "{trig}" with the following sub-problems:
+You are an HR consultant. The user is from the {industry} industry.
+They have identified the trigger: '{trigger}' with these sub-problems:
 {subproblem_text}
 
-Please provide a concise explanation of why this trigger is causing attrition risk,
-and recommend actionable strategies or best practices relevant to the {industry} industry. 
-Keep the response around 150-200 words total.
+Explain why this causes attrition risk, and provide actionable strategies (150-200 words).
 """
 
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # or "gpt-4"
+            model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=300,
             temperature=0.7
         )
-        # Extract the assistant's message
-        explanation = response["choices"][0]["message"]["content"]
-        return explanation.strip()
+        reply = response["choices"][0]["message"]["content"]
+        return reply.strip()
+
     except Exception as e:
         return f"Error calling LLM: {str(e)}"
 
 ###############################################################################
-# Step 6: Streamlit UI (SIDE-BY-SIDE + LLM)
+# Step 6: Streamlit UI
 ###############################################################################
-st.markdown("<h2 style='text-align: center; color: #4CAF50;'>🌟 Employee Attrition Tool (Phase 2: LLM Integration) 🚀</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: #4CAF50;'>🌟 Employee Attrition Tool (OpenAI Integrated) 🚀</h2>", unsafe_allow_html=True)
 
-# Setup / Session
 if "prediction_made" not in st.session_state:
     st.session_state.prediction_made = False
 if "score" not in st.session_state:
@@ -180,6 +179,8 @@ if "triggers" not in st.session_state:
     st.session_state.triggers = []
 if "employee_data" not in st.session_state:
     st.session_state.employee_data = {}
+if "industry" not in st.session_state:
+    st.session_state.industry = "Others"
 
 # --- A) Input Form ---
 with st.form("attrition_form"):
@@ -240,18 +241,16 @@ if st.session_state.prediction_made:
             unsafe_allow_html=True
         )
 
-    # Two columns for triggers + scenario (like Phase 1)
     col_left, col_right = st.columns(2)
 
-    # ---------- LEFT: Negative triggers + sub-problems -------------
+    # LEFT: Negative triggers + sub-problems
     with col_left:
         st.write("### Key Contributing Factors")
         negative_triggers = []
         for t in triggers:
-            if t in TRIGGER_DETAILS:  # negative trigger
+            if t in TRIGGER_DETAILS:
                 negative_triggers.append(t)
                 st.markdown(f"- **{t}**")
-            # else it's a positive or not in dictionary
 
         if not negative_triggers:
             st.markdown("*No major negative triggers identified.*")
@@ -260,61 +259,38 @@ if st.session_state.prediction_made:
         sub_problem_selections = {}
         for trig in negative_triggers:
             st.write(f"**{trig}**")
-            subprobs = TRIGGER_DETAILS[trig]["subproblems"]
-            chosen_list = []
-            for sub_key, sub_label in subprobs.items():
-                chk_id = f"{trig}-{sub_key}"
-                if chk_id not in st.session_state:
-                    st.session_state[chk_id] = False
-                new_val = st.checkbox(sub_label, key=chk_id)
-                if new_val:
-                    chosen_list.append(sub_key)
-            sub_problem_selections[trig] = chosen_list
+            sub_dict = TRIGGER_DETAILS[trig]["subproblems"]
+            chosen_subs = []
+            for sub_key, sub_label in sub_dict.items():
+                check_val = st.checkbox(sub_label, key=f"{trig}-{sub_key}")
+                if check_val:
+                    chosen_subs.append(sub_label)
+            sub_problem_selections[trig] = chosen_subs
 
-        # "Show LLM Solutions"
+        # Generate AI solutions
         if st.button("💡 Generate AI-Powered Recommendations"):
             st.write("## Dynamic LLM Explanations")
             for trig in negative_triggers:
-                chosen_subs = sub_problem_selections[trig]
-                if chosen_subs:
-                    llm_text = get_llm_explanation(trig, chosen_subs, industry)
-                    st.markdown(f"### {trig}")
-                    st.markdown(llm_text)
+                chosen = sub_problem_selections[trig]
+                if chosen:
+                    explanation = get_llm_explanation(trig, chosen, industry)
+                    st.markdown(f"**Trigger:** {trig}")
+                    st.markdown(explanation)
 
-    # ---------- RIGHT: Live Scenario Planning -------------
+    # RIGHT: Scenario Planning (optional or omitted for brevity)
     with col_right:
-        st.write("### Live What-If Scenario")
+        st.write("### What-If Scenario Planning")
         scenario_data = dict(st.session_state.employee_data)
 
-        scenario_data["Compa Ratio"] = st.slider(
-            "Compa Ratio (%) [Scenario]",
-            50, 150, scenario_data["Compa Ratio"]
-        )
-        scenario_data["Last Performance Rating"] = st.slider(
-            "Last Performance Rating [Scenario]",
-            1, 5, scenario_data["Last Performance Rating"]
-        )
-        scenario_data["Pulse"] = st.radio(
-            "Pulse [Scenario]",
-            ["High", "Medium", "Low"],
-            index=["High", "Medium", "Low"].index(scenario_data["Pulse"]),
-            horizontal=True
-        )
+        scenario_data["Compa Ratio"] = st.slider("Compa Ratio (%) [Scenario]", 50, 150, scenario_data["Compa Ratio"])
+        scenario_data["Last Performance Rating"] = st.slider("Last Performance Rating [Scenario]", 1, 5, scenario_data["Last Performance Rating"])
 
         scenario_score, scenario_trigs = predict_attrition(scenario_data)
-        st.write(f"**Scenario Attrition Risk:** {scenario_score:.2f}%")
-
-        diff = scenario_score - score
-        if diff > 0:
-            st.markdown(f"<span style='color:red;'>Risk +{diff:.2f}% higher than original.</span>", unsafe_allow_html=True)
-        elif diff < 0:
-            st.markdown(f"<span style='color:green;'>Risk {diff:.2f}% lower than original.</span>", unsafe_allow_html=True)
+        st.write(f"**Scenario Risk:** {scenario_score:.2f}%")
+        delta = scenario_score - score
+        if delta > 0:
+            st.error(f"Risk +{delta:.2f}% higher.")
+        elif delta < 0:
+            st.success(f"Risk {delta:.2f}% lower.")
         else:
-            st.write("No change from the original scenario.")
-
-        neg_scenario_trigs = [t for t in scenario_trigs if t in TRIGGER_DETAILS]
-        if neg_scenario_trigs:
-            st.write("**Scenario Negative Triggers**")
-            for t in neg_scenario_trigs:
-                st.markdown(f"- **{t}**")
-
+            st.info("No change.")
