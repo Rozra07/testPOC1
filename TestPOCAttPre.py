@@ -73,6 +73,9 @@ def compute_weighted_attrition(employee):
     if employee["Compa Ratio"] < 70:
         score += 30
         extreme_factors += 1
+    if employee["Compa Ratio"] > 110:
+        score -= 15
+        extreme_factors -= 0.5
     if employee["College Tier Retention"] < 15:
         score += 15
         extreme_factors += 0.5
@@ -82,6 +85,12 @@ def compute_weighted_attrition(employee):
     if employee["Company Type Retention"] < 15:
         score += 15
         extreme_factors += 0.5
+    if employee["Pulse"] == "High" :
+        score += 20
+        extreme_factors += 0.5
+    if employee["Pulse"] == "Low" :
+        score -= 20
+        extreme_factors -= 0.5
 
     if extreme_factors == 2:
         score = min(100, score * 1.3)
@@ -126,6 +135,7 @@ with st.form("attrition_form"):
         "Gender": st.radio("Gender", ["Male", "Female"], horizontal=True),
         "Female Employee Ratio": st.slider("Female Employee Ratio (%)", 0, 100, 40),
         "Tenure (Months)": st.slider("Tenure (Months)", 0, 240, 36),
+        "Pulse": st.radio("Employee dissatisfaction according to Pulse", ["High", "Medium", "Low"], horizontal=True),
         "Hasn't been promoted": st.slider("Months Since Last Promotion", 0, 60, 12),
         "Minimum Promotion Cycle": st.slider("Min Promotion Cycle (Months)", 12, 60, 24),
         "College Tier Retention": st.slider("College Tier Retention (%)", 10, 100, 60),
