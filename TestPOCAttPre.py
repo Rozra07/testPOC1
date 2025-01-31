@@ -59,54 +59,51 @@ if RUN_TRAINING:
 ###############################################################################
 def compute_weighted_attrition(employee):
     score = 0
-    extreme_factors = 0  # Counter for extreme attrition cases
+    extreme_factors = 0
 
-    # Age Weighting (6%) - Normalizing the impact
+    # Age Weighting (6%)
     age_diff = abs(employee["Employee Age"] - employee["Average Employee Age"])
-    score += (age_diff / 25) * 6 if age_diff >= 5 else 0  # Small changes shouldn't matter
+    score += (age_diff / 25) * 6 if age_diff >= 5 else 0
 
     # Extreme Case: Female in Male-Dominated Workplace (<10% Female Ratio)
     if employee.get("Gender", "Male") == "Female" and employee["Female Employee Ratio"] < 10:
-        score += 12
+        score += 15  # Increased weightage
         extreme_factors += 1
 
-    # Tenure Weighting (6%) - Adjusted to reduce low-tenure bias
+    # Tenure Weighting (6%)
     score += 6 if employee["Tenure (Months)"] >= 36 else (3 if employee["Tenure (Months)"] >= 12 else 0)
 
-    # Extreme Case: Promotion Delay (Now 25%) - Adjusted to trigger only for severe cases
+    # Extreme Case: Promotion Delay (Now 30%)
     if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
-        score += 25  
+        score += 30  # Increased weightage
         extreme_factors += 1
 
-    # Extreme Case: Last Performance Rating = 1 (30%)
-    performance_map = {1: 30, 2: 20, 3: 10, 4: 5, 5: 0}
-    score += performance_map.get(employee["Last Performance Rating"], 5)  # Lower default for neutral cases
+    # Extreme Case: Last Performance Rating = 1 (40%)
+    performance_map = {1: 40, 2: 25, 3: 15, 4: 5, 5: 0}
+    score += performance_map.get(employee["Last Performance Rating"], 5)
     if employee["Last Performance Rating"] == 1:
         extreme_factors += 1
 
-    # Extreme Case: Compa Ratio <70% (Now 30%) - Slightly relaxed threshold
-    if employee["Compa Ratio"] < 65:
-        score += 30  
+    # Extreme Case: Compa Ratio <70% (Now 35%)
+    if employee["Compa Ratio"] < 70:
+        score += 35  # Increased weightage
         extreme_factors += 1
 
     # Extreme Cases for Low Retention Rates
     if employee["College Tier Retention"] < 15:
-        score += 10
+        score += 15
         extreme_factors += 1
     if employee["Industry Retention"] < 15:
-        score += 10
+        score += 15
         extreme_factors += 1
     if employee["Company Type Retention"] < 15:
-        score += 10
+        score += 15
         extreme_factors += 1
 
-    # ✅ Apply Non-Linear Compounding Effect for 3+ Extreme Factors
+    # Apply Non-Linear Compounding Effect for 3+ Extreme Factors
     if extreme_factors >= 3:
-        multiplier = 1.1 if extreme_factors == 3 else (1.25 if extreme_factors == 4 else 1.5)
-        score = min(100, score * multiplier)  
-
-    # ✅ Baseline Correction - Reduce score for "normal" cases
-    score = max(0, score - 15)  # Reduce neutral employee scores by 15%
+        multiplier = 1.3 if extreme_factors == 3 else (1.5 if extreme_factors == 4 else 1.8)
+        score = min(100, score * multiplier)
 
     return min(100, score)
 
@@ -150,10 +147,9 @@ with st.form("attrition_form"):
         "Industry Retention": st.slider("Industry Retention (%)", 10, 100, 60),
         "Company Type Retention": st.slider("Company Type Retention (%)", 10, 100, 60),
         "Last Performance Rating": st.slider("Last Performance Rating", 1, 5, 3),
-        "No. of Promotion": st.number_input("Number of Promotions", 0, 10, 1),
         "Compa Ratio": st.slider("Compa Ratio (%)", 50, 150, 100)
     }
-
+    
     submit_button = st.form_submit_button("Predict")
 
 if submit_button:
