@@ -6,10 +6,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
 ###############################################################################
-# Step 1: Train a Dummy Logistic Regression Model (or Use Existing .pkl)
+# Step 1: Train and Save a Dummy Logistic Regression Model
 ###############################################################################
-RUN_TRAINING = False  # Set to False if .pkl files already exist
-
 def train_and_save_model():
     np.random.seed(42)
     n_samples = 500
@@ -48,17 +46,15 @@ def train_and_save_model():
     with open("feature_columns.pkl", "wb") as f:
         pickle.dump(list(feature_columns), f)
 
-if RUN_TRAINING:
-    train_and_save_model()
+train_and_save_model()
 
 ###############################################################################
-# Step 2: Rule-Based Scoring with Extreme Case Adjustments (Increased Impact)
+# Step 2: Rule-Based Scoring with Extreme Case Adjustments
 ###############################################################################
 def compute_weighted_attrition(employee):
     score = 0
     extreme_factors = 0
 
-    # Apply weightage for different factors
     if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
         score += 30
         extreme_factors += 1
@@ -78,49 +74,35 @@ def compute_weighted_attrition(employee):
         score += 15
         extreme_factors += 1
 
-    # Stronger multiplier for 2 or more extreme cases
     if extreme_factors >= 2:
-        multiplier = 1.5 if extreme_factors == 2 else (1.8 if extreme_factors == 3 else 2.2)
-        score = min(100, score * multiplier)
+        score = min(100, score * 2.0)
 
-    score = max(0, score - 10)  # Slight baseline reduction
-    return min(100, score)
+    return min(100, max(0, score))
 
 ###############################################################################
-# Step 3: Machine Learning Prediction (10% Weight) with Fixes
+# Step 3: Machine Learning Prediction
 ###############################################################################
 def predict_attrition(employee_data):
-    try:
-        with open("logistic_regression_model.pkl", "rb") as f:
-            model = pickle.load(f)
-        with open("scaler.pkl", "rb") as f:
-            scaler = pickle.load(f)
-        with open("feature_columns.pkl", "rb") as f:
-            feature_columns = pickle.load(f)
-    except Exception as e:
-        return f"Error loading model: {str(e)}"
+    with open("logistic_regression_model.pkl", "rb") as f:
+        model = pickle.load(f)
+    with open("scaler.pkl", "rb") as f:
+        scaler = pickle.load(f)
+    with open("feature_columns.pkl", "rb") as f:
+        feature_columns = pickle.load(f)
 
     df_input = pd.DataFrame([employee_data])
     df_input = pd.get_dummies(df_input)
     df_input = df_input.reindex(columns=feature_columns, fill_value=0)
-    
-    if df_input.shape[1] == 0:
-        return "Error: Input features do not match model features."
-    
     X_scaled = scaler.transform(df_input)
-    
-    ml_proba = model.predict_proba(X_scaled)
-    if ml_proba is None or len(ml_proba) == 0:
-        return "Error: Model failed to generate predictions."
-    
-    ml_probability = ml_proba[:, 1][0] * 100
+
+    ml_probability = model.predict_proba(X_scaled)[:, 1][0] * 100
     rule_probability = compute_weighted_attrition(employee_data)
 
     combined_score = 0.9 * rule_probability + 0.1 * ml_probability
     return combined_score
 
 ###############################################################################
-# Step 4: Streamlit UI (All Inputs Included)
+# Step 4: Streamlit UI
 ###############################################################################
 st.title("Employee Attrition Prediction Tool")
 
