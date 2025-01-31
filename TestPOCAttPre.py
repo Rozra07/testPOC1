@@ -6,112 +6,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
 ###############################################################################
-# Step 1: Train a Dummy Logistic Regression Model (or Use Existing .pkl)
-###############################################################################
-RUN_TRAINING = True  # Set to False if .pkl files already exist
-
-def train_and_save_model():
-    np.random.seed(42)
-    n_samples = 500
-
-    df = pd.DataFrame({
-        "Employee Age": np.random.randint(20, 60, size=n_samples),
-        "Average Employee Age": np.random.randint(25, 50, size=n_samples),
-        "Female Employee Ratio": np.random.randint(0, 100, size=n_samples),
-        "Tenure (Months)": np.random.randint(0, 240, size=n_samples),
-        "Hasn't been promoted": np.random.randint(0, 60, size=n_samples),
-        "Minimum Promotion Cycle": np.random.randint(12, 60, size=n_samples),
-        "College Tier Retention": np.random.randint(10, 80, size=n_samples),
-        "Industry Retention": np.random.randint(10, 80, size=n_samples),
-        "Company Type Retention": np.random.randint(10, 80, size=n_samples),
-        "Last Performance Rating": np.random.randint(1, 6, size=n_samples),
-        "No. of Promotion": np.random.randint(0, 3, size=n_samples),
-        "Compa Ratio": np.random.randint(50, 120, size=n_samples),
-        "Increase from last company": np.random.randint(0, 30, size=n_samples),
-        "Joining CTC (INR)": np.random.randint(300000, 2500000, size=n_samples),
-        "Gender": np.random.choice(["Male", "Female"], size=n_samples),
-        "Pulse": np.random.choice(["High", "Medium", "Low"], size=n_samples)
-    })
-
-    y = np.random.randint(0, 2, size=n_samples)
-
-    df_encoded = pd.get_dummies(df, columns=["Gender", "Pulse"])
-    feature_columns = df_encoded.columns
-
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(df_encoded)
-
-    model = LogisticRegression(solver="liblinear", random_state=42)
-    model.fit(X_scaled, y)
-
-    with open("logistic_regression_model.pkl", "wb") as f:
-        pickle.dump(model, f)
-    with open("scaler.pkl", "wb") as f:
-        pickle.dump(scaler, f)
-    with open("feature_columns.pkl", "wb") as f:
-        pickle.dump(list(feature_columns), f)
-
-if RUN_TRAINING:
-    train_and_save_model()
-
-###############################################################################
-# Step 2: Rule-Based Scoring with Extreme Case Adjustments (Compounding Effect)
-###############################################################################
-def compute_weighted_attrition(employee):
-    score = 0
-    extreme_factors = 0  # Counter for extreme attrition cases
-
-    # Age Weighting (6%) - Normalizing the impact
-    age_diff = abs(employee["Employee Age"] - employee["Average Employee Age"])
-    score += (age_diff / 25) * 6 if age_diff >= 5 else 0  # Small changes shouldn't matter
-
-    # Extreme Case: Female in Male-Dominated Workplace (<10% Female Ratio)
-    if employee.get("Gender", "Male") == "Female" and employee["Female Employee Ratio"] < 10:
-        score += 12
-        extreme_factors += 1
-
-    # Tenure Weighting (6%) - Adjusted to reduce low-tenure bias
-    score += 6 if employee["Tenure (Months)"] >= 36 else (3 if employee["Tenure (Months)"] >= 12 else 0)
-
-    # Extreme Case: Promotion Delay (Now 25%) - Adjusted to trigger only for severe cases
-    if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
-        score += 25  
-        extreme_factors += 1
-
-    # Extreme Case: Last Performance Rating = 1 (30%)
-    performance_map = {1: 30, 2: 20, 3: 10, 4: 5, 5: 0}
-    score += performance_map.get(employee["Last Performance Rating"], 5)  # Lower default for neutral cases
-    if employee["Last Performance Rating"] == 1:
-        extreme_factors += 1
-
-    # Extreme Case: Compa Ratio <70% (Now 30%) - Slightly relaxed threshold
-    if employee["Compa Ratio"] < 65:
-        score += 30  
-        extreme_factors += 1
-
-    # Extreme Cases for Low Retention Rates
-    if employee["College Tier Retention"] < 15:
-        score += 10
-        extreme_factors += 1
-    if employee["Industry Retention"] < 15:
-        score += 10
-        extreme_factors += 1
-    if employee["Company Type Retention"] < 15:
-        score += 10
-        extreme_factors += 1
-
-    # ✅ Apply Non-Linear Compounding Effect for 3+ Extreme Factors
-    if extreme_factors >= 3:
-        multiplier = 1.1 if extreme_factors == 3 else (1.25 if extreme_factors == 4 else 1.5)
-        score = min(100, score * multiplier)  
-
-    # ✅ Baseline Correction - Reduce score for "normal" cases
-    score = max(0, score - 15)  # Reduce neutral employee scores by 15%
-
-    return min(100, score)
-
-###############################################################################
-# Step 3: Machine Learning Prediction (Logistic Regression)
+# Load Machine Learning Model and Scaler
 ###############################################################################
 def predict_attrition(employee_data):
     with open("logistic_regression_model.pkl", "rb") as f:
@@ -129,11 +24,70 @@ def predict_attrition(employee_data):
     ml_probability = model.predict_proba(X_scaled)[:, 1][0] * 100
     rule_probability = compute_weighted_attrition(employee_data)
 
-    combined_score = 0.4 * ml_probability + 0.6 * rule_probability
-    return combined_score
+    # ✅ Override ML Probability for Extreme Cases
+    if rule_probability >= 80:
+        ml_probability = max(ml_probability, rule_probability)
+
+    # ✅ Adjust ML weight to 30% and Rule-Based to 70%
+    combined_score = (0.3 * ml_probability) + (0.7 * rule_probability)
+
+    return min(100, combined_score)
 
 ###############################################################################
-# Step 4: Streamlit UI (All Inputs Included)
+# Rule-Based Scoring with Enhanced Compounding Effect
+###############################################################################
+def compute_weighted_attrition(employee):
+    score = 0
+    extreme_factors = 0  # Counter for extreme attrition cases
+
+    # Age Weighting (6%) - Normalizing the impact
+    age_diff = abs(employee["Employee Age"] - employee["Average Employee Age"])
+    score += (age_diff / 25) * 6 if age_diff >= 5 else 0  # Small changes shouldn't matter
+
+    # Extreme Case: Female in Male-Dominated Workplace (<10% Female Ratio)
+    if employee.get("Gender", "Male") == "Female" and employee["Female Employee Ratio"] < 10:
+        score += 18  # Increased from 15 → 18 for stronger impact
+        extreme_factors += 1
+
+    # Tenure Weighting (6%) - Adjusted to reduce low-tenure bias
+    score += 6 if employee["Tenure (Months)"] >= 36 else (3 if employee["Tenure (Months)"] >= 12 else 0)
+
+    # Extreme Case: Promotion Delay (Now 35%) - Stronger weight
+    if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
+        score += 35  # Increased from 30 → 35
+        extreme_factors += 1
+
+    # Extreme Case: Last Performance Rating = 1 (40%) - Stronger impact
+    performance_map = {1: 40, 2: 25, 3: 15, 4: 5, 5: 0}  # Increased from 35 → 40
+    score += performance_map.get(employee["Last Performance Rating"], 5)
+    if employee["Last Performance Rating"] == 1:
+        extreme_factors += 1
+
+    # Extreme Case: Compa Ratio <70% (Now 40%) - Stronger impact
+    if employee["Compa Ratio"] < 70:
+        score += 40  # Increased from 35 → 40
+        extreme_factors += 1
+
+    # Extreme Cases for Low Retention Rates
+    if employee["College Tier Retention"] < 15:
+        score += 15
+        extreme_factors += 1
+    if employee["Industry Retention"] < 15:
+        score += 15
+        extreme_factors += 1
+    if employee["Company Type Retention"] < 15:
+        score += 15
+        extreme_factors += 1
+
+    # ✅ Apply Stronger Non-Linear Compounding Effect for 3+ Extreme Factors
+    if extreme_factors >= 3:
+        multiplier = 1.6 if extreme_factors == 3 else (1.8 if extreme_factors == 4 else 2.3)
+        score = min(100, score * multiplier)
+
+    return min(100, score)
+
+###############################################################################
+# Streamlit UI for User Inputs
 ###############################################################################
 st.title("Employee Attrition Prediction Tool")
 
