@@ -424,7 +424,7 @@ if mode == "Bulk Employees":
         data=sample_csv,
         file_name="sample_bulk_data.csv",
         mime="text/csv"
-
+    )
 # ==================== SINGLE EMPLOYEE MODE (Original Code) ==================== #
 if mode == "Single Employee":
 
