@@ -605,33 +605,6 @@ elif mode == "Bulk Employees":
     - **Company Type**
     """)
 
-    # 0. Provide a Sample Bulk CSV Download
-    def generate_sample_bulk_csv():
-        sample_df = pd.DataFrame({
-            "Name": ["Alice Johnson", "Bob Smith"],
-            "Employee Age": [30, 45],
-            "Gender": ["Female", "Male"],
-            "Chances of employee leaving (High, Medium, Low)": ["Medium", "High"],
-            "Hasn't been promoted (in months)": [12, 36],
-            "Min. Promotion cycle (in months)": [24, 24],
-            "Performance rating out of 5": [3, 1],
-            "Compa Ratio": [90, 65],
-            "College Tier (Tier 1, Tier 2, Tier 3)": ["Tier 1", "Tier 3"],
-            "Industry": ["Tech", "Finance"],
-            "Company Type": ["Startup", "Enterprise"]
-        })
-        csv_buffer = io.StringIO()
-        sample_df.to_csv(csv_buffer, index=False)
-        return csv_buffer.getvalue()
-
-    st.write("**📄 Download a Sample Bulk CSV** to see the required format:")
-    st.download_button(
-        label="Download Sample Bulk CSV",
-        data=generate_sample_bulk_csv(),
-        file_name="sample_bulk_data.csv",
-        mime="text/csv"
-    )
-
     # 1. Introduce Inputs for Fixed Attributes and Tier-Based Retention Percentages
     st.sidebar.header("🔧 Set Fixed Attributes and Retention Percentages")
 
@@ -883,6 +856,4 @@ elif mode == "Bulk Employees":
                     st.write("""
                     *You can expand this section to include more detailed analysis or individual scenario planning for each employee.*
                     """)
-
-
 
