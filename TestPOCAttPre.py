@@ -59,10 +59,10 @@ def compute_weighted_attrition(employee):
         score += 30
         extreme_factors += 1
     if employee["Last Performance Rating"] == 1:
-        score += 40
+        score += 25
         extreme_factors += 1
     if employee["Compa Ratio"] < 70:
-        score += 35
+        score += 30
         extreme_factors += 1
     if employee["College Tier Retention"] < 15:
         score += 15
@@ -74,8 +74,12 @@ def compute_weighted_attrition(employee):
         score += 15
         extreme_factors += 1
 
-    if extreme_factors >= 2:
-        score = min(100, score * 2.0)
+    if extreme_factors == 2:
+        score = min(100, score * 1.3)
+    if extreme_factors == 3:
+        score = min(100, score * 1.6)
+    if extreme_factors >= 4:
+        score = min(100, score * 2)
 
     return min(100, max(0, score))
 
