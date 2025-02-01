@@ -300,8 +300,12 @@ def compute_weighted_attrition(employee, return_triggers=False):
         triggers.append("Excellent performance rating")  # positive
 
     # Compensation
-    if employee["Compa Ratio"] < 70:
-        score += 30
+    if employee["Compa Ratio"] < 80:
+        score += 20
+        extreme_factors += 0.8
+        triggers.append("Low compensation competitiveness") 
+    elif employee["Compa Ratio"] < 70:
+        score += 25
         extreme_factors += 1
         triggers.append("Low compensation competitiveness") 
     elif employee["Compa Ratio"] > 110:
