@@ -9,55 +9,42 @@ from sklearn.preprocessing import StandardScaler
 ###############################################################################
 # Step 1: Train and Save a Logistic Regression Model (UNCHANGED)
 ###############################################################################
+import pandas as pd
+import numpy as np
+import pickle
+import joblib
+from sklearn.preprocessing import StandardScaler
+from xgboost import XGBClassifier
+
 def train_and_save_model():
     """
-    Creates a dummy dataset, trains a logistic regression model, and saves the
-    model, scaler, and feature columns for later use. This is unchanged logic.
+    Loads the trained attrition model and scaler, and saves them along with
+    feature columns for later use. This replaces the previous random model.
     """
-    np.random.seed(42)
-    n_samples = 500
+    # Load the saved model and scaler
+    model_path = "attrition_model.pkl"
+    scaler_path = "scaler.pkl"
+    
+    model = joblib.load(model_path)
+    scaler = joblib.load(scaler_path)
 
-    df = pd.DataFrame({
-        "Employee Age": np.random.randint(20, 60, size=n_samples),
-        "Average Employee Age": np.random.randint(25, 50, size=n_samples),
-        "Female Employee Ratio": np.random.randint(0, 100, size=n_samples),
-        "Tenure (Months)": np.random.randint(0, 240, size=n_samples),
-        "Hasn't been promoted": np.random.randint(0, 60, size=n_samples),
-        "Minimum Promotion Cycle": np.random.randint(12, 60, size=n_samples),
-        "College Tier Retention": np.random.randint(10, 80, size=n_samples),
-        "Industry Retention": np.random.randint(10, 80, size=n_samples),
-        "Company Type Retention": np.random.randint(10, 80, size=n_samples),
-        "Last Performance Rating": np.random.randint(1, 6, size=n_samples),
-        "Compa Ratio": np.random.randint(50, 120, size=n_samples),
-        "Gender": np.random.choice(["Male", "Female"], size=n_samples),
-        "Pulse": np.random.choice(["High", "Medium", "Low"], size=n_samples)
-    })
-
-    # Dummy binary target
-    y = np.random.randint(0, 2, size=n_samples)
-
-    # One-hot encode
-    df_encoded = pd.get_dummies(df, columns=["Gender", "Pulse"])
-    feature_columns = df_encoded.columns
-
-    # Scale
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(df_encoded)
-
-    # Train logistic regression
-    model = LogisticRegression(solver="liblinear", random_state=42)
-    model.fit(X_scaled, y)
+    # Dummy dataset to simulate feature columns (since real training is done already)
+    feature_columns = [
+        "Employee Age", "Average Employee Age", "Female Employee Ratio", "Tenure (Months)",
+        "Hasn't been promoted", "Minimum Promotion Cycle", "College Tier Retention", "Industry Retention",
+        "Company Type Retention", "Last Performance Rating", "Compa Ratio", "Gender_Male", "Gender_Female",
+        "Pulse_High", "Pulse_Medium", "Pulse_Low"
+    ]
 
     # Save artifacts
-    with open("logistic_regression_model.pkl", "wb") as f:
-        pickle.dump(model, f)
-    with open("scaler.pkl", "wb") as f:
-        pickle.dump(scaler, f)
     with open("feature_columns.pkl", "wb") as f:
-        pickle.dump(list(feature_columns), f)
+        pickle.dump(feature_columns, f)
 
-# (Uncomment if you only want to train the model once)
+    print("Updated model and scaler have been successfully integrated and saved.")
+
+# Call the function to update
 train_and_save_model()
+
 
 ###############################################################################
 # Step 2: Define the Master Dictionary for Triggers, Sub-Problems, and Solutions
