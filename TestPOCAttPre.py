@@ -5,7 +5,6 @@ import pickle
 import io
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
-pip install xgboost
 
 ###############################################################################
 # Step 1: Train and Save a Logistic Regression Model (UNCHANGED)
