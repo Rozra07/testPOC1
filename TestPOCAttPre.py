@@ -346,19 +346,19 @@ def compute_weighted_attrition(employee, return_triggers=False):
     score = 0
     extreme_factors = 0
     triggers = []
-
+    
     # Gender Diversity
     if employee["Gender"] == "Female" and employee["Female Employee Ratio"] <= 15:
         score += 30
         extreme_factors += 1
         triggers.append("Low gender diversity")
-
+    
     # Stagnant Promotions
     if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
         score += 30
         extreme_factors += 1
         triggers.append("Stagnant promotions")
-
+    
     # Performance Rating
     if employee["Last Performance Rating"] == 1:
         score += 25
@@ -372,37 +372,35 @@ def compute_weighted_attrition(employee, return_triggers=False):
         score -= 15
         extreme_factors -= 0.5
         triggers.append("Excellent performance rating")  # positive
-
+    
     # Compensation
     if employee["Compa Ratio"] < 80:
         score += 20
         extreme_factors += 0.8
-        triggers.append("Low compensation competitiveness") 
+        triggers.append("Low compensation competitiveness")
     elif employee["Compa Ratio"] < 70:
         score += 25
         extreme_factors += 1
-        triggers.append("Low compensation competitiveness") 
+        triggers.append("Low compensation competitiveness")
     elif employee["Compa Ratio"] > 110:
         score -= 15
         extreme_factors -= 0.5
         triggers.append("High compensation ratio")  # positive
-
+    
     # Retention
     if employee["College Tier Retention"] < 15:
         score += 15
         extreme_factors += 0.5
         triggers.append("Low college tier retention")
-
     if employee["Industry Retention"] < 15:
         score += 15
         extreme_factors += 0.5
         triggers.append("Low industry retention")
-
     if employee["Company Type Retention"] < 15:
         score += 15
         extreme_factors += 0.5
         triggers.append("Low company type retention")
-
+    
     # Pulse
     if employee["Pulse"] == "High":
         score += 20
@@ -412,7 +410,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
         score -= 20
         extreme_factors -= 0.5
         triggers.append("Low dissatisfaction (Pulse)")  # positive
-
+    
     # Extreme Factors
     if extreme_factors == 2:
         score = min(100, score * 1.3)
@@ -420,9 +418,8 @@ def compute_weighted_attrition(employee, return_triggers=False):
         score = min(100, score * 1.6)
     elif extreme_factors >= 4:
         score = min(100, score * 2)
-
+    
     final_score = min(100, max(0, score))
-
     if return_triggers:
         return final_score, triggers
     else:
@@ -444,10 +441,8 @@ def predict_attrition(employee_data, industry):
     df_input = pd.get_dummies(df_input)
     df_input = df_input.reindex(columns=feature_columns, fill_value=0)
     X_scaled = scaler.transform(df_input)
-
     ml_probability = model.predict_proba(X_scaled)[:, 1][0] * 100
     rule_probability, triggers = compute_weighted_attrition(employee_data, return_triggers=True)
-
     combined_score = 0.75 * rule_probability + 0.25 * ml_probability
     return combined_score, triggers
 
@@ -515,10 +510,8 @@ tabs = st.tabs(["Train Mode", "Test Mode"])
 ###############################################################################
 with tabs[0]:
     st.header("Train Mode")
-    # Ask the user to select their industry for training
+    # Use the industry selectbox (do not modify st.session_state manually)
     selected_train_industry = st.selectbox("Select Your Industry", industry_options, key="train_industry")
-    # Store industry in session_state so that it can be reused in Test Mode
-    st.session_state.train_industry = selected_train_industry
     
     col1, col2 = st.columns([1,1])
     with col1:
@@ -584,7 +577,7 @@ with tabs[1]:
     """)
     # Use the industry stored from training as default if available
     default_test_industry = st.session_state.get("train_industry", industry_options[0])
-    selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=industry_options.index(default_test_industry), key="test_industry")
+    selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=industry_options.index(default_test_industry) if default_test_industry in industry_options else 0, key="test_industry")
     
     test_mode = st.selectbox("Select Test Mode", ["Single Employee", "Bulk Employees"])
     
@@ -601,7 +594,6 @@ with tabs[1]:
     
         st.write("### Enter Employee / Company Details")
         with st.form("attrition_form"):
-            # In single employee mode, we continue to ask for all details including retention percentages
             input_data = {
                 "Employee Age": st.slider("Employee Age", 18, 65, 30),
                 "Average Employee Age": st.slider("Average Employee Age", 18, 65, 35),
@@ -611,7 +603,7 @@ with tabs[1]:
                 "Pulse": st.radio("Employee dissatisfaction (Pulse)", ["High", "Medium", "Low"], horizontal=True),
                 "Hasn't been promoted": st.slider("Months Since Last Promotion", 0, 60, 12),
                 "Minimum Promotion Cycle": st.slider("Min Promotion Cycle (Months)", 12, 60, 24),
-                # In single mode, user enters retention percentages manually:
+                # For single mode, user enters retention percentages manually:
                 "College Tier Retention": st.slider("College Tier Retention (%)", 10, 100, 60),
                 "Industry Retention": st.slider("Industry Retention (%)", 10, 100, 60),
                 "Company Type Retention": st.slider("Company Type Retention (%)", 10, 100, 60),
@@ -629,6 +621,7 @@ with tabs[1]:
         if st.session_state.prediction_made:
             score = st.session_state.score
             triggers = st.session_state.triggers
+    
             with st.container():
                 if score >= 75:
                     bg_color = "#ff4d4d"
@@ -758,15 +751,15 @@ with tabs[1]:
     
         with st.expander("Set Industry Retention Percentages"):
             industry_retention = {}
-            # For simplicity, we use a fixed list here. You can customize as needed.
-            for ind in ["Tech", "Finance", "Healthcare", "Education", "Manufacturing", "Retail", "Energy", "Telecommunications", "Government", "Nonprofit", "Other"]:
-                default_val = 60 if ind=="Tech" else 50
+            for ind in industry_options:
+                default_val = 60 if ind == "Tech" else 50
                 industry_retention[ind] = st.slider(f"{ind} Retention (%)", 10, 100, default_val)
     
         with st.expander("Set Company Type Retention Percentages"):
+            company_types = ["Startup", "Enterprise", "Non-Profit", "SME"]
             company_type_retention = {}
-            for ct in ["Startup", "Enterprise", "Non-Profit", "SME"]:
-                default_val = 60 if ct=="Enterprise" else 50
+            for ct in company_types:
+                default_val = 60 if ct == "Enterprise" else 50
                 company_type_retention[ct] = st.slider(f"{ct} Retention (%)", 10, 100, default_val)
     
         uploaded_file = st.file_uploader("📤 Upload Bulk Data (CSV or Excel)", type=["csv", "xlsx"])
@@ -778,7 +771,6 @@ with tabs[1]:
                 st.stop()
             st.write("**📊 Uploaded Data Preview:**")
             st.dataframe(df_bulk.head())
-            # Required columns now expect categorical values
             required_cols = [
                 "Name",
                 "Employee Age",
@@ -806,8 +798,7 @@ with tabs[1]:
                     for idx, row in df_bulk.iterrows():
                         row_dict = row.to_dict()
                         names.append(row_dict.get("Name"))
-                        # Rename columns if necessary (here we assume the file uses the correct names)
-                        # Set retention percentages based on the categorical values from the file and the sidebar settings:
+                        # Set retention percentages based on categorical values from file and sidebar settings
                         college_tier = row_dict.get("College Tier")
                         if college_tier == "Tier 1":
                             row_dict["College Tier Retention"] = tier1_retention
@@ -818,7 +809,7 @@ with tabs[1]:
                         else:
                             st.warning(f"Row {idx}: Unknown College Tier '{college_tier}'. Using default 40%.")
                             row_dict["College Tier Retention"] = 40
-                        
+    
                         ind_val = row_dict.get("Industry")
                         row_dict["Industry Retention"] = industry_retention.get(ind_val, 50)
     
