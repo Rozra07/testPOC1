@@ -4,20 +4,50 @@ import numpy as np
 import pickle
 import io
 import os
+from datetime import datetime
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
 ###############################################################################
+# Global: Industry Options
+###############################################################################
+industry_options = ["Tech", "Finance", "Healthcare", "Education", "Manufacturing", "Other"]
+
+###############################################################################
+# Function to update aggregated training data per industry
+###############################################################################
+def update_aggregated_training_data(industry, new_data_df):
+    """
+    Updates (or creates) an aggregated training file for the given industry.
+    If a file (e.g., training_data_Tech.csv) exists, the new data is appended.
+    Otherwise, a new file is created.
+    Returns the combined aggregated DataFrame.
+    """
+    filename = f"training_data_{industry}.csv"
+    if os.path.exists(filename):
+        try:
+            existing_df = pd.read_csv(filename)
+        except Exception as e:
+            st.error(f"Error reading aggregated training data: {e}")
+            existing_df = pd.DataFrame()
+        combined_df = pd.concat([existing_df, new_data_df], ignore_index=True)
+    else:
+        combined_df = new_data_df
+    combined_df.to_csv(filename, index=False)
+    return combined_df
+
+###############################################################################
 # MODELLING FUNCTIONS
 ###############################################################################
-def train_model(training_df, target_column):
+def train_model(training_df, target_column, industry):
     """
-    Trains a logistic regression model on the uploaded training data.
+    Trains a logistic regression model on the provided training data.
     The training_df should include the target column (e.g., "Attrition")
     along with all the feature columns.
-
-    The function one-hot encodes the features, scales the data, trains the model,
-    and saves the model, scaler, and feature columns to disk.
+    
+    This function one‑hot encodes the features, scales the data, trains the model,
+    and saves the model, scaler, and feature columns to disk using filenames that
+    include the industry.
     """
     # Separate features and target
     X = training_df.drop(columns=[target_column])
@@ -35,31 +65,70 @@ def train_model(training_df, target_column):
     model = LogisticRegression(solver="liblinear", random_state=42)
     model.fit(X_scaled, y)
     
-    # Save artifacts to disk
-    with open("logistic_regression_model.pkl", "wb") as f:
+    # Save artifacts to disk with industry prefix
+    model_filename = f"{industry}_model.pkl"
+    scaler_filename = f"{industry}_scaler.pkl"
+    features_filename = f"{industry}_feature_columns.pkl"
+    
+    with open(model_filename, "wb") as f:
         pickle.dump(model, f)
-    with open("scaler.pkl", "wb") as f:
+    with open(scaler_filename, "wb") as f:
         pickle.dump(scaler, f)
-    with open("feature_columns.pkl", "wb") as f:
+    with open(features_filename, "wb") as f:
         pickle.dump(feature_columns, f)
     
     st.success("Model trained and saved successfully!")
+    
+    # Update the back file (industry_models.csv)
+    update_industry_record(industry, model_filename, scaler_filename, features_filename)
 
-def load_model():
+def update_industry_record(industry, model_file, scaler_file, feature_file):
     """
-    Loads the saved logistic regression model, scaler, and feature columns.
+    Updates (or creates) a CSV file that records which industry has a trained model.
+    Each row includes the Industry, model file names, and the training timestamp.
+    """
+    record = {
+        "Industry": industry,
+        "Model_File": model_file,
+        "Scaler_File": scaler_file,
+        "Feature_File": feature_file,
+        "Training_Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    
+    csv_filename = "industry_models.csv"
+    # If the file exists, load it; otherwise create an empty DataFrame.
+    if os.path.exists(csv_filename):
+        df = pd.read_csv(csv_filename)
+        # Check if a record for this industry exists; update or append accordingly.
+        if industry in df["Industry"].values:
+            df.loc[df["Industry"] == industry, ["Model_File", "Scaler_File", "Feature_File", "Training_Date"]] = \
+                [model_file, scaler_file, feature_file, record["Training_Date"]]
+        else:
+            df = df.append(record, ignore_index=True)
+    else:
+        df = pd.DataFrame([record])
+    
+    df.to_csv(csv_filename, index=False)
+
+def load_model(industry):
+    """
+    Loads the saved logistic regression model, scaler, and feature columns for the given industry.
     Returns None for each if not found.
     """
-    if os.path.exists("logistic_regression_model.pkl") and os.path.exists("scaler.pkl") and os.path.exists("feature_columns.pkl"):
-        with open("logistic_regression_model.pkl", "rb") as f:
+    model_filename = f"{industry}_model.pkl"
+    scaler_filename = f"{industry}_scaler.pkl"
+    features_filename = f"{industry}_feature_columns.pkl"
+    
+    if os.path.exists(model_filename) and os.path.exists(scaler_filename) and os.path.exists(features_filename):
+        with open(model_filename, "rb") as f:
             model = pickle.load(f)
-        with open("scaler.pkl", "rb") as f:
+        with open(scaler_filename, "rb") as f:
             scaler = pickle.load(f)
-        with open("feature_columns.pkl", "rb") as f:
+        with open(features_filename, "rb") as f:
             feature_columns = pickle.load(f)
         return model, scaler, feature_columns
     else:
-        st.error("No trained model found. Please go to Train Mode and upload your training file first.")
+        st.error("No trained model found for the selected industry. Please train your model in Train Mode first.")
         return None, None, None
 
 ###############################################################################
@@ -350,15 +419,15 @@ def compute_weighted_attrition(employee, return_triggers=False):
         return final_score
 
 ###############################################################################
-# MACHINE LEARNING PREDICTION (Modified to use loaded model)
+# MACHINE LEARNING PREDICTION (Modified to use loaded model with industry)
 ###############################################################################
-def predict_attrition(employee_data):
+def predict_attrition(employee_data, industry):
     """
-    Loads the saved logistic regression model, transforms the data,
-    and combines ML probability with rule-based score.
+    Loads the saved logistic regression model for the specified industry, transforms the data,
+    and combines the ML probability with the rule-based score.
     Returns (combined_score, triggers).
     """
-    model, scaler, feature_columns = load_model()
+    model, scaler, feature_columns = load_model(industry)
     if model is None:
         return None, None
     df_input = pd.DataFrame([employee_data])
@@ -377,8 +446,7 @@ def predict_attrition(employee_data):
 ###############################################################################
 def generate_sample_csv():
     """
-    Returns a string of CSV data containing the required columns 
-    with 2 example rows.
+    Returns a string of CSV data containing the required columns with 2 example rows.
     """
     sample_csv = pd.DataFrame({
         "Employee Age": [30, 45],
@@ -445,10 +513,13 @@ tabs = st.tabs(["Train Mode", "Test Mode"])
 ###############################################################################
 with tabs[0]:
     st.header("Train Mode")
-    # Use a two-column layout: left for upload, right for detailed guide and download button
+    # Ask the user to select their industry for training
+    selected_train_industry = st.selectbox("Select Your Industry", industry_options, key="train_industry")
+    
+    # Two-column layout: left for upload, right for detailed guide and download button
     col1, col2 = st.columns([1,1])
     with col1:
-        uploaded_train = st.file_uploader("Upload Training Data (CSV or Excel)", type=["csv", "xlsx"], key="train")
+        uploaded_train = st.file_uploader("Upload Training Data (CSV or Excel)", type=["csv", "xlsx"], key="train_file")
     with col2:
         st.markdown("### Detailed Guide for Training File")
         st.markdown("""
@@ -476,22 +547,25 @@ with tabs[0]:
             mime="text/csv"
         )
     target_column = st.text_input("Enter the name of the target column", value="Attrition")
+    
     if uploaded_train is not None:
         try:
             if uploaded_train.name.endswith(".csv"):
                 train_df = pd.read_csv(uploaded_train)
             else:
                 train_df = pd.read_excel(uploaded_train)
-            st.write("### Preview of Training Data")
+            st.write("### Preview of Uploaded Training Data")
             st.dataframe(train_df.head())
         except Exception as e:
             st.error(f"Error reading file: {e}")
         
-        if st.button("Train Model"):
-            if target_column not in train_df.columns:
-                st.error(f"Target column '{target_column}' not found in the data.")
-            else:
-                train_model(train_df, target_column)
+        if st.button("Update Aggregated Data and Retrain Model"):
+            # Update (or create) the aggregated training data for the selected industry
+            aggregated_df = update_aggregated_training_data(selected_train_industry, train_df)
+            st.write("### Aggregated Training Data Preview")
+            st.dataframe(aggregated_df.head())
+            # Now train the model on the aggregated training data
+            train_model(aggregated_df, target_column, selected_train_industry)
 
 ###############################################################################
 # TEST MODE TAB
@@ -502,11 +576,12 @@ with tabs[1]:
     **Instructions for Testing:**
     
     - Before testing, ensure you have trained a model in Train Mode.
-    - Select whether to use **Single Employee** or **Bulk Employees** for testing.
+    - Select your industry from the dropdown below (the same one used during training).
+    - Then select whether to use **Single Employee** or **Bulk Employees** for testing.
       - **Single Employee:** Enter details manually.
       - **Bulk Employees:** Upload a CSV/Excel file with employee data.
     """)
-    
+    selected_test_industry = st.selectbox("Select Your Industry", industry_options, key="test_industry")
     test_mode = st.selectbox("Select Test Mode", ["Single Employee", "Bulk Employees"])
     
     # -------------------------- SINGLE EMPLOYEE MODE --------------------------
@@ -521,7 +596,6 @@ with tabs[1]:
             st.session_state.employee_data = {}
 
         st.write("### Enter Employee / Company Details")
-
         with st.form("attrition_form"):
             input_data = {
                 "Employee Age": st.slider("Employee Age", 18, 65, 30),
@@ -538,10 +612,9 @@ with tabs[1]:
                 "Last Performance Rating": st.slider("Last Performance Rating", 1, 5, 3),
                 "Compa Ratio": st.slider("Compa Ratio (%)", 50, 150, 100)
             }
-
             submit_single = st.form_submit_button("🚀 Predict")
             if submit_single:
-                final_score, triggers = predict_attrition(input_data)
+                final_score, triggers = predict_attrition(input_data, selected_test_industry)
                 st.session_state.score = final_score
                 st.session_state.triggers = triggers
                 st.session_state.prediction_made = True
@@ -550,8 +623,6 @@ with tabs[1]:
         if st.session_state.prediction_made:
             score = st.session_state.score
             triggers = st.session_state.triggers
-
-            # Full-width risk box
             with st.container():
                 if score >= 75:
                     bg_color = "#ff4d4d"
@@ -565,7 +636,6 @@ with tabs[1]:
                 else:
                     bg_color = "#28a745"
                     msg_html = f"✅ SAFE! Low Attrition Risk <br> {score:.2f}% 🌱"
-
                 st.markdown(
                     f"""
                     <div style="background-color:{bg_color}; color:white; padding:15px; border-radius:10px; 
@@ -575,10 +645,7 @@ with tabs[1]:
                     """,
                     unsafe_allow_html=True
                 )
-
             col_left, col_right = st.columns(2)
-
-            # ---------- LEFT: Triggers + Sub-Problems ----------
             with col_left:
                 st.write("### Key Contributing Factors")
                 negative_triggers = []
@@ -588,7 +655,6 @@ with tabs[1]:
                         st.markdown(f"- **{t}**")
                 if not negative_triggers:
                     st.markdown("*No major negative triggers identified.*")
-
                 st.write("### Sub-Problems Selection")
                 sub_problem_selections = {}
                 for trig in negative_triggers:
@@ -603,7 +669,6 @@ with tabs[1]:
                         if new_val:
                             chosen_list.append(sub_key)
                     sub_problem_selections[trig] = chosen_list
-
                 if st.button("💡 Show Solutions"):
                     st.write("### Recommended Solutions")
                     any_chosen = False
@@ -618,12 +683,9 @@ with tabs[1]:
                                 st.markdown(f"{solution_text}")
                     if not any_chosen:
                         st.info("No sub-problems selected, so no solutions to display.")
-
-            # ---------- RIGHT: Live What-If Scenario -------------
             with col_right:
                 st.write("### What-If Scenario Planning")
                 scenario_data = dict(st.session_state.employee_data)
-
                 scenario_data["Compa Ratio"] = st.slider(
                     "Compa Ratio (%) [Scenario]",
                     50, 150, scenario_data["Compa Ratio"],
@@ -640,10 +702,8 @@ with tabs[1]:
                     index=["High", "Medium", "Low"].index(scenario_data["Pulse"]),
                     horizontal=True
                 )
-
-                scenario_score, scenario_triggers = predict_attrition(scenario_data)
+                scenario_score, scenario_triggers = predict_attrition(scenario_data, selected_test_industry)
                 st.write(f"**Scenario Attrition Risk:** {scenario_score:.2f}%")
-
                 diff = scenario_score - score
                 if diff > 0:
                     st.markdown(f"<span style='color:red;'>Risk +{diff:.2f}% higher than original.</span>", unsafe_allow_html=True)
@@ -651,7 +711,6 @@ with tabs[1]:
                     st.markdown(f"<span style='color:green;'>Risk {diff:.2f}% lower than original.</span>", unsafe_allow_html=True)
                 else:
                     st.write("No change from original risk.")
-
                 neg_scenario_triggers = [t for t in scenario_triggers if t in TRIGGER_DETAILS]
                 if neg_scenario_triggers:
                     st.write("**Scenario Negative Triggers**")
@@ -681,8 +740,6 @@ with tabs[1]:
         - **Industry**
         - **Company Type**
         """)
-
-        # Bulk mode settings (using sidebar for additional inputs)
         st.sidebar.header("🔧 Set Fixed Attributes and Retention Percentages")
         st.sidebar.subheader("📊 Fixed Attributes for All Employees")
         fixed_attributes = {
@@ -814,11 +871,11 @@ with tabs[1]:
                         else:
                             st.warning(f"Row {idx}: Unknown College Tier '{college_tier}'. Using default retention of 40%.")
                             row_dict["College Tier Retention"] = 40
-                        industry = row_dict.get("Industry")
-                        if industry in industry_retention:
-                            row_dict["Industry Retention"] = industry_retention[industry]
+                        industry_val = row_dict.get("Industry")
+                        if industry_val in industry_retention:
+                            row_dict["Industry Retention"] = industry_retention[industry_val]
                         else:
-                            st.warning(f"Row {idx}: Unknown Industry '{industry}'. Using default retention of 50%.")
+                            st.warning(f"Row {idx}: Unknown Industry '{industry_val}'. Using default retention of 50%.")
                             row_dict["Industry Retention"] = 50
                         company_type = row_dict.get("Company Type")
                         if company_type in company_type_retention:
@@ -827,7 +884,7 @@ with tabs[1]:
                             st.warning(f"Row {idx}: Unknown Company Type '{company_type}'. Using default retention of 50%.")
                             row_dict["Company Type Retention"] = 50
                         try:
-                            bulk_score, bulk_trigs = predict_attrition(row_dict)
+                            bulk_score, bulk_trigs = predict_attrition(row_dict, selected_test_industry)
                         except Exception as e:
                             st.error(f"Row {idx}: Prediction failed due to {e}. Skipping this row.")
                             scores.append(None)
