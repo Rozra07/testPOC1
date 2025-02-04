@@ -44,7 +44,7 @@ def train_model(training_df, target_column, industry):
     X_encoded = pd.get_dummies(X)
     feature_columns = list(X_encoded.columns)
     
-    # Scale the features
+    # Scale features
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X_encoded)
     
@@ -425,23 +425,22 @@ with tabs[0]:
     st.header("Train Mode")
     selected_train_industry = st.selectbox("Select Your Industry", industry_options, key="train_industry")
     
-    # GLOBAL SETTINGS for bulk analysis – placed in the Train Mode sidebar ONLY.
-    st.sidebar.markdown("### Global Settings for Bulk Analysis\n*These settings MUST be filled for bulk analysis*")
-    global_avg_age = st.sidebar.slider("Average Employee Age in Company", 18, 100, 35, key="global_avg_age")
-    global_female_ratio = st.sidebar.slider("Women % in Organization", 0, 100, 40, key="global_female_ratio")
-    
-    with st.sidebar.expander("College Tier Retention Settings [?]", expanded=True):
+    # Global settings for Bulk Analysis (only visible in Train Mode)
+    st.markdown("#### Global Settings for Bulk Analysis (MUST be filled for bulk analysis)")
+    # Global Company Settings:
+    global_avg_age = st.slider("Average Employee Age in Company", 18, 100, 35, key="global_avg_age")
+    global_female_ratio = st.slider("Women % in Organization", 0, 100, 40, key="global_female_ratio")
+    # Retention Settings:
+    with st.expander("College Tier Retention Settings [?]", expanded=True):
         bulk_tier1 = st.slider("Tier 1 Retention (%)", 10, 100, 60, key="bulk_tier1")
         bulk_tier2 = st.slider("Tier 2 Retention (%)", 10, 100, 50, key="bulk_tier2")
         bulk_tier3 = st.slider("Tier 3 Retention (%)", 10, 100, 40, key="bulk_tier3")
-    
-    with st.sidebar.expander("Industry Retention Settings [?]", expanded=True):
+    with st.expander("Industry Retention Settings [?]", expanded=True):
         bulk_industry_retention = {}
         for ind in industry_options:
             default_val = 60 if ind=="Tech" else 50
             bulk_industry_retention[ind] = st.slider(f"{ind} Retention (%)", 10, 100, default_val, key=f"bulk_ind_{ind}")
-    
-    with st.sidebar.expander("Company Type Retention Settings [?]", expanded=True):
+    with st.expander("Company Type Retention Settings [?]", expanded=True):
         bulk_startup = st.slider("Startup Retention (%)", 10, 100, 60, key="bulk_startup")
         bulk_small = st.slider("Small Size Retention (%)", 10, 100, 55, key="bulk_small")
         bulk_mid = st.slider("Mid Size Retention (%)", 10, 100, 50, key="bulk_mid")
@@ -513,14 +512,14 @@ with tabs[1]:
     - The industry selection below is pre-set to your training industry.
     - In Single Employee mode, enter the employee details (including retention percentages).
     - In Bulk Employees mode, upload a file in the new format (with categorical values for College Tier, Industry, and Company Type).
-      The global settings (set in Train Mode) will be applied.
+      The global settings (set in Train Mode) will be applied automatically.
     """)
     default_test_industry = st.session_state.get("train_industry", industry_options[0])
     selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=industry_options.index(default_test_industry) if default_test_industry in industry_options else 0, key="test_industry")
     
     test_mode = st.selectbox("Select Test Mode", ["Single Employee", "Bulk Employees"])
     
-    # Note: No sidebar global controls are shown in Test Mode.
+    # Note: No global controls are shown in Test Mode.
     
     # -------------------------- SINGLE EMPLOYEE MODE --------------------------
     if test_mode == "Single Employee":
@@ -683,7 +682,7 @@ with tabs[1]:
         - **Last Performance Rating**
         - **Compa Ratio**
         """)
-        # In Bulk mode, we use the global settings from Training mode (stored in session_state)
+        # In Bulk mode, global settings from Train Mode are used (and no sliders are shown here)
         global_avg_age = st.session_state.get("global_avg_age", 35)
         global_female_ratio = st.session_state.get("global_female_ratio", 40)
         bulk_tier1 = st.session_state.get("bulk_tier1", 60)
@@ -719,10 +718,10 @@ with tabs[1]:
                     for idx, row in df_bulk.iterrows():
                         row_dict = row.to_dict()
                         names.append(row_dict.get("Name"))
-                        # Override with global company settings from Training mode:
+                        # Override with global company settings from Training Mode:
                         row_dict["Average Employee Age"] = global_avg_age
                         row_dict["Female Employee Ratio"] = global_female_ratio
-                        # Use global retention settings based on categorical values:
+                        # Use global retention settings based on file categorical values:
                         college_tier = row_dict.get("College Tier")
                         if college_tier == "Tier 1":
                             row_dict["College Tier Retention"] = bulk_tier1
