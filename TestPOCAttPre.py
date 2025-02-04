@@ -3,65 +3,66 @@ import pandas as pd
 import numpy as np
 import pickle
 import io
+import os
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
 ###############################################################################
-# Step 1: Train and Save a Logistic Regression Model (UNCHANGED)
+# MODELLING FUNCTIONS
 ###############################################################################
-def train_and_save_model():
+def train_model(training_df, target_column):
     """
-    Creates a dummy dataset, trains a logistic regression model, and saves the
-    model, scaler, and feature columns for later use. This is unchanged logic.
+    Trains a logistic regression model on the uploaded training data.
+    The training_df should include the target column (e.g., "Attrition")
+    along with the feature columns.
+    This function one-hot encodes the features, scales the data,
+    trains the model, and saves the model, scaler, and feature columns.
     """
-    np.random.seed(42)
-    n_samples = 500
-
-    df = pd.DataFrame({
-        "Employee Age": np.random.randint(20, 60, size=n_samples),
-        "Average Employee Age": np.random.randint(25, 50, size=n_samples),
-        "Female Employee Ratio": np.random.randint(0, 100, size=n_samples),
-        "Tenure (Months)": np.random.randint(0, 240, size=n_samples),
-        "Hasn't been promoted": np.random.randint(0, 60, size=n_samples),
-        "Minimum Promotion Cycle": np.random.randint(12, 60, size=n_samples),
-        "College Tier Retention": np.random.randint(10, 80, size=n_samples),
-        "Industry Retention": np.random.randint(10, 80, size=n_samples),
-        "Company Type Retention": np.random.randint(10, 80, size=n_samples),
-        "Last Performance Rating": np.random.randint(1, 6, size=n_samples),
-        "Compa Ratio": np.random.randint(50, 120, size=n_samples),
-        "Gender": np.random.choice(["Male", "Female"], size=n_samples),
-        "Pulse": np.random.choice(["High", "Medium", "Low"], size=n_samples)
-    })
-
-    # Dummy binary target
-    y = np.random.randint(0, 2, size=n_samples)
-
-    # One-hot encode
-    df_encoded = pd.get_dummies(df, columns=["Gender", "Pulse"])
-    feature_columns = df_encoded.columns
-
-    # Scale
+    # Separate features and target
+    X = training_df.drop(columns=[target_column])
+    y = training_df[target_column]
+    
+    # One-hot encode categorical features
+    X_encoded = pd.get_dummies(X)
+    feature_columns = list(X_encoded.columns)
+    
+    # Scale the features
     scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(df_encoded)
-
+    X_scaled = scaler.fit_transform(X_encoded)
+    
     # Train logistic regression
     model = LogisticRegression(solver="liblinear", random_state=42)
     model.fit(X_scaled, y)
-
-    # Save artifacts
+    
+    # Save artifacts to disk
     with open("logistic_regression_model.pkl", "wb") as f:
         pickle.dump(model, f)
     with open("scaler.pkl", "wb") as f:
         pickle.dump(scaler, f)
     with open("feature_columns.pkl", "wb") as f:
-        pickle.dump(list(feature_columns), f)
+        pickle.dump(feature_columns, f)
+    
+    st.success("Model trained and saved successfully!")
 
-# (Uncomment if you only want to train the model once)
-train_and_save_model()
-
+def load_model():
+    """
+    Loads the saved model, scaler, and feature columns.
+    Returns None for each if not found.
+    """
+    if os.path.exists("logistic_regression_model.pkl") and os.path.exists("scaler.pkl") and os.path.exists("feature_columns.pkl"):
+        with open("logistic_regression_model.pkl", "rb") as f:
+            model = pickle.load(f)
+        with open("scaler.pkl", "rb") as f:
+            scaler = pickle.load(f)
+        with open("feature_columns.pkl", "rb") as f:
+            feature_columns = pickle.load(f)
+        return model, scaler, feature_columns
+    else:
+        st.error("No trained model found. Please go to 'Model Training' and upload your training data first.")
+        return None, None, None
 
 ###############################################################################
-# Step 2: Define the Master Dictionary for Triggers, Sub-Problems, and Solutions
+# TRIGGER DETAILS (No changes)
 ###############################################################################
 TRIGGER_DETAILS = {
     "Low gender diversity": {
@@ -264,7 +265,7 @@ TRIGGER_DETAILS = {
 }
 
 ###############################################################################
-# Step 3: Rule-Based Scoring (No Changes)
+# RULE-BASED SCORING (No changes)
 ###############################################################################
 def compute_weighted_attrition(employee, return_triggers=False):
     """
@@ -356,7 +357,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
         return final_score
 
 ###############################################################################
-# Step 4: Machine Learning Combination (No Changes)
+# MACHINE LEARNING PREDICTION (No changes except for model loading)
 ###############################################################################
 def predict_attrition(employee_data):
     """
@@ -364,13 +365,9 @@ def predict_attrition(employee_data):
     and combines ML probability with rule-based score.
     Returns (combined_score, triggers).
     """
-    with open("logistic_regression_model.pkl", "rb") as f:
-        model = pickle.load(f)
-    with open("scaler.pkl", "rb") as f:
-        scaler = pickle.load(f)
-    with open("feature_columns.pkl", "rb") as f:
-        feature_columns = pickle.load(f)
-
+    model, scaler, feature_columns = load_model()
+    if model is None:
+        return None, None
     df_input = pd.DataFrame([employee_data])
     df_input = pd.get_dummies(df_input)
     df_input = df_input.reindex(columns=feature_columns, fill_value=0)
@@ -383,7 +380,7 @@ def predict_attrition(employee_data):
     return combined_score, triggers
 
 ###############################################################################
-# Generate Sample CSV in-memory for Bulk
+# Generate Sample CSV in-memory for Bulk mode (No changes)
 ###############################################################################
 def generate_sample_csv():
     """
@@ -410,34 +407,50 @@ def generate_sample_csv():
     return csv_buffer.getvalue()
 
 ###############################################################################
-# Step 5: Streamlit UI - Original Single Code + Bulk Code with Mode Switch
+# STREAMLIT UI
 ###############################################################################
 st.markdown(
     "<h2 style='text-align: center; color: #141414;'>Employee Attrition Prediction Tool</h2>",
     unsafe_allow_html=True
 )
 
-# Mode Switch
-mode = st.selectbox("Select Mode", ["Single Employee", "Bulk Employees"])
+# MODE SELECTION: Now including a "Model Training" mode.
+mode = st.selectbox("Select Mode", ["Model Training", "Single Employee", "Bulk Employees"])
 
-# Only show sample CSV download in Bulk Mode
-if mode == "Bulk Employees":
-    st.write("**Download a Sample Bulk CSV** if you want to see the required columns:")
-    sample_csv = generate_sample_csv()
-    st.download_button(
-        label="Download Sample Bulk CSV",
-        data=sample_csv,
-        file_name="sample_bulk_data.csv",
-        mime="text/csv"
-    )
-# ==================== SINGLE EMPLOYEE MODE (Original Code) ==================== #
-if mode == "Single Employee":
+# -------------------------- MODEL TRAINING MODE --------------------------
+if mode == "Model Training":
+    st.header("Model Training")
+    st.markdown("""
+    **Instructions:**  
+    Upload a CSV or Excel file containing your organization's training data.  
+    The file must include a **target column** (for example, "Attrition") which is binary (0/1),  
+    along with all the features you wish to use in your model.
+    """)
+    
+    uploaded_train = st.file_uploader("Upload Training Data", type=["csv", "xlsx"], key="train")
+    
+    if uploaded_train is not None:
+        try:
+            if uploaded_train.name.endswith(".csv"):
+                train_df = pd.read_csv(uploaded_train)
+            else:
+                train_df = pd.read_excel(uploaded_train)
+            st.write("### Preview of Training Data")
+            st.dataframe(train_df.head())
+        except Exception as e:
+            st.error(f"Error reading file: {e}")
+        
+        target_column = st.text_input("Enter the name of the target column", value="Attrition")
+        
+        if st.button("Train Model"):
+            if target_column not in train_df.columns:
+                st.error(f"Target column '{target_column}' not found in the data.")
+            else:
+                train_model(train_df, target_column)
 
-    # No changes to single-employee logic or UI
-    # EXACT code you shared, with the same form, sub-problem logic, scenario, etc.
-
-    # Step 5: Streamlit UI - Single Employee
-    # (We'll keep your existing code. Just placed inside 'if mode == "Single Employee":')
+# -------------------------- SINGLE EMPLOYEE MODE --------------------------
+elif mode == "Single Employee":
+    # (Keeping your original single-employee UI and logic)
     if "prediction_made" not in st.session_state:
         st.session_state.prediction_made = False
     if "score" not in st.session_state:
@@ -514,7 +527,6 @@ if mode == "Single Employee":
                     negative_triggers.append(t)
                     st.markdown(f"- **{t}**")
                 else:
-                    # It's a positive or unrecognized trigger
                     pass
 
             if not negative_triggers:
@@ -591,14 +603,13 @@ if mode == "Single Employee":
             else:
                 st.markdown("*No negative triggers in this scenario.*")
 
-
-# ========================= BULK EMPLOYEE MODE =========================== #
+# -------------------------- BULK EMPLOYEE MODE --------------------------
 elif mode == "Bulk Employees":
     st.markdown(
     "<h5 style='text-align: center; color: #FF2400;'>[NOT READY YET]</h5>",
     unsafe_allow_html=True
 )
-    st.write("""
+    st.write(""" 
     ### 📁 Bulk Employee Attrition Prediction
     Upload a **CSV or Excel** file with the following columns:
     - **Name**
@@ -655,7 +666,6 @@ elif mode == "Bulk Employees":
 
     # c. Industry Retention Percentages
     st.sidebar.subheader("🏭 Industry Retention (%)")
-    # Define your actual industry categories here
     industries = ["Tech", "Finance", "Healthcare", "Education", "Manufacturing"]
     industry_retention = {}
     for industry in industries:
@@ -671,7 +681,6 @@ elif mode == "Bulk Employees":
 
     # d. Company Type Retention Percentages
     st.sidebar.subheader("🏢 Company Type Retention (%)")
-    # Define your actual company type categories here
     company_types = ["Startup", "Enterprise", "Non-Profit", "SME"]
     company_type_retention = {}
     for ctype in company_types:
@@ -747,7 +756,6 @@ elif mode == "Bulk Employees":
                         "Min. Promotion cycle (in months)": "Minimum Promotion Cycle",
                         "Performance rating out of 5": "Last Performance Rating",
                         "College Tier (Tier 1, Tier 2, Tier 3)": "College Tier"
-                        # "Industry" and "Company Type" remain the same
                     }
 
                     for desc_col, internal_col in rename_mapping.items():
@@ -755,47 +763,42 @@ elif mode == "Bulk Employees":
                             row_dict[internal_col] = row_dict.pop(desc_col)
                         else:
                             st.warning(f"Row {idx}: Missing column '{desc_col}'. Using default value.")
-                            # Assign a default or skip processing
-                            # Here, assigning a default value
                             if internal_col == "Pulse":
-                                row_dict[internal_col] = "Medium"  # Default Pulse
+                                row_dict[internal_col] = "Medium"
                             elif internal_col == "Hasn't been promoted":
-                                row_dict[internal_col] = 0  # Default months since promotion
+                                row_dict[internal_col] = 0
                             elif internal_col == "Minimum Promotion Cycle":
-                                row_dict[internal_col] = 12  # Default promotion cycle
+                                row_dict[internal_col] = 12
                             elif internal_col == "Last Performance Rating":
-                                row_dict[internal_col] = 3  # Default rating
+                                row_dict[internal_col] = 3
                             elif internal_col == "College Tier":
-                                row_dict[internal_col] = "Tier 3"  # Default tier
+                                row_dict[internal_col] = "Tier 3"
 
                     # 7. Apply Fixed Attributes from Sliders
                     row_dict["Average Employee Age"] = fixed_attributes["Average Employee Age"]
                     row_dict["Female Employee Ratio"] = fixed_attributes["Female Employee Ratio"]
 
                     # 8. Apply Tier-Based Retention Percentages
-                    # a. College Tier Retention
                     college_tier = row_dict.get("College Tier")
                     if college_tier in college_retention:
                         row_dict["College Tier Retention"] = college_retention[college_tier]
                     else:
                         st.warning(f"Row {idx}: Unknown College Tier '{college_tier}'. Using default retention of 40%.")
-                        row_dict["College Tier Retention"] = 40  # Default value
+                        row_dict["College Tier Retention"] = 40
 
-                    # b. Industry Retention
                     industry = row_dict.get("Industry")
                     if industry in industry_retention:
                         row_dict["Industry Retention"] = industry_retention[industry]
                     else:
                         st.warning(f"Row {idx}: Unknown Industry '{industry}'. Using default retention of 50%.")
-                        row_dict["Industry Retention"] = 50  # Default value
+                        row_dict["Industry Retention"] = 50
 
-                    # c. Company Type Retention
                     company_type = row_dict.get("Company Type")
                     if company_type in company_type_retention:
                         row_dict["Company Type Retention"] = company_type_retention[company_type]
                     else:
                         st.warning(f"Row {idx}: Unknown Company Type '{company_type}'. Using default retention of 50%.")
-                        row_dict["Company Type Retention"] = 50  # Default value
+                        row_dict["Company Type Retention"] = 50
 
                     # 9. Predict Attrition
                     try:
@@ -807,8 +810,6 @@ elif mode == "Bulk Employees":
                         continue
 
                     scores.append(bulk_score)
-
-                    # Filter negative triggers
                     neg_trigs = [t for t in bulk_trigs if t in TRIGGER_DETAILS]
                     triggers_str = ", ".join(neg_trigs) if neg_trigs else "None"
                     triggers_list.append(triggers_str)
@@ -838,7 +839,6 @@ elif mode == "Bulk Employees":
                 st.write("**📊 Risk Distribution**")
                 st.bar_chart(risk_df.set_index("Risk Category"))
 
-                # Negative Triggers Frequency
                 all_trigs = []
                 for val in df_bulk["Negative Triggers"]:
                     if pd.notna(val) and val.strip() != "" and val != "None":
@@ -852,7 +852,6 @@ elif mode == "Bulk Employees":
                 else:
                     st.info("ℹ️ No negative triggers found across the batch.")
 
-                # Drill-down into Individual Rows
                 st.write("### 🔍 Drill Down into Individual Rows")
                 df_bulk_reset = df_bulk.reset_index(drop=True)
                 row_options = list(range(len(df_bulk_reset)))
@@ -865,4 +864,3 @@ elif mode == "Bulk Employees":
                     st.write("""
                     *You can expand this section to include more detailed analysis or individual scenario planning for each employee.*
                     """)
-
