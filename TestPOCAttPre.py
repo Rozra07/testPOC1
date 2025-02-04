@@ -108,10 +108,8 @@ def update_industry_record(industry, model_file, scaler_file, feature_file):
     }
     
     csv_filename = "industry_models.csv"
-    # If the file exists, load it; otherwise create an empty DataFrame.
     if os.path.exists(csv_filename):
         df = pd.read_csv(csv_filename)
-        # Check if a record for this industry exists; update or append accordingly.
         if industry in df["Industry"].values:
             df.loc[df["Industry"] == industry, ["Model_File", "Scaler_File", "Feature_File", "Training_Date"]] = \
                 [model_file, scaler_file, feature_file, record["Training_Date"]]
@@ -454,12 +452,9 @@ def predict_attrition(employee_data, industry):
     return combined_score, triggers
 
 ###############################################################################
-# Generate Sample CSV in-memory for Bulk mode (Unchanged)
+# Generate Sample CSV for Bulk mode (Unchanged)
 ###############################################################################
 def generate_sample_csv():
-    """
-    Returns a string of CSV data containing the required columns with 2 example rows.
-    """
     sample_csv = pd.DataFrame({
         "Employee Age": [30, 45],
         "Average Employee Age": [35, 40],
@@ -469,9 +464,9 @@ def generate_sample_csv():
         "Pulse": ["Medium", "High"],
         "Hasn't been promoted": [12, 36],
         "Minimum Promotion Cycle": [24, 24],
-        "College Tier Retention": [60, 10],
-        "Industry Retention": [60, 10],
-        "Company Type Retention": [60, 10],
+        "College Tier": ["Tier 1", "Tier 2"],
+        "Industry": ["Tech", "Finance"],
+        "Company Type": ["Startup", "Enterprise"],
         "Last Performance Rating": [3, 1],
         "Compa Ratio": [90, 65]
     })
@@ -483,11 +478,6 @@ def generate_sample_csv():
 # Generate Dummy Training CSV for Download (3 example rows)
 ###############################################################################
 def generate_dummy_training_file():
-    """
-    Returns a CSV string containing a dummy training file with 3 examples.
-    The file includes a "Name" column (with Example 1, Example 2, Example 3),
-    the required feature columns, and a target column "Attrition".
-    """
     dummy_df = pd.DataFrame({
         "Name": ["Example 1", "Example 2", "Example 3"],
         "Employee Age": [30, 40, 35],
@@ -498,9 +488,9 @@ def generate_dummy_training_file():
         "Pulse": ["Medium", "High", "Low"],
         "Hasn't been promoted": [12, 30, 15],
         "Minimum Promotion Cycle": [24, 24, 24],
-        "College Tier Retention": [60, 15, 50],
-        "Industry Retention": [60, 20, 55],
-        "Company Type Retention": [60, 20, 55],
+        "College Tier": ["Tier 1", "Tier 2", "Tier 3"],
+        "Industry": ["Tech", "Finance", "Healthcare"],
+        "Company Type": ["Startup", "Enterprise", "SME"],
         "Last Performance Rating": [3, 1, 4],
         "Compa Ratio": [90, 65, 100],
         "Attrition": [0, 1, 0]
@@ -527,8 +517,9 @@ with tabs[0]:
     st.header("Train Mode")
     # Ask the user to select their industry for training
     selected_train_industry = st.selectbox("Select Your Industry", industry_options, key="train_industry")
+    # Store industry in session_state so that it can be reused in Test Mode
+    st.session_state.train_industry = selected_train_industry
     
-    # Two-column layout: left for upload, right for detailed guide and download button
     col1, col2 = st.columns([1,1])
     with col1:
         uploaded_train = st.file_uploader("Upload Training Data (CSV or Excel)", type=["csv", "xlsx"], key="train_file")
@@ -546,9 +537,9 @@ with tabs[0]:
           - `Pulse` (e.g., "High", "Medium", "Low")  
           - `Hasn't been promoted` (months since last promotion)  
           - `Minimum Promotion Cycle` (in months)  
-          - `College Tier Retention` (percentage)  
-          - `Industry Retention` (percentage)  
-          - `Company Type Retention` (percentage)  
+          - `College Tier` (e.g., "Tier 1", "Tier 2", "Tier 3")  
+          - `Industry` (e.g., "Tech", "Finance", etc.)  
+          - `Company Type` (e.g., "Startup", "Enterprise", etc.)  
           - `Last Performance Rating` (e.g., 1 to 5)  
           - `Compa Ratio` (compensation ratio)
         """)
@@ -572,11 +563,9 @@ with tabs[0]:
             st.error(f"Error reading file: {e}")
         
         if st.button("Update Aggregated Data and Retrain Model"):
-            # Update (or create) the aggregated training data for the selected industry
             aggregated_df = update_aggregated_training_data(selected_train_industry, train_df)
             st.write("### Aggregated Training Data Preview")
             st.dataframe(aggregated_df.head())
-            # Now train the model on the aggregated training data
             train_model(aggregated_df, target_column, selected_train_industry)
 
 ###############################################################################
@@ -587,13 +576,16 @@ with tabs[1]:
     st.markdown("""
     **Instructions for Testing:**
     
-    - Before testing, ensure you have trained a model in Train Mode.
-    - Select your industry from the dropdown below (the same one used during training).
+    - Ensure that you have trained a model in Train Mode.
+    - Select your industry from the dropdown below (this should match your training industry).
     - Then select whether to use **Single Employee** or **Bulk Employees** for testing.
       - **Single Employee:** Enter details manually.
       - **Bulk Employees:** Upload a CSV/Excel file with employee data.
     """)
-    selected_test_industry = st.selectbox("Select Your Industry", industry_options, key="test_industry")
+    # Use the industry stored from training as default if available
+    default_test_industry = st.session_state.get("train_industry", industry_options[0])
+    selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=industry_options.index(default_test_industry), key="test_industry")
+    
     test_mode = st.selectbox("Select Test Mode", ["Single Employee", "Bulk Employees"])
     
     # -------------------------- SINGLE EMPLOYEE MODE --------------------------
@@ -606,9 +598,10 @@ with tabs[1]:
             st.session_state.triggers = []
         if "employee_data" not in st.session_state:
             st.session_state.employee_data = {}
-
+    
         st.write("### Enter Employee / Company Details")
         with st.form("attrition_form"):
+            # In single employee mode, we continue to ask for all details including retention percentages
             input_data = {
                 "Employee Age": st.slider("Employee Age", 18, 65, 30),
                 "Average Employee Age": st.slider("Average Employee Age", 18, 65, 35),
@@ -618,6 +611,7 @@ with tabs[1]:
                 "Pulse": st.radio("Employee dissatisfaction (Pulse)", ["High", "Medium", "Low"], horizontal=True),
                 "Hasn't been promoted": st.slider("Months Since Last Promotion", 0, 60, 12),
                 "Minimum Promotion Cycle": st.slider("Min Promotion Cycle (Months)", 12, 60, 24),
+                # In single mode, user enters retention percentages manually:
                 "College Tier Retention": st.slider("College Tier Retention (%)", 10, 100, 60),
                 "Industry Retention": st.slider("Industry Retention (%)", 10, 100, 60),
                 "Company Type Retention": st.slider("Company Type Retention (%)", 10, 100, 60),
@@ -631,11 +625,10 @@ with tabs[1]:
                 st.session_state.triggers = triggers
                 st.session_state.prediction_made = True
                 st.session_state.employee_data = input_data
-
+    
         if st.session_state.prediction_made:
             score = st.session_state.score
             triggers = st.session_state.triggers
-
             with st.container():
                 if score >= 75:
                     bg_color = "#ff4d4d"
@@ -658,9 +651,8 @@ with tabs[1]:
                     """,
                     unsafe_allow_html=True
                 )
-
+    
             col_left, col_right = st.columns(2)
-
             with col_left:
                 st.write("### Key Contributing Factors")
                 negative_triggers = []
@@ -670,7 +662,7 @@ with tabs[1]:
                         st.markdown(f"- **{t}**")
                 if not negative_triggers:
                     st.markdown("*No major negative triggers identified.*")
-
+    
                 st.write("### Sub-Problems Selection")
                 sub_problem_selections = {}
                 for trig in negative_triggers:
@@ -685,7 +677,7 @@ with tabs[1]:
                         if new_val:
                             chosen_list.append(sub_key)
                     sub_problem_selections[trig] = chosen_list
-
+    
                 if st.button("💡 Show Solutions"):
                     st.write("### Recommended Solutions")
                     any_chosen = False
@@ -700,7 +692,7 @@ with tabs[1]:
                                 st.markdown(f"{solution_text}")
                     if not any_chosen:
                         st.info("No sub-problems selected, so no solutions to display.")
-
+    
             with col_right:
                 st.write("### What-If Scenario Planning")
                 scenario_data = dict(st.session_state.employee_data)
@@ -736,116 +728,72 @@ with tabs[1]:
                         st.markdown(f"- **{t}**")
                 else:
                     st.markdown("*No negative triggers in this scenario.*")
-
+    
     # -------------------------- BULK EMPLOYEES MODE --------------------------
     elif test_mode == "Bulk Employees":
-        st.markdown(
-            "<h5 style='text-align: center; color: #FF2400;'>[Bulk Mode - Under Development]</h5>",
-            unsafe_allow_html=True
-        )
+        st.markdown("<h5 style='text-align: center; color: #FF2400;'>[Bulk Mode - Under Development]</h5>", unsafe_allow_html=True)
         st.write("""
         ### 📁 Bulk Employee Attrition Prediction
         Upload a CSV or Excel file with the following columns:
         - **Name**
         - **Employee Age**
+        - **Average Employee Age**
         - **Gender**
-        - **Chances of employee leaving (High, Medium, Low)**
-        - **Hasn't been promoted (in months)**
-        - **Min. Promotion cycle (in months)**
-        - **Performance rating out of 5**
+        - **Female Employee Ratio**
+        - **Tenure (Months)**
+        - **Pulse**
+        - **Hasn't been promoted**
+        - **Minimum Promotion Cycle**
+        - **College Tier**  *(e.g., "Tier 1", "Tier 2", "Tier 3")*
+        - **Industry**  *(e.g., "Tech", "Finance", etc.)*
+        - **Company Type**  *(e.g., "Startup", "Enterprise", etc.)*
+        - **Last Performance Rating**
         - **Compa Ratio**
-        - **College Tier (Tier 1, Tier 2, Tier 3)**
-        - **Industry**
-        - **Company Type**
         """)
-        st.sidebar.header("🔧 Set Fixed Attributes and Retention Percentages")
-        st.sidebar.subheader("📊 Fixed Attributes for All Employees")
-        fixed_attributes = {
-            "Average Employee Age": st.sidebar.slider(
-                "Average Employee Age",
-                min_value=18,
-                max_value=65,
-                value=35,
-                step=1,
-                help="Set the average age of employees across the company."
-            ),
-            "Female Employee Ratio": st.sidebar.slider(
-                "Female Employee Ratio (%)",
-                min_value=0,
-                max_value=100,
-                value=40,
-                step=1,
-                help="Set the percentage of female employees in the company."
-            )
-        }
-        st.sidebar.subheader("🏫 College Tier Retention (%)")
-        college_tiers = ["Tier 1", "Tier 2", "Tier 3"]
-        college_retention = {}
-        for tier in college_tiers:
-            default_value = 60 if tier == "Tier 1" else (50 if tier == "Tier 2" else 40)
-            college_retention[tier] = st.sidebar.slider(
-                f"{tier} Retention (%)",
-                min_value=10,
-                max_value=100,
-                value=default_value,
-                step=1,
-                help=f"Set the retention rate for employees from {tier} colleges."
-            )
-        st.sidebar.subheader("🏭 Industry Retention (%)")
-        industries = ["Tech", "Finance", "Healthcare", "Education", "Manufacturing"]
-        industry_retention = {}
-        for industry in industries:
-            default_value = 60 if industry == "Tech" else (55 if industry == "Finance" else 50)
-            industry_retention[industry] = st.sidebar.slider(
-                f"{industry} Retention (%)",
-                min_value=10,
-                max_value=100,
-                value=default_value,
-                step=1,
-                help=f"Set the retention rate for employees from the {industry} industry."
-            )
-        st.sidebar.subheader("🏢 Company Type Retention (%)")
-        company_types = ["Startup", "Enterprise", "Non-Profit", "SME"]
-        company_type_retention = {}
-        for ctype in company_types:
-            default_value = 60 if ctype == "Enterprise" else (55 if ctype == "Startup" else 50)
-            company_type_retention[ctype] = st.sidebar.slider(
-                f"{ctype} Retention (%)",
-                min_value=10,
-                max_value=100,
-                value=default_value,
-                step=1,
-                help=f"Set the retention rate for employees from {ctype} companies."
-            )
-        st.sidebar.markdown("""
-        ---
-        **🔔 Important:**  
-        Adjust the fixed attributes and retention percentages according to your organization's specifics **before** uploading bulk data.
-        """)
-        uploaded_file = st.file_uploader("📤 Upload CSV/Excel File", type=["csv", "xlsx"])
+        # Sidebar: Use expanders for retention percentages settings
+        with st.expander("Set College Tier Retention Percentages"):
+            tier1_retention = st.slider("Tier 1 Retention (%)", 10, 100, 60)
+            tier2_retention = st.slider("Tier 2 Retention (%)", 10, 100, 50)
+            tier3_retention = st.slider("Tier 3 Retention (%)", 10, 100, 40)
+    
+        with st.expander("Set Industry Retention Percentages"):
+            industry_retention = {}
+            # For simplicity, we use a fixed list here. You can customize as needed.
+            for ind in ["Tech", "Finance", "Healthcare", "Education", "Manufacturing", "Retail", "Energy", "Telecommunications", "Government", "Nonprofit", "Other"]:
+                default_val = 60 if ind=="Tech" else 50
+                industry_retention[ind] = st.slider(f"{ind} Retention (%)", 10, 100, default_val)
+    
+        with st.expander("Set Company Type Retention Percentages"):
+            company_type_retention = {}
+            for ct in ["Startup", "Enterprise", "Non-Profit", "SME"]:
+                default_val = 60 if ct=="Enterprise" else 50
+                company_type_retention[ct] = st.slider(f"{ct} Retention (%)", 10, 100, default_val)
+    
+        uploaded_file = st.file_uploader("📤 Upload Bulk Data (CSV or Excel)", type=["csv", "xlsx"])
         if uploaded_file is not None:
             try:
-                if uploaded_file.name.endswith(".csv"):
-                    df_bulk = pd.read_csv(uploaded_file)
-                else:
-                    df_bulk = pd.read_excel(uploaded_file)
+                df_bulk = pd.read_csv(uploaded_file) if uploaded_file.name.endswith(".csv") else pd.read_excel(uploaded_file)
             except Exception as e:
                 st.error(f"❌ Error reading the file: {e}")
                 st.stop()
             st.write("**📊 Uploaded Data Preview:**")
             st.dataframe(df_bulk.head())
+            # Required columns now expect categorical values
             required_cols = [
                 "Name",
                 "Employee Age",
+                "Average Employee Age",
                 "Gender",
-                "Chances of employee leaving (High, Medium, Low)",
-                "Hasn't been promoted (in months)",
-                "Min. Promotion cycle (in months)",
-                "Performance rating out of 5",
-                "Compa Ratio",
-                "College Tier (Tier 1, Tier 2, Tier 3)",
+                "Female Employee Ratio",
+                "Tenure (Months)",
+                "Pulse",
+                "Hasn't been promoted",
+                "Minimum Promotion Cycle",
+                "College Tier",
                 "Industry",
-                "Company Type"
+                "Company Type",
+                "Last Performance Rating",
+                "Compa Ratio"
             ]
             missing = [c for c in required_cols if c not in df_bulk.columns]
             if missing:
@@ -857,50 +805,26 @@ with tabs[1]:
                     names = []
                     for idx, row in df_bulk.iterrows():
                         row_dict = row.to_dict()
-                        employee_name = row_dict.get("Name")
-                        names.append(employee_name)
-                        rename_mapping = {
-                            "Chances of employee leaving (High, Medium, Low)": "Pulse",
-                            "Hasn't been promoted (in months)": "Hasn't been promoted",
-                            "Min. Promotion cycle (in months)": "Minimum Promotion Cycle",
-                            "Performance rating out of 5": "Last Performance Rating",
-                            "College Tier (Tier 1, Tier 2, Tier 3)": "College Tier"
-                        }
-                        for desc_col, internal_col in rename_mapping.items():
-                            if desc_col in row_dict:
-                                row_dict[internal_col] = row_dict.pop(desc_col)
-                            else:
-                                st.warning(f"Row {idx}: Missing column '{desc_col}'. Using default value.")
-                                if internal_col == "Pulse":
-                                    row_dict[internal_col] = "Medium"
-                                elif internal_col == "Hasn't been promoted":
-                                    row_dict[internal_col] = 0
-                                elif internal_col == "Minimum Promotion Cycle":
-                                    row_dict[internal_col] = 12
-                                elif internal_col == "Last Performance Rating":
-                                    row_dict[internal_col] = 3
-                                elif internal_col == "College Tier":
-                                    row_dict[internal_col] = "Tier 3"
-                        row_dict["Average Employee Age"] = fixed_attributes["Average Employee Age"]
-                        row_dict["Female Employee Ratio"] = fixed_attributes["Female Employee Ratio"]
+                        names.append(row_dict.get("Name"))
+                        # Rename columns if necessary (here we assume the file uses the correct names)
+                        # Set retention percentages based on the categorical values from the file and the sidebar settings:
                         college_tier = row_dict.get("College Tier")
-                        if college_tier in college_retention:
-                            row_dict["College Tier Retention"] = college_retention[college_tier]
+                        if college_tier == "Tier 1":
+                            row_dict["College Tier Retention"] = tier1_retention
+                        elif college_tier == "Tier 2":
+                            row_dict["College Tier Retention"] = tier2_retention
+                        elif college_tier == "Tier 3":
+                            row_dict["College Tier Retention"] = tier3_retention
                         else:
-                            st.warning(f"Row {idx}: Unknown College Tier '{college_tier}'. Using default retention of 40%.")
+                            st.warning(f"Row {idx}: Unknown College Tier '{college_tier}'. Using default 40%.")
                             row_dict["College Tier Retention"] = 40
-                        industry_val = row_dict.get("Industry")
-                        if industry_val in industry_retention:
-                            row_dict["Industry Retention"] = industry_retention[industry_val]
-                        else:
-                            st.warning(f"Row {idx}: Unknown Industry '{industry_val}'. Using default retention of 50%.")
-                            row_dict["Industry Retention"] = 50
-                        company_type = row_dict.get("Company Type")
-                        if company_type in company_type_retention:
-                            row_dict["Company Type Retention"] = company_type_retention[company_type]
-                        else:
-                            st.warning(f"Row {idx}: Unknown Company Type '{company_type}'. Using default retention of 50%.")
-                            row_dict["Company Type Retention"] = 50
+                        
+                        ind_val = row_dict.get("Industry")
+                        row_dict["Industry Retention"] = industry_retention.get(ind_val, 50)
+    
+                        comp_type = row_dict.get("Company Type")
+                        row_dict["Company Type Retention"] = company_type_retention.get(comp_type, 50)
+    
                         try:
                             bulk_score, bulk_trigs = predict_attrition(row_dict, selected_test_industry)
                         except Exception as e:
