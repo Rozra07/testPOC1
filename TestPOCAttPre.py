@@ -332,12 +332,14 @@ def compute_weighted_attrition(employee, return_triggers=False):
         score += 20; extreme_factors += 0.5; triggers.append("High dissatisfaction (Pulse)")
     elif employee["Pulse"] == "Low":
         score -= 20; extreme_factors -= 0.5; triggers.append("Low dissatisfaction (Pulse)")
+    
     if extreme_factors == 2:
         score = min(100, score * 1.3)
     elif extreme_factors == 3:
         score = min(100, score * 1.6)
     elif extreme_factors >= 4:
         score = min(100, score * 2)
+    
     final_score = min(100, max(0, score))
     if return_triggers:
         return final_score, triggers
@@ -413,7 +415,7 @@ def generate_dummy_training_file():
 ###############################################################################
 st.markdown("<h2 style='text-align: center; color: #141414;'>Employee Attrition Prediction Tool</h2>", unsafe_allow_html=True)
 
-# Create two tabs for Train Mode and Test Mode
+# Create two tabs: Train Mode and Test Mode
 tabs = st.tabs(["Train Mode", "Test Mode"])
 
 ###############################################################################
@@ -423,8 +425,8 @@ with tabs[0]:
     st.header("Train Mode")
     selected_train_industry = st.selectbox("Select Your Industry", industry_options, key="train_industry")
     
-    # Sidebar: Retention settings for Bulk Analysis (these values will later be used in Bulk Test mode)
-    st.sidebar.markdown("### Bulk Analysis Retention Settings")
+    # Sidebar: Retention settings for Bulk Analysis (These will be used in Bulk Test mode)
+    st.sidebar.markdown("### Bulk Analysis Retention Settings\n*These settings must be filled for bulk analysis*")
     retention_tier1 = st.sidebar.slider("Tier 1 College Retention (%)", 10, 100, 60, key="retention_tier1")
     retention_tier2 = st.sidebar.slider("Tier 2 College Retention (%)", 10, 100, 50, key="retention_tier2")
     retention_tier3 = st.sidebar.slider("Tier 3 College Retention (%)", 10, 100, 40, key="retention_tier3")
@@ -489,24 +491,44 @@ with tabs[1]:
     
     - Ensure that you have trained a model in Train Mode.
     - The industry selection below is pre-set to your training industry.
-    - In Single Employee mode, enter the employee details (including retention percentages).
-    - In Bulk Employees mode, upload a file in the new format (with categorical values for College Tier, Industry, and Company Type).
-      The retention settings from the Training page (as set in the sidebar) and the global company settings will be applied.
+    - For Single Employee mode, enter the employee details (including retention percentages).
+    - For Bulk Employees mode, upload a file in the new format (with categorical values for College Tier, Industry, and Company Type).
+      The retention settings from the Training page and the global company settings (set below) will be applied.
     """)
     default_test_industry = st.session_state.get("train_industry", industry_options[0])
     selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=industry_options.index(default_test_industry) if default_test_industry in industry_options else 0, key="test_industry")
     
     test_mode = st.selectbox("Select Test Mode", ["Single Employee", "Bulk Employees"])
     
-    # In Bulk Employees mode, global company settings are set on the sidebar
+    # For Bulk Employees mode, add five global controls in the sidebar:
     if test_mode == "Bulk Employees":
-        with st.sidebar.expander("Global Company Settings for Bulk Analysis"):
-            global_avg_age = st.number_input("Average Employee Age in Company", value=35, key="global_avg_age")
-            global_female_ratio = st.number_input("Women % in Organization", value=40, key="global_female_ratio")
-            if st.button("Apply Global Settings", key="apply_globals"):
-                st.session_state.global_avg_age = global_avg_age
-                st.session_state.global_female_ratio = global_female_ratio
-                st.success("Global settings applied!")
+        with st.sidebar:
+            st.markdown("### Bulk Analysis Global Settings\n*These settings MUST be filled for analysis*")
+            global_avg_age = st.slider("Average Employee Age in Company", 18, 100, 35, key="global_avg_age")
+            global_female_ratio = st.slider("Women % in Organization", 0, 100, 40, key="global_female_ratio")
+            
+            with st.expander("College Tier Retention Settings [?]", expanded=True):
+                bulk_tier1 = st.slider("Tier 1 Retention (%)", 10, 100, 60, key="bulk_tier1")
+                bulk_tier2 = st.slider("Tier 2 Retention (%)", 10, 100, 50, key="bulk_tier2")
+                bulk_tier3 = st.slider("Tier 3 Retention (%)", 10, 100, 40, key="bulk_tier3")
+            
+            with st.expander("Industry Retention Settings [?]", expanded=True):
+                bulk_industry_retention = {}
+                for ind in industry_options:
+                    default_val = 60 if ind=="Tech" else 50
+                    bulk_industry_retention[ind] = st.slider(f"{ind} Retention (%)", 10, 100, default_val, key=f"bulk_ind_{ind}")
+            
+            with st.expander("Company Type Retention Settings [?]", expanded=True):
+                bulk_startup = st.slider("Startup Retention (%)", 10, 100, 60, key="bulk_startup")
+                bulk_small = st.slider("Small Size Retention (%)", 10, 100, 55, key="bulk_small")
+                bulk_mid = st.slider("Mid Size Retention (%)", 10, 100, 50, key="bulk_mid")
+                bulk_mnc = st.slider("MNC/Giant Company Retention (%)", 10, 100, 45, key="bulk_mnc")
+                bulk_company_retention = {
+                    "Startup": bulk_startup,
+                    "Small Size": bulk_small,
+                    "Mid Size": bulk_mid,
+                    "MNC/Giant Company": bulk_mnc
+                }
     
     # -------------------------- SINGLE EMPLOYEE MODE --------------------------
     if test_mode == "Single Employee":
@@ -530,9 +552,10 @@ with tabs[1]:
                 "Pulse": st.radio("Employee dissatisfaction (Pulse)", ["High", "Medium", "Low"], horizontal=True),
                 "Hasn't been promoted": st.slider("Months Since Last Promotion", 0, 60, 12),
                 "Minimum Promotion Cycle": st.slider("Min Promotion Cycle (Months)", 12, 60, 24),
-                "College Tier Retention": st.slider("College Tier Retention (%)", 10, 100, st.session_state.get("retention_tier1", 60)),
-                "Industry Retention": st.slider("Industry Retention (%)", 10, 100, st.session_state.get("retention_industry", 60)),
-                "Company Type Retention": st.slider("Company Type Retention (%)", 10, 100, st.session_state.get("retention_company", 60)),
+                # In single mode, the user enters these retention percentages manually:
+                "College Tier Retention": st.slider("College Tier Retention (%)", 10, 100, 60),
+                "Industry Retention": st.slider("Industry Retention (%)", 10, 100, 60),
+                "Company Type Retention": st.slider("Company Type Retention (%)", 10, 100, 60),
                 "Last Performance Rating": st.slider("Last Performance Rating", 1, 5, 3),
                 "Compa Ratio": st.slider("Compa Ratio (%)", 50, 150, 100)
             }
@@ -665,24 +688,38 @@ with tabs[1]:
         - **Minimum Promotion Cycle**
         - **College Tier**  *(e.g., "Tier 1", "Tier 2", "Tier 3")*
         - **Industry**  *(e.g., "Tech", "Finance", etc.)*
-        - **Company Type**  *(e.g., "Startup", "Enterprise", etc.)*
+        - **Company Type**  *(e.g., "Startup", "Small Size", "Mid Size", "MNC/Giant Company")*
         - **Last Performance Rating**
         - **Compa Ratio**
         """)
-        # Retention settings from training page are used:
-        tier1_retention = st.session_state.get("retention_tier1", 60)
-        tier2_retention = st.session_state.get("retention_tier2", 50)
-        tier3_retention = st.session_state.get("retention_tier3", 40)
-        default_industry_retention = st.session_state.get("retention_industry", 60)
-        default_company_retention = st.session_state.get("retention_company", 60)
-    
-        with st.sidebar.expander("Global Company Settings for Bulk Analysis"):
-            global_avg_age = st.number_input("Average Employee Age in Company", value=35, key="global_avg_age")
-            global_female_ratio = st.number_input("Women % in Organization", value=40, key="global_female_ratio")
-            if st.button("Apply Global Settings", key="apply_globals"):
-                st.session_state.global_avg_age = global_avg_age
-                st.session_state.global_female_ratio = global_female_ratio
-                st.success("Global settings applied!")
+        # Sidebar global settings for Bulk Analysis are now our 5 controls:
+        with st.sidebar:
+            st.markdown("### Bulk Analysis Global Settings\n*These settings MUST be filled for analysis*")
+            global_avg_age = st.slider("Average Employee Age in Company", 18, 100, 35, key="global_avg_age")
+            global_female_ratio = st.slider("Women % in Organization", 0, 100, 40, key="global_female_ratio")
+            
+            with st.expander("College Tier Retention Settings [?]", expanded=True):
+                bulk_tier1 = st.slider("Tier 1 Retention (%)", 10, 100, 60, key="bulk_tier1")
+                bulk_tier2 = st.slider("Tier 2 Retention (%)", 10, 100, 50, key="bulk_tier2")
+                bulk_tier3 = st.slider("Tier 3 Retention (%)", 10, 100, 40, key="bulk_tier3")
+            
+            with st.expander("Industry Retention Settings [?]", expanded=True):
+                bulk_industry_retention = {}
+                for ind in industry_options:
+                    default_val = 60 if ind=="Tech" else 50
+                    bulk_industry_retention[ind] = st.slider(f"{ind} Retention (%)", 10, 100, default_val, key=f"bulk_ind_{ind}")
+            
+            with st.expander("Company Type Retention Settings [?]", expanded=True):
+                bulk_startup = st.slider("Startup Retention (%)", 10, 100, 60, key="bulk_startup")
+                bulk_small = st.slider("Small Size Retention (%)", 10, 100, 55, key="bulk_small")
+                bulk_mid = st.slider("Mid Size Retention (%)", 10, 100, 50, key="bulk_mid")
+                bulk_mnc = st.slider("MNC/Giant Company Retention (%)", 10, 100, 45, key="bulk_mnc")
+                bulk_company_retention = {
+                    "Startup": bulk_startup,
+                    "Small Size": bulk_small,
+                    "Mid Size": bulk_mid,
+                    "MNC/Giant Company": bulk_mnc
+                }
     
         uploaded_file = st.file_uploader("📤 Upload Bulk Data (CSV or Excel)", type=["csv", "xlsx"])
         if uploaded_file is not None:
@@ -720,25 +757,26 @@ with tabs[1]:
                     for idx, row in df_bulk.iterrows():
                         row_dict = row.to_dict()
                         names.append(row_dict.get("Name"))
-                        # Override with global settings if provided
-                        if "global_avg_age" in st.session_state:
-                            row_dict["Average Employee Age"] = st.session_state.global_avg_age
-                        if "global_female_ratio" in st.session_state:
-                            row_dict["Female Employee Ratio"] = st.session_state.global_female_ratio
-                        # Assign retention percentages based on categorical values and training settings
+                        # Override with global company settings:
+                        row_dict["Average Employee Age"] = global_avg_age
+                        row_dict["Female Employee Ratio"] = global_female_ratio
+                        # Set retention percentages based on file categorical values and sidebar settings:
                         college_tier = row_dict.get("College Tier")
                         if college_tier == "Tier 1":
-                            row_dict["College Tier Retention"] = tier1_retention
+                            row_dict["College Tier Retention"] = bulk_tier1
                         elif college_tier == "Tier 2":
-                            row_dict["College Tier Retention"] = tier2_retention
+                            row_dict["College Tier Retention"] = bulk_tier2
                         elif college_tier == "Tier 3":
-                            row_dict["College Tier Retention"] = tier3_retention
+                            row_dict["College Tier Retention"] = bulk_tier3
                         else:
                             st.warning(f"Row {idx}: Unknown College Tier '{college_tier}'. Using default 40%.")
                             row_dict["College Tier Retention"] = 40
-    
-                        row_dict["Industry Retention"] = default_industry_retention
-                        row_dict["Company Type Retention"] = default_company_retention
+                        # For Industry, use slider for that industry:
+                        ind_val = row_dict.get("Industry")
+                        row_dict["Industry Retention"] = bulk_industry_retention.get(ind_val, 50)
+                        # For Company Type, assume file uses one of the keys used in bulk_company_retention:
+                        comp_type = row_dict.get("Company Type")
+                        row_dict["Company Type Retention"] = bulk_company_retention.get(comp_type, 50)
     
                         try:
                             bulk_score, bulk_trigs, _ = predict_attrition(row_dict, selected_test_industry)
