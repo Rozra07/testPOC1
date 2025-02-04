@@ -165,7 +165,10 @@ def load_model(industry):
         st.error("No trained model found for the selected industry. Please train your model in Train Mode first.")
         return None, None, None
 
-@st.experimental_memo(show_spinner=False)
+# =============================================================================
+# CACHING THE TRAINING FROM AGGREGATED DATA
+# =============================================================================
+@st.cache(allow_output_mutation=True, show_spinner=False)
 def train_model_from_aggregated_data(industry, target_column, model_type):
     """
     Loads the aggregated training data for the industry, trains a model using the selected model type,
@@ -218,7 +221,7 @@ TRIGGER_DETAILS = {
         },
         "solutions": {
             "lack_female_applicants": (
-                "- **Partner with Women’s Universities** or female-oriented professional groups.\n"
+                "- **Partner with Women’s Universities** or female-oriented groups.\n"
                 "- **Highlight DEI** in your recruitment materials."
             ),
             "lack_female_mentors": (
@@ -460,7 +463,7 @@ def predict_attrition_with_custom_model(employee_data, model, scaler, feature_co
     return combined_score, triggers
 
 # =============================================================================
-# GENERATE SAMPLE CSV (For Bulk Mode) & Dummy Training File
+# GENERATE SAMPLE CSV (For Bulk Mode) & DUMMY TRAINING FILE
 # =============================================================================
 def generate_sample_csv():
     sample_csv = pd.DataFrame({
@@ -512,7 +515,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Two tabs: Train Mode and Test Mode
+# Create two tabs for Train Mode and Test Mode
 tabs = st.tabs(["Train Mode", "Test Mode"])
 
 # -----------------------------------------------------------------------------
@@ -521,7 +524,6 @@ tabs = st.tabs(["Train Mode", "Test Mode"])
 with tabs[0]:
     st.header("Train Mode")
     selected_train_industry = st.selectbox("Select Your Industry", industry_options, key="train_industry")
-    # Let the user choose which model to train with.
     selected_train_model_display = st.selectbox("Select Model for Training", model_options_display, key="train_model_option")
     selected_train_model = model_options_map[selected_train_model_display]
     
@@ -568,11 +570,9 @@ with tabs[0]:
             st.error(f"Error reading file: {e}")
         
         if st.button("Update Aggregated Data and Retrain Model"):
-            # Append new data to the aggregated training file for the industry
             aggregated_df = update_aggregated_training_data(selected_train_industry, train_df)
             st.write("### Aggregated Training Data Preview")
             st.dataframe(aggregated_df.head())
-            # Train model on the aggregated data using the selected model type
             train_model(aggregated_df, target_column, selected_train_industry, selected_train_model)
 
 # -----------------------------------------------------------------------------
@@ -595,7 +595,7 @@ with tabs[1]:
     selected_test_model_display = st.selectbox("Select Model for Analysis", model_options_display, key="test_model_option")
     selected_test_model = model_options_map[selected_test_model_display]
     
-    # Re-train (or load) a model from the aggregated training data using the chosen model type
+    # Retrain (or load) a model from the aggregated training data using the chosen model type.
     target_column_default = "Attrition"
     model_custom, scaler_custom, feature_columns_custom = train_model_from_aggregated_data(
         selected_test_industry, target_column_default, selected_test_model
@@ -706,22 +706,9 @@ with tabs[1]:
             with col_right:
                 st.write("### What-If Scenario Planning")
                 scenario_data = dict(st.session_state.employee_data)
-                scenario_data["Compa Ratio"] = st.slider(
-                    "Compa Ratio (%) [Scenario]",
-                    50, 150, scenario_data["Compa Ratio"],
-                    help="Adjust to see how risk changes if compensation changes."
-                )
-                scenario_data["Last Performance Rating"] = st.slider(
-                    "Last Performance Rating [Scenario]",
-                    1, 5, scenario_data["Last Performance Rating"],
-                    help="What if performance improves or worsens?"
-                )
-                scenario_data["Pulse"] = st.radio(
-                    "Pulse (Employee dissatisfaction) [Scenario]",
-                    ["High", "Medium", "Low"],
-                    index=["High", "Medium", "Low"].index(scenario_data["Pulse"]),
-                    horizontal=True
-                )
+                scenario_data["Compa Ratio"] = st.slider("Compa Ratio (%) [Scenario]", 50, 150, scenario_data["Compa Ratio"], help="Adjust to see how risk changes if compensation changes.")
+                scenario_data["Last Performance Rating"] = st.slider("Last Performance Rating [Scenario]", 1, 5, scenario_data["Last Performance Rating"], help="What if performance improves or worsens?")
+                scenario_data["Pulse"] = st.radio("Pulse (Employee dissatisfaction) [Scenario]", ["High", "Medium", "Low"], index=["High", "Medium", "Low"].index(scenario_data["Pulse"]), horizontal=True)
                 scenario_score, scenario_triggers = predict_attrition_with_custom_model(scenario_data, model_custom, scaler_custom, feature_columns_custom)
                 st.write(f"**Scenario Attrition Risk:** {scenario_score:.2f}%")
                 diff = scenario_score - score
@@ -740,10 +727,7 @@ with tabs[1]:
                     st.markdown("*No negative triggers in this scenario.*")
     # ---------------- Bulk Employees Mode ----------------
     elif test_mode == "Bulk Employees":
-        st.markdown(
-            "<h5 style='text-align: center; color: #FF2400;'>[Bulk Mode - Under Development]</h5>",
-            unsafe_allow_html=True
-        )
+        st.markdown("<h5 style='text-align: center; color: #FF2400;'>[Bulk Mode - Under Development]</h5>", unsafe_allow_html=True)
         st.write("""
         ### 📁 Bulk Employee Attrition Prediction
         Upload a CSV or Excel file with the following columns:
@@ -831,7 +815,6 @@ with tabs[1]:
                     df_bulk["Name"] = names
                     st.success("Bulk Prediction Completed!")
                     st.dataframe(df_bulk)
-                    # Aggregate insights
                     high_risk = (df_bulk["Attrition Score"] >= 75).sum()
                     mod_high = ((df_bulk["Attrition Score"] >= 60) & (df_bulk["Attrition Score"] < 75)).sum()
                     moderate = ((df_bulk["Attrition Score"] >= 35) & (df_bulk["Attrition Score"] < 60)).sum()
