@@ -44,7 +44,7 @@ def train_model(training_df, target_column, industry):
     X_encoded = pd.get_dummies(X)
     feature_columns = list(X_encoded.columns)
     
-    # Scale features
+    # Scale the features
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X_encoded)
     
@@ -52,7 +52,7 @@ def train_model(training_df, target_column, industry):
     model = LogisticRegression(solver="liblinear", random_state=42)
     model.fit(X_scaled, y)
     
-    # Save artifacts with industry prefix
+    # Save artifacts to disk with industry prefix
     model_filename = f"{industry}_model.pkl"
     scaler_filename = f"{industry}_scaler.pkl"
     features_filename = f"{industry}_feature_columns.pkl"
@@ -425,8 +425,8 @@ with tabs[0]:
     st.header("Train Mode")
     selected_train_industry = st.selectbox("Select Your Industry", industry_options, key="train_industry")
     
-    # Sidebar: Global settings for Bulk Analysis – now all set on Training page!
-    st.sidebar.markdown("### Global Settings for Bulk Analysis (Must be filled for analysis)")
+    # GLOBAL SETTINGS for bulk analysis – placed in the Train Mode sidebar ONLY.
+    st.sidebar.markdown("### Global Settings for Bulk Analysis\n*These settings MUST be filled for bulk analysis*")
     global_avg_age = st.sidebar.slider("Average Employee Age in Company", 18, 100, 35, key="global_avg_age")
     global_female_ratio = st.sidebar.slider("Women % in Organization", 0, 100, 40, key="global_female_ratio")
     
@@ -519,6 +519,8 @@ with tabs[1]:
     selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=industry_options.index(default_test_industry) if default_test_industry in industry_options else 0, key="test_industry")
     
     test_mode = st.selectbox("Select Test Mode", ["Single Employee", "Bulk Employees"])
+    
+    # Note: No sidebar global controls are shown in Test Mode.
     
     # -------------------------- SINGLE EMPLOYEE MODE --------------------------
     if test_mode == "Single Employee":
@@ -681,7 +683,7 @@ with tabs[1]:
         - **Last Performance Rating**
         - **Compa Ratio**
         """)
-        # In Bulk mode, we now use the global settings from the Training page (stored in session_state)
+        # In Bulk mode, we use the global settings from Training mode (stored in session_state)
         global_avg_age = st.session_state.get("global_avg_age", 35)
         global_female_ratio = st.session_state.get("global_female_ratio", 40)
         bulk_tier1 = st.session_state.get("bulk_tier1", 60)
@@ -689,8 +691,7 @@ with tabs[1]:
         bulk_tier3 = st.session_state.get("bulk_tier3", 40)
         bulk_industry_retention = {}
         for ind in industry_options:
-            default_val = st.session_state.get(f"bulk_ind_{ind}", 60 if ind=="Tech" else 50)
-            bulk_industry_retention[ind] = default_val
+            bulk_industry_retention[ind] = st.session_state.get(f"bulk_ind_{ind}", 60 if ind=="Tech" else 50)
         default_company_retention = st.session_state.get("retention_company", 60)
     
         uploaded_file = st.file_uploader("📤 Upload Bulk Data (CSV or Excel)", type=["csv", "xlsx"])
@@ -703,20 +704,9 @@ with tabs[1]:
             st.write("**📊 Uploaded Data Preview:**")
             st.dataframe(df_bulk.head())
             required_cols = [
-                "Name",
-                "Employee Age",
-                "Average Employee Age",
-                "Gender",
-                "Female Employee Ratio",
-                "Tenure (Months)",
-                "Pulse",
-                "Hasn't been promoted",
-                "Minimum Promotion Cycle",
-                "College Tier",
-                "Industry",
-                "Company Type",
-                "Last Performance Rating",
-                "Compa Ratio"
+                "Name", "Employee Age", "Average Employee Age", "Gender", "Female Employee Ratio",
+                "Tenure (Months)", "Pulse", "Hasn't been promoted", "Minimum Promotion Cycle",
+                "College Tier", "Industry", "Company Type", "Last Performance Rating", "Compa Ratio"
             ]
             missing = [c for c in required_cols if c not in df_bulk.columns]
             if missing:
@@ -729,10 +719,10 @@ with tabs[1]:
                     for idx, row in df_bulk.iterrows():
                         row_dict = row.to_dict()
                         names.append(row_dict.get("Name"))
-                        # Override with global company settings from training page:
+                        # Override with global company settings from Training mode:
                         row_dict["Average Employee Age"] = global_avg_age
                         row_dict["Female Employee Ratio"] = global_female_ratio
-                        # Use global retention settings from training page:
+                        # Use global retention settings based on categorical values:
                         college_tier = row_dict.get("College Tier")
                         if college_tier == "Tier 1":
                             row_dict["College Tier Retention"] = bulk_tier1
