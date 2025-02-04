@@ -12,17 +12,8 @@ from sklearn.preprocessing import StandardScaler
 # Global: Expanded Industry Options
 ###############################################################################
 industry_options = [
-    "Tech", 
-    "Finance", 
-    "Healthcare", 
-    "Education", 
-    "Manufacturing", 
-    "Retail", 
-    "Energy", 
-    "Telecommunications", 
-    "Government", 
-    "Nonprofit", 
-    "Other"
+    "Tech", "Finance", "Healthcare", "Education", "Manufacturing", 
+    "Retail", "Energy", "Telecommunications", "Government", "Nonprofit", "Other"
 ]
 
 ###############################################################################
@@ -61,6 +52,7 @@ def train_model(training_df, target_column, industry):
     model = LogisticRegression(solver="liblinear", random_state=42)
     model.fit(X_scaled, y)
     
+    # Save artifacts to disk with industry prefix
     model_filename = f"{industry}_model.pkl"
     scaler_filename = f"{industry}_scaler.pkl"
     features_filename = f"{industry}_feature_columns.pkl"
@@ -314,77 +306,38 @@ def compute_weighted_attrition(employee, return_triggers=False):
     extreme_factors = 0
     triggers = []
     
-    # Gender Diversity
     if employee["Gender"] == "Female" and employee["Female Employee Ratio"] <= 15:
-        score += 30
-        extreme_factors += 1
-        triggers.append("Low gender diversity")
-    
-    # Stagnant Promotions
+        score += 30; extreme_factors += 1; triggers.append("Low gender diversity")
     if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
-        score += 30
-        extreme_factors += 1
-        triggers.append("Stagnant promotions")
-    
-    # Performance Rating
+        score += 30; extreme_factors += 1; triggers.append("Stagnant promotions")
     if employee["Last Performance Rating"] == 1:
-        score += 25
-        extreme_factors += 1
-        triggers.append("Very low performance rating")
+        score += 25; extreme_factors += 1; triggers.append("Very low performance rating")
     elif employee["Last Performance Rating"] == 2:
-        score += 15
-        extreme_factors += 0.5
-        triggers.append("Low performance rating")
+        score += 15; extreme_factors += 0.5; triggers.append("Low performance rating")
     elif employee["Last Performance Rating"] == 5:
-        score -= 15
-        extreme_factors -= 0.5
-        triggers.append("Excellent performance rating")
-    
-    # Compensation
+        score -= 15; extreme_factors -= 0.5; triggers.append("Excellent performance rating")
     if employee["Compa Ratio"] < 80:
-        score += 20
-        extreme_factors += 0.8
-        triggers.append("Low compensation competitiveness")
+        score += 20; extreme_factors += 0.8; triggers.append("Low compensation competitiveness")
     elif employee["Compa Ratio"] < 70:
-        score += 25
-        extreme_factors += 1
-        triggers.append("Low compensation competitiveness")
+        score += 25; extreme_factors += 1; triggers.append("Low compensation competitiveness")
     elif employee["Compa Ratio"] > 110:
-        score -= 15
-        extreme_factors -= 0.5
-        triggers.append("High compensation ratio")
-    
-    # Retention
+        score -= 15; extreme_factors -= 0.5; triggers.append("High compensation ratio")
     if employee["College Tier Retention"] < 15:
-        score += 15
-        extreme_factors += 0.5
-        triggers.append("Low college tier retention")
+        score += 15; extreme_factors += 0.5; triggers.append("Low college tier retention")
     if employee["Industry Retention"] < 15:
-        score += 15
-        extreme_factors += 0.5
-        triggers.append("Low industry retention")
+        score += 15; extreme_factors += 0.5; triggers.append("Low industry retention")
     if employee["Company Type Retention"] < 15:
-        score += 15
-        extreme_factors += 0.5
-        triggers.append("Low company type retention")
-    
-    # Pulse
+        score += 15; extreme_factors += 0.5; triggers.append("Low company type retention")
     if employee["Pulse"] == "High":
-        score += 20
-        extreme_factors += 0.5
-        triggers.append("High dissatisfaction (Pulse)")
+        score += 20; extreme_factors += 0.5; triggers.append("High dissatisfaction (Pulse)")
     elif employee["Pulse"] == "Low":
-        score -= 20
-        extreme_factors -= 0.5
-        triggers.append("Low dissatisfaction (Pulse)")
-    
+        score -= 20; extreme_factors -= 0.5; triggers.append("Low dissatisfaction (Pulse)")
     if extreme_factors == 2:
         score = min(100, score * 1.3)
     elif extreme_factors == 3:
         score = min(100, score * 1.6)
     elif extreme_factors >= 4:
         score = min(100, score * 2)
-    
     final_score = min(100, max(0, score))
     if return_triggers:
         return final_score, triggers
@@ -470,15 +423,15 @@ with tabs[0]:
     st.header("Train Mode")
     selected_train_industry = st.selectbox("Select Your Industry", industry_options, key="train_industry")
     
-    # Retention settings are set on the training page
-    with st.expander("Set Retention Percentages (These values will be used in Bulk Analysis)"):
-        retention_tier1 = st.slider("Tier 1 College Retention (%)", 10, 100, 60, key="retention_tier1")
-        retention_tier2 = st.slider("Tier 2 College Retention (%)", 10, 100, 50, key="retention_tier2")
-        retention_tier3 = st.slider("Tier 3 College Retention (%)", 10, 100, 40, key="retention_tier3")
-        retention_industry = st.slider("Default Industry Retention (%)", 10, 100, 60, key="retention_industry")
-        retention_company = st.slider("Default Company Type Retention (%)", 10, 100, 60, key="retention_company")
+    # Sidebar: Retention settings for Bulk Analysis (these values will later be used in Bulk Test mode)
+    st.sidebar.markdown("### Bulk Analysis Retention Settings")
+    retention_tier1 = st.sidebar.slider("Tier 1 College Retention (%)", 10, 100, 60, key="retention_tier1")
+    retention_tier2 = st.sidebar.slider("Tier 2 College Retention (%)", 10, 100, 50, key="retention_tier2")
+    retention_tier3 = st.sidebar.slider("Tier 3 College Retention (%)", 10, 100, 40, key="retention_tier3")
+    retention_industry = st.sidebar.slider("Default Industry Retention (%)", 10, 100, 60, key="retention_industry")
+    retention_company = st.sidebar.slider("Default Company Type Retention (%)", 10, 100, 60, key="retention_company")
     
-    col1, col2 = st.columns([1,1])
+    col1, col2 = st.columns([1, 1])
     with col1:
         uploaded_train = st.file_uploader("Upload Training Data (CSV or Excel)", type=["csv", "xlsx"], key="train_file")
     with col2:
@@ -537,15 +490,15 @@ with tabs[1]:
     - Ensure that you have trained a model in Train Mode.
     - The industry selection below is pre-set to your training industry.
     - In Single Employee mode, enter the employee details (including retention percentages).
-    - In Bulk Employees mode, upload a file in the new format (categorical values for College Tier, Industry, and Company Type).
-      The retention percentages from the training page (and the global company settings) will be used.
+    - In Bulk Employees mode, upload a file in the new format (with categorical values for College Tier, Industry, and Company Type).
+      The retention settings from the Training page (as set in the sidebar) and the global company settings will be applied.
     """)
     default_test_industry = st.session_state.get("train_industry", industry_options[0])
     selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=industry_options.index(default_test_industry) if default_test_industry in industry_options else 0, key="test_industry")
     
     test_mode = st.selectbox("Select Test Mode", ["Single Employee", "Bulk Employees"])
     
-    # In Bulk Employees mode, add global company settings to override file values
+    # In Bulk Employees mode, global company settings are set on the sidebar
     if test_mode == "Bulk Employees":
         with st.sidebar.expander("Global Company Settings for Bulk Analysis"):
             global_avg_age = st.number_input("Average Employee Age in Company", value=35, key="global_avg_age")
@@ -716,14 +669,13 @@ with tabs[1]:
         - **Last Performance Rating**
         - **Compa Ratio**
         """)
-        # On Bulk mode, use the retention settings from Train Mode (stored in session_state) 
+        # Retention settings from training page are used:
         tier1_retention = st.session_state.get("retention_tier1", 60)
         tier2_retention = st.session_state.get("retention_tier2", 50)
         tier3_retention = st.session_state.get("retention_tier3", 40)
         default_industry_retention = st.session_state.get("retention_industry", 60)
         default_company_retention = st.session_state.get("retention_company", 60)
     
-        # Global company settings for bulk analysis (override file values)
         with st.sidebar.expander("Global Company Settings for Bulk Analysis"):
             global_avg_age = st.number_input("Average Employee Age in Company", value=35, key="global_avg_age")
             global_female_ratio = st.number_input("Women % in Organization", value=40, key="global_female_ratio")
@@ -768,12 +720,12 @@ with tabs[1]:
                     for idx, row in df_bulk.iterrows():
                         row_dict = row.to_dict()
                         names.append(row_dict.get("Name"))
-                        # Override with global company settings if provided
+                        # Override with global settings if provided
                         if "global_avg_age" in st.session_state:
                             row_dict["Average Employee Age"] = st.session_state.global_avg_age
                         if "global_female_ratio" in st.session_state:
                             row_dict["Female Employee Ratio"] = st.session_state.global_female_ratio
-                        # Use retention percentages from training page stored in session_state
+                        # Assign retention percentages based on categorical values and training settings
                         college_tier = row_dict.get("College Tier")
                         if college_tier == "Tier 1":
                             row_dict["College Tier Retention"] = tier1_retention
@@ -785,9 +737,7 @@ with tabs[1]:
                             st.warning(f"Row {idx}: Unknown College Tier '{college_tier}'. Using default 40%.")
                             row_dict["College Tier Retention"] = 40
     
-                        ind_val = row_dict.get("Industry")
                         row_dict["Industry Retention"] = default_industry_retention
-                        comp_type = row_dict.get("Company Type")
                         row_dict["Company Type Retention"] = default_company_retention
     
                         try:
