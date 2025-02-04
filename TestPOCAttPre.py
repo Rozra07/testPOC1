@@ -29,12 +29,6 @@ industry_options = [
 # Function to update aggregated training data per industry
 ###############################################################################
 def update_aggregated_training_data(industry, new_data_df):
-    """
-    Updates (or creates) an aggregated training file for the given industry.
-    If a file (e.g., training_data_Tech.csv) exists, the new data is appended.
-    Otherwise, a new file is created.
-    Returns the combined aggregated DataFrame.
-    """
     filename = f"training_data_{industry}.csv"
     if os.path.exists(filename):
         try:
@@ -52,32 +46,18 @@ def update_aggregated_training_data(industry, new_data_df):
 # MODELLING FUNCTIONS
 ###############################################################################
 def train_model(training_df, target_column, industry):
-    """
-    Trains a logistic regression model on the provided training data.
-    The training_df should include the target column (e.g., "Attrition")
-    along with all the feature columns.
-    
-    This function one‑hot encodes the features, scales the data, trains the model,
-    and saves the model, scaler, and feature columns to disk using filenames that
-    include the industry.
-    """
-    # Separate features and target
     X = training_df.drop(columns=[target_column])
     y = training_df[target_column]
     
-    # One-hot encode categorical features
     X_encoded = pd.get_dummies(X)
     feature_columns = list(X_encoded.columns)
     
-    # Scale the features
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X_encoded)
     
-    # Train logistic regression
     model = LogisticRegression(solver="liblinear", random_state=42)
     model.fit(X_scaled, y)
     
-    # Save artifacts to disk with industry prefix
     model_filename = f"{industry}_model.pkl"
     scaler_filename = f"{industry}_scaler.pkl"
     features_filename = f"{industry}_feature_columns.pkl"
@@ -90,15 +70,9 @@ def train_model(training_df, target_column, industry):
         pickle.dump(feature_columns, f)
     
     st.success("Model trained and saved successfully!")
-    
-    # Update the back file (industry_models.csv)
     update_industry_record(industry, model_filename, scaler_filename, features_filename)
 
 def update_industry_record(industry, model_file, scaler_file, feature_file):
-    """
-    Updates (or creates) a CSV file that records which industry has a trained model.
-    Each row includes the Industry, model file names, and the training timestamp.
-    """
     record = {
         "Industry": industry,
         "Model_File": model_file,
@@ -106,7 +80,6 @@ def update_industry_record(industry, model_file, scaler_file, feature_file):
         "Feature_File": feature_file,
         "Training_Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
-    
     csv_filename = "industry_models.csv"
     if os.path.exists(csv_filename):
         df = pd.read_csv(csv_filename)
@@ -117,18 +90,12 @@ def update_industry_record(industry, model_file, scaler_file, feature_file):
             df = df.append(record, ignore_index=True)
     else:
         df = pd.DataFrame([record])
-    
     df.to_csv(csv_filename, index=False)
 
 def load_model(industry):
-    """
-    Loads the saved logistic regression model, scaler, and feature columns for the given industry.
-    Returns None for each if not found.
-    """
     model_filename = f"{industry}_model.pkl"
     scaler_filename = f"{industry}_scaler.pkl"
     features_filename = f"{industry}_feature_columns.pkl"
-    
     if os.path.exists(model_filename) and os.path.exists(scaler_filename) and os.path.exists(features_filename):
         with open(model_filename, "rb") as f:
             model = pickle.load(f)
@@ -340,85 +307,41 @@ TRIGGER_DETAILS = {
 # RULE-BASED SCORING (Unchanged)
 ###############################################################################
 def compute_weighted_attrition(employee, return_triggers=False):
-    """
-    Computes a 0-100 rule-based score. Returns (score, triggers) if return_triggers=True.
-    """
     score = 0
     extreme_factors = 0
     triggers = []
-    
-    # Gender Diversity
     if employee["Gender"] == "Female" and employee["Female Employee Ratio"] <= 15:
-        score += 30
-        extreme_factors += 1
-        triggers.append("Low gender diversity")
-    
-    # Stagnant Promotions
+        score += 30; extreme_factors += 1; triggers.append("Low gender diversity")
     if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
-        score += 30
-        extreme_factors += 1
-        triggers.append("Stagnant promotions")
-    
-    # Performance Rating
+        score += 30; extreme_factors += 1; triggers.append("Stagnant promotions")
     if employee["Last Performance Rating"] == 1:
-        score += 25
-        extreme_factors += 1
-        triggers.append("Very low performance rating")
+        score += 25; extreme_factors += 1; triggers.append("Very low performance rating")
     elif employee["Last Performance Rating"] == 2:
-        score += 15
-        extreme_factors += 0.5
-        triggers.append("Low performance rating")
+        score += 15; extreme_factors += 0.5; triggers.append("Low performance rating")
     elif employee["Last Performance Rating"] == 5:
-        score -= 15
-        extreme_factors -= 0.5
-        triggers.append("Excellent performance rating")  # positive
-    
-    # Compensation
+        score -= 15; extreme_factors -= 0.5; triggers.append("Excellent performance rating")
     if employee["Compa Ratio"] < 80:
-        score += 20
-        extreme_factors += 0.8
-        triggers.append("Low compensation competitiveness")
+        score += 20; extreme_factors += 0.8; triggers.append("Low compensation competitiveness")
     elif employee["Compa Ratio"] < 70:
-        score += 25
-        extreme_factors += 1
-        triggers.append("Low compensation competitiveness")
+        score += 25; extreme_factors += 1; triggers.append("Low compensation competitiveness")
     elif employee["Compa Ratio"] > 110:
-        score -= 15
-        extreme_factors -= 0.5
-        triggers.append("High compensation ratio")  # positive
-    
-    # Retention
+        score -= 15; extreme_factors -= 0.5; triggers.append("High compensation ratio")
     if employee["College Tier Retention"] < 15:
-        score += 15
-        extreme_factors += 0.5
-        triggers.append("Low college tier retention")
+        score += 15; extreme_factors += 0.5; triggers.append("Low college tier retention")
     if employee["Industry Retention"] < 15:
-        score += 15
-        extreme_factors += 0.5
-        triggers.append("Low industry retention")
+        score += 15; extreme_factors += 0.5; triggers.append("Low industry retention")
     if employee["Company Type Retention"] < 15:
-        score += 15
-        extreme_factors += 0.5
-        triggers.append("Low company type retention")
-    
-    # Pulse
+        score += 15; extreme_factors += 0.5; triggers.append("Low company type retention")
     if employee["Pulse"] == "High":
-        score += 20
-        extreme_factors += 0.5
-        triggers.append("High dissatisfaction (Pulse)")
+        score += 20; extreme_factors += 0.5; triggers.append("High dissatisfaction (Pulse)")
     elif employee["Pulse"] == "Low":
-        score -= 20
-        extreme_factors -= 0.5
-        triggers.append("Low dissatisfaction (Pulse)")  # positive
-    
-    # Extreme Factors
+        score -= 20; extreme_factors -= 0.5; triggers.append("Low dissatisfaction (Pulse)")
     if extreme_factors == 2:
         score = min(100, score * 1.3)
     elif extreme_factors == 3:
         score = min(100, score * 1.6)
     elif extreme_factors >= 4:
         score = min(100, score * 2)
-    
     final_score = min(100, max(0, score))
     if return_triggers:
         return final_score, triggers
@@ -429,14 +352,9 @@ def compute_weighted_attrition(employee, return_triggers=False):
 # MACHINE LEARNING PREDICTION (Modified to use loaded model with industry)
 ###############################################################################
 def predict_attrition(employee_data, industry):
-    """
-    Loads the saved logistic regression model for the specified industry, transforms the data,
-    and combines the ML probability with the rule-based score.
-    Returns (combined_score, triggers).
-    """
     model, scaler, feature_columns = load_model(industry)
     if model is None:
-        return None, None
+        return None, None, None
     df_input = pd.DataFrame([employee_data])
     df_input = pd.get_dummies(df_input)
     df_input = df_input.reindex(columns=feature_columns, fill_value=0)
@@ -444,7 +362,7 @@ def predict_attrition(employee_data, industry):
     ml_probability = model.predict_proba(X_scaled)[:, 1][0] * 100
     rule_probability, triggers = compute_weighted_attrition(employee_data, return_triggers=True)
     combined_score = 0.75 * rule_probability + 0.25 * ml_probability
-    return combined_score, triggers
+    return combined_score, triggers, ml_probability
 
 ###############################################################################
 # Generate Sample CSV for Bulk mode (Unchanged)
@@ -497,10 +415,7 @@ def generate_dummy_training_file():
 ###############################################################################
 # STREAMLIT UI
 ###############################################################################
-st.markdown(
-    "<h2 style='text-align: center; color: #141414;'>Employee Attrition Prediction Tool</h2>",
-    unsafe_allow_html=True
-)
+st.markdown("<h2 style='text-align: center; color: #141414;'>Employee Attrition Prediction Tool</h2>", unsafe_allow_html=True)
 
 # Create two tabs for Train Mode and Test Mode
 tabs = st.tabs(["Train Mode", "Test Mode"])
@@ -510,8 +425,14 @@ tabs = st.tabs(["Train Mode", "Test Mode"])
 ###############################################################################
 with tabs[0]:
     st.header("Train Mode")
-    # Use the industry selectbox (do not modify st.session_state manually)
     selected_train_industry = st.selectbox("Select Your Industry", industry_options, key="train_industry")
+    # Retention settings now asked on the training page; these will be used later in bulk testing.
+    with st.expander("Set Retention Percentages (These values will be used for bulk analysis)"):
+        retention_tier1 = st.slider("Tier 1 College Retention (%)", 10, 100, 60, key="retention_tier1")
+        retention_tier2 = st.slider("Tier 2 College Retention (%)", 10, 100, 50, key="retention_tier2")
+        retention_tier3 = st.slider("Tier 3 College Retention (%)", 10, 100, 40, key="retention_tier3")
+        retention_industry = st.slider("Default Industry Retention (%)", 10, 100, 60, key="retention_industry")
+        retention_company = st.slider("Default Company Type Retention (%)", 10, 100, 60, key="retention_company")
     
     col1, col2 = st.columns([1,1])
     with col1:
@@ -570,12 +491,11 @@ with tabs[1]:
     **Instructions for Testing:**
     
     - Ensure that you have trained a model in Train Mode.
-    - Select your industry from the dropdown below (this should match your training industry).
-    - Then select whether to use **Single Employee** or **Bulk Employees** for testing.
-      - **Single Employee:** Enter details manually.
-      - **Bulk Employees:** Upload a CSV/Excel file with employee data.
+    - The industry selection below is pre-set to your training industry.
+    - For Single Employee mode, enter the employee details (including retention percentages).
+    - For Bulk Employees mode, upload a file in the new format (categorical values for College Tier, Industry, and Company Type).
+      The retention percentages set on the training page will be applied automatically.
     """)
-    # Use the industry stored from training as default if available
     default_test_industry = st.session_state.get("train_industry", industry_options[0])
     selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=industry_options.index(default_test_industry) if default_test_industry in industry_options else 0, key="test_industry")
     
@@ -603,16 +523,16 @@ with tabs[1]:
                 "Pulse": st.radio("Employee dissatisfaction (Pulse)", ["High", "Medium", "Low"], horizontal=True),
                 "Hasn't been promoted": st.slider("Months Since Last Promotion", 0, 60, 12),
                 "Minimum Promotion Cycle": st.slider("Min Promotion Cycle (Months)", 12, 60, 24),
-                # For single mode, user enters retention percentages manually:
-                "College Tier Retention": st.slider("College Tier Retention (%)", 10, 100, 60),
-                "Industry Retention": st.slider("Industry Retention (%)", 10, 100, 60),
-                "Company Type Retention": st.slider("Company Type Retention (%)", 10, 100, 60),
+                # In single mode, user manually enters retention percentages:
+                "College Tier Retention": st.slider("College Tier Retention (%)", 10, 100, st.session_state.get("retention_tier1", 60)),
+                "Industry Retention": st.slider("Industry Retention (%)", 10, 100, st.session_state.get("retention_industry", 60)),
+                "Company Type Retention": st.slider("Company Type Retention (%)", 10, 100, st.session_state.get("retention_company", 60)),
                 "Last Performance Rating": st.slider("Last Performance Rating", 1, 5, 3),
                 "Compa Ratio": st.slider("Compa Ratio (%)", 50, 150, 100)
             }
             submit_single = st.form_submit_button("🚀 Predict")
             if submit_single:
-                final_score, triggers = predict_attrition(input_data, selected_test_industry)
+                final_score, triggers, ml_confidence = predict_attrition(input_data, selected_test_industry)
                 st.session_state.score = final_score
                 st.session_state.triggers = triggers
                 st.session_state.prediction_made = True
@@ -621,7 +541,6 @@ with tabs[1]:
         if st.session_state.prediction_made:
             score = st.session_state.score
             triggers = st.session_state.triggers
-    
             with st.container():
                 if score >= 75:
                     bg_color = "#ff4d4d"
@@ -644,6 +563,7 @@ with tabs[1]:
                     """,
                     unsafe_allow_html=True
                 )
+                st.markdown(f"**Model Confidence:** {ml_confidence:.2f}%")
     
             col_left, col_right = st.columns(2)
             with col_left:
@@ -705,7 +625,7 @@ with tabs[1]:
                     index=["High", "Medium", "Low"].index(scenario_data["Pulse"]),
                     horizontal=True
                 )
-                scenario_score, scenario_triggers = predict_attrition(scenario_data, selected_test_industry)
+                scenario_score, scenario_triggers, _ = predict_attrition(scenario_data, selected_test_industry)
                 st.write(f"**Scenario Attrition Risk:** {scenario_score:.2f}%")
                 diff = scenario_score - score
                 if diff > 0:
@@ -743,24 +663,12 @@ with tabs[1]:
         - **Last Performance Rating**
         - **Compa Ratio**
         """)
-        # Sidebar: Use expanders for retention percentages settings
-        with st.expander("Set College Tier Retention Percentages"):
-            tier1_retention = st.slider("Tier 1 Retention (%)", 10, 100, 60)
-            tier2_retention = st.slider("Tier 2 Retention (%)", 10, 100, 50)
-            tier3_retention = st.slider("Tier 3 Retention (%)", 10, 100, 40)
-    
-        with st.expander("Set Industry Retention Percentages"):
-            industry_retention = {}
-            for ind in industry_options:
-                default_val = 60 if ind == "Tech" else 50
-                industry_retention[ind] = st.slider(f"{ind} Retention (%)", 10, 100, default_val)
-    
-        with st.expander("Set Company Type Retention Percentages"):
-            company_types = ["Startup", "Enterprise", "Non-Profit", "SME"]
-            company_type_retention = {}
-            for ct in company_types:
-                default_val = 60 if ct == "Enterprise" else 50
-                company_type_retention[ct] = st.slider(f"{ct} Retention (%)", 10, 100, default_val)
+        # Instead of asking for retention values here, we now use the ones set on the training page.
+        tier1_retention = st.session_state.get("retention_tier1", 60)
+        tier2_retention = st.session_state.get("retention_tier2", 50)
+        tier3_retention = st.session_state.get("retention_tier3", 40)
+        default_industry_retention = st.session_state.get("retention_industry", 60)
+        default_company_retention = st.session_state.get("retention_company", 60)
     
         uploaded_file = st.file_uploader("📤 Upload Bulk Data (CSV or Excel)", type=["csv", "xlsx"])
         if uploaded_file is not None:
@@ -798,7 +706,7 @@ with tabs[1]:
                     for idx, row in df_bulk.iterrows():
                         row_dict = row.to_dict()
                         names.append(row_dict.get("Name"))
-                        # Set retention percentages based on categorical values from file and sidebar settings
+                        # Assign retention percentages based on the categorical values from the file and the training retention settings:
                         college_tier = row_dict.get("College Tier")
                         if college_tier == "Tier 1":
                             row_dict["College Tier Retention"] = tier1_retention
@@ -811,13 +719,13 @@ with tabs[1]:
                             row_dict["College Tier Retention"] = 40
     
                         ind_val = row_dict.get("Industry")
-                        row_dict["Industry Retention"] = industry_retention.get(ind_val, 50)
+                        row_dict["Industry Retention"] = industry_retention.get(ind_val, default_industry_retention)
     
                         comp_type = row_dict.get("Company Type")
-                        row_dict["Company Type Retention"] = company_type_retention.get(comp_type, 50)
+                        row_dict["Company Type Retention"] = default_company_retention  # Use default if not set
     
                         try:
-                            bulk_score, bulk_trigs = predict_attrition(row_dict, selected_test_industry)
+                            bulk_score, bulk_trigs, _ = predict_attrition(row_dict, selected_test_industry)
                         except Exception as e:
                             st.error(f"Row {idx}: Prediction failed due to {e}. Skipping this row.")
                             scores.append(None)
