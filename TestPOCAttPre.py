@@ -9,9 +9,21 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
 ###############################################################################
-# Global: Industry Options
+# Global: Expanded Industry Options
 ###############################################################################
-industry_options = ["Tech", "Finance", "Healthcare", "Education", "Manufacturing", "Other"]
+industry_options = [
+    "Tech", 
+    "Finance", 
+    "Healthcare", 
+    "Education", 
+    "Manufacturing", 
+    "Retail", 
+    "Energy", 
+    "Telecommunications", 
+    "Government", 
+    "Nonprofit", 
+    "Other"
+]
 
 ###############################################################################
 # Function to update aggregated training data per industry
@@ -623,6 +635,7 @@ with tabs[1]:
         if st.session_state.prediction_made:
             score = st.session_state.score
             triggers = st.session_state.triggers
+
             with st.container():
                 if score >= 75:
                     bg_color = "#ff4d4d"
@@ -645,7 +658,9 @@ with tabs[1]:
                     """,
                     unsafe_allow_html=True
                 )
+
             col_left, col_right = st.columns(2)
+
             with col_left:
                 st.write("### Key Contributing Factors")
                 negative_triggers = []
@@ -655,6 +670,7 @@ with tabs[1]:
                         st.markdown(f"- **{t}**")
                 if not negative_triggers:
                     st.markdown("*No major negative triggers identified.*")
+
                 st.write("### Sub-Problems Selection")
                 sub_problem_selections = {}
                 for trig in negative_triggers:
@@ -669,6 +685,7 @@ with tabs[1]:
                         if new_val:
                             chosen_list.append(sub_key)
                     sub_problem_selections[trig] = chosen_list
+
                 if st.button("💡 Show Solutions"):
                     st.write("### Recommended Solutions")
                     any_chosen = False
@@ -683,6 +700,7 @@ with tabs[1]:
                                 st.markdown(f"{solution_text}")
                     if not any_chosen:
                         st.info("No sub-problems selected, so no solutions to display.")
+
             with col_right:
                 st.write("### What-If Scenario Planning")
                 scenario_data = dict(st.session_state.employee_data)
@@ -718,7 +736,7 @@ with tabs[1]:
                         st.markdown(f"- **{t}**")
                 else:
                     st.markdown("*No negative triggers in this scenario.*")
-    
+
     # -------------------------- BULK EMPLOYEES MODE --------------------------
     elif test_mode == "Bulk Employees":
         st.markdown(
@@ -727,7 +745,7 @@ with tabs[1]:
         )
         st.write("""
         ### 📁 Bulk Employee Attrition Prediction
-        Upload a **CSV or Excel** file with the following columns:
+        Upload a CSV or Excel file with the following columns:
         - **Name**
         - **Employee Age**
         - **Gender**
