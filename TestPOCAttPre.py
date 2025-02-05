@@ -178,230 +178,126 @@ def load_model(industry):
         st.error("No trained model found for the selected industry. Please train your model in Train Mode first.")
         return None, None, None
 
-TRIGGER_DETAILS = {
-    "Low gender diversity": {
-        "subproblems": {
-            "lack_female_applicants": "We are not getting enough female applicants",
-            "lack_female_mentors": "We have few female mentors or leaders",
-            "rigid_policies": "We do not offer flexible policies (e.g., maternity, remote, etc.)"
-        },
-        "solutions": {
-            "lack_female_applicants": (
-                "- **Partner with Women’s Universities** or female‑oriented professional groups.\n"
-                "- **Highlight DEI** in your recruitment materials."
-            ),
-            "lack_female_mentors": (
-                "- **Implement formal mentorship** programs.\n"
-                "- **Sponsor leadership development** for existing female employees."
-            ),
-            "rigid_policies": (
-                "- Introduce **flexible working hours** and remote/hybrid options.\n"
-                "- Improve **maternity/paternity benefits** and family‑friendly leave."
-            )
-        }
-    },
-    "Stagnant promotions": {
-        "subproblems": {
-            "unclear_criteria": "Promotion criteria are unclear or inconsistent",
-            "no_mentorship": "No proper mentorship or upskilling tracks exist",
-            "bureaucratic_structure": "The organization structure is too bureaucratic"
-        },
-        "solutions": {
-            "unclear_criteria": (
-                "- **Publish transparent promotion guidelines** linked to clear KPIs.\n"
-                "- Provide employees with **regular promotion readiness feedback**."
-            ),
-            "no_mentorship": (
-                "- Launch **formal mentoring** or buddy programs.\n"
-                "- Offer **upskilling opportunities** and learning stipends."
-            ),
-            "bureaucratic_structure": (
-                "- **Streamline decision‑making** or reduce hierarchical layers.\n"
-                "- Consider more **agile or cross‑functional** teams to encourage skill growth."
-            )
-        }
-    },
-    "Very low performance rating": {
-        "subproblems": {
-            "misaligned_role": "Job role or expectations are unclear or mismatched",
-            "no_feedback": "Lack of continuous feedback or 1‑on‑1 sessions",
-            "skill_gaps": "Skill gaps or training needs not addressed"
-        },
-        "solutions": {
-            "misaligned_role": (
-                "- **Clarify job responsibilities** and set SMART goals.\n"
-                "- Ensure roles align with employees’ **strengths** and career aspirations."
-            ),
-            "no_feedback": (
-                "- Implement **frequent 1‑on‑1 check‑ins** and agile feedback loops.\n"
-                "- Use **performance dashboards** for real‑time updates."
-            ),
-            "skill_gaps": (
-                "- Provide **targeted training** and eLearning modules.\n"
-                "- Offer **certification reimbursements** and skill‑building workshops."
-            )
-        }
-    },
-    "Low performance rating": {
-        "subproblems": {
-            "misaligned_role": "Job role or expectations are unclear or mismatched",
-            "no_feedback": "Lack of continuous feedback or 1‑on‑1 sessions",
-            "skill_gaps": "Skill gaps or training needs not addressed"
-        },
-        "solutions": {
-            "misaligned_role": (
-                "- **Clarify job responsibilities** and set SMART goals.\n"
-                "- Align roles with employees’ **strengths** and preferences."
-            ),
-            "no_feedback": (
-                "- Implement **regular 1‑on‑1 check‑ins**.\n"
-                "- Provide ongoing **coaching and feedback** rather than annual appraisals."
-            ),
-            "skill_gaps": (
-                "- Offer **targeted training** in needed skill areas.\n"
-                "- Encourage **peer‑to‑peer learning** or cross‑functional rotations."
-            )
-        }
-    },
-    "Low compensation competitiveness": {
-        "subproblems": {
-            "below_market": "Base salary is below market rates",
-            "minimal_bonus": "Bonuses or variable pay are minimal or non‑existent",
-            "poor_benefits": "Benefits package is lacking (insurance, retirement, etc.)"
-        },
-        "solutions": {
-            "below_market": (
-                "- **Conduct market benchmarking** to adjust salaries to median or above.\n"
-                "- Consider **geographic pay differentials** if applicable."
-            ),
-            "minimal_bonus": (
-                "- Introduce **performance‑based incentives** or profit‑sharing.\n"
-                "- Evaluate **RSUs (Restricted Stock Units)** or equity grants for retention."
-            ),
-            "poor_benefits": (
-                "- Offer **competitive health insurance**, retirement contributions.\n"
-                "- Provide **flexible schedules**, wellness programs, and other perks."
-            )
-        }
-    },
-    "Low college tier retention": {
-        "subproblems": {
-            "high_turnover_talent_pools": "High turnover among certain colleges or entry‑level hires",
-            "mismatch_culture": "Mismatch between background and company culture",
-            "poor_onboarding": "Insufficient onboarding or assimilation for these hires"
-        },
-        "solutions": {
-            "high_turnover_talent_pools": (
-                "- Investigate root causes via **exit interviews**.\n"
-                "- Build **campus ambassador** programs to attract the right fit."
-            ),
-            "mismatch_culture": (
-                "- Provide better **orientation** on company culture.\n"
-                "- Pair new hires with **mentors** from similar backgrounds."
-            ),
-            "poor_onboarding": (
-                "- Enhance **onboarding programs** with structured check‑ins (30/60/90 days).\n"
-                "- Offer a **buddy system** for new graduates."
-            )
-        }
-    },
-    "Low industry retention": {
-        "subproblems": {
-            "high_turnover_talent_pools": "High turnover among employees from this industry",
-            "mismatch_culture": "Mismatch between industry norms and your company's culture",
-            "poor_onboarding": "Insufficient onboarding for these lateral hires"
-        },
-        "solutions": {
-            "high_turnover_talent_pools": (
-                "- Conduct **benchmarking** to see if salaries and roles align with industry standards.\n"
-                "- Explore **targeted retention strategies** (mentorship, training)."
-            ),
-            "mismatch_culture": (
-                "- Emphasize **company values** and create inclusive teams.\n"
-                "- Have **town halls** or Q&A sessions for lateral hires to assimilate."
-            ),
-            "poor_onboarding": (
-                "- Develop **structured assimilation** for mid‑career folks.\n"
-                "- Provide a **transition buddy** who understands both industries."
-            )
-        }
-    },
-    "Low company type retention": {
-        "subproblems": {
-            "high_turnover_talent_pools": "High turnover among employees from certain company backgrounds",
-            "mismatch_culture": "Mismatch between prior company culture and current environment",
-            "poor_onboarding": "Onboarding doesn’t address differences in processes, tools, or structures"
-        },
-        "solutions": {
-            "high_turnover_talent_pools": (
-                "- Identify if certain **company backgrounds** always churn quickly.\n"
-                "- Adapt your onboarding or project assignments accordingly."
-            ),
-            "mismatch_culture": (
-                "- Provide **culture assimilation** sessions or manager training.\n"
-                "- Encourage **peer networking** to help them adapt faster."
-            ),
-            "poor_onboarding": (
-                "- Have a **comprehensive onboarding** covering your processes & tools.\n"
-                "- Assign **buddies** who previously transitioned from similar backgrounds."
-            )
-        }
-    },
-    "High dissatisfaction (Pulse)": {
-        "subproblems": {
-            "work_life_imbalance": "Work‑life imbalance or excessive workload",
-            "poor_manager_relationships": "Employees feel managers are unsupportive",
-            "limited_growth": "Limited growth or recognition opportunities"
-        },
-        "solutions": {
-            "work_life_imbalance": (
-                "- Offer **flexible scheduling** and **mental health** resources.\n"
-                "- Encourage **healthy boundaries** around work hours."
-            ),
-            "poor_manager_relationships": (
-                "- Train managers on **emotional intelligence** and communication.\n"
-                "- Collect **360‑degree feedback** to identify manager blind spots."
-            ),
-            "limited_growth": (
-                "- Implement **career development** paths and internal mobility.\n"
-                "- Recognize achievements publicly and **reward** top performers."
-            )
-        }
-    }
-}
+# ----------------------------------------------------
+# Helper for Retention Contribution
+# ----------------------------------------------------
+def compute_retention_contrib(R):
+    """
+    For a retention value R (in %):
+      - If R < 15: return +15.
+      - If R is between 15 and 70: use a cubic smooth-step function to transition from +15 to -15.
+      - If R > 70: return -15.
+    """
+    if R < 15:
+        return 15
+    elif R > 70:
+        return -15
+    else:
+        # Map R from [15,70] to x in [0,1]
+        x = (R - 15) / 55.0
+        # Cubic smooth-step: f(x) = 3x^2 - 2x^3, which goes from 0 to 1.
+        return 15 - 30 * (3 * x**2 - 2 * x**3)
 
+# ----------------------------------------------------
+# Modified compute_weighted_attrition with requested adjustments
+# ----------------------------------------------------
 def compute_weighted_attrition(employee, return_triggers=False):
     score = 0
     extreme_factors = 0
     triggers = []
     
-    if employee["Gender"] == "Female" and employee["Female Employee Ratio"] <= 15:
-        score += 30; extreme_factors += 1; triggers.append("Low gender diversity")
-    if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
-        score += 30; extreme_factors += 1; triggers.append("Stagnant promotions")
-    if employee["Last Performance Rating"] == 1:
-        score += 25; extreme_factors += 1; triggers.append("Very low performance rating")
-    elif employee["Last Performance Rating"] == 2:
-        score += 15; extreme_factors += 0.5; triggers.append("Low performance rating")
-    elif employee["Last Performance Rating"] == 5:
-        score -= 15; extreme_factors -= 0.5; triggers.append("Excellent performance rating")
-    if employee["Compa Ratio"] < 80:
-        score += 20; extreme_factors += 0.8; triggers.append("Low compensation competitiveness")
-    elif employee["Compa Ratio"] < 70:
-        score += 25; extreme_factors += 1; triggers.append("Low compensation competitiveness")
-    elif employee["Compa Ratio"] > 110:
-        score -= 15; extreme_factors -= 0.5; triggers.append("High compensation ratio")
-    if employee["College Tier Retention"] < 15:
-        score += 15; extreme_factors += 0.5; triggers.append("Low college tier retention")
-    if employee["Industry Retention"] < 15:
-        score += 15; extreme_factors += 0.5; triggers.append("Low industry retention")
-    if employee["Company Type Retention"] < 15:
-        score += 15; extreme_factors += 0.5; triggers.append("Low company type retention")
-    if employee["Pulse"] == "High":
-        score += 20; extreme_factors += 0.5; triggers.append("High dissatisfaction (Pulse)")
-    elif employee["Pulse"] == "Low":
-        score -= 20; extreme_factors -= 0.5; triggers.append("Low dissatisfaction (Pulse)")
+    # 1. Female Employee Ratio
+    if employee["Gender"] == "Female":
+        fr = employee["Female Employee Ratio"]
+        if fr <= 15:
+            contrib_female = 30
+        elif fr < 60:
+            # Interpolate linearly from +30 at 15% to -20 at 60%.
+            contrib_female = 30 - ((fr - 15) / (60 - 15)) * 50
+        else:
+            contrib_female = -20
+        score += contrib_female
+        if fr <= 15:
+            extreme_factors += 1
+            triggers.append("Low gender diversity")
     
+    # 2. Promotion History (unchanged)
+    months_since = employee["Hasn't been promoted"]
+    min_cycle = employee["Minimum Promotion Cycle"]
+    if months_since >= 2 * min_cycle:
+        contrib_promotion = 30
+        score += contrib_promotion
+        extreme_factors += 1
+        triggers.append("Stagnant promotions")
+    
+    # 3. Performance Rating (unchanged)
+    r = employee["Last Performance Rating"]
+    contrib_rating = np.interp(r, [1, 2, 3, 4, 5], [25, 15, 0, 0, -15])
+    score += contrib_rating
+    if r == 1:
+        extreme_factors += 1
+        triggers.append("Very low performance rating")
+    elif r == 2:
+        extreme_factors += 0.5
+        triggers.append("Low performance rating")
+    elif r == 5:
+        score -= 15
+        extreme_factors -= 0.5
+        triggers.append("Excellent performance rating")
+    
+    # 4. Compa Ratio (unchanged)
+    compa = employee["Compa Ratio"]
+    if compa < 70:
+        contrib_compa = 25
+        extreme_factors += 1
+        triggers.append("Low compensation competitiveness")
+    elif compa < 80:
+        contrib_compa = 25 - 2.5 * (compa - 70)
+    elif compa <= 110:
+        contrib_compa = 0
+    else:
+        contrib_compa = -15 * (compa - 110) / 40
+        extreme_factors -= 0.5
+        triggers.append("High compensation ratio")
+    score += contrib_compa
+    
+    # 5. College Tier Retention
+    ctr = employee["College Tier Retention"]
+    contrib_ctr = compute_retention_contrib(ctr)
+    score += contrib_ctr
+    if ctr < 15:
+        extreme_factors += 0.5
+        triggers.append("Low college tier retention")
+    
+    # 6. Industry Retention
+    ir = employee["Industry Retention"]
+    contrib_ir = compute_retention_contrib(ir)
+    score += contrib_ir
+    if ir < 15:
+        extreme_factors += 0.5
+        triggers.append("Low industry retention")
+    
+    # 7. Company Type Retention
+    ctrt = employee["Company Type Retention"]
+    contrib_ctrt = compute_retention_contrib(ctrt)
+    score += contrib_ctrt
+    if ctrt < 15:
+        extreme_factors += 0.5
+        triggers.append("Low company type retention")
+    
+    # 8. Pulse (unchanged)
+    pulse = employee["Pulse"]
+    pulse_map = {"High": 20, "Medium": 0, "Low": -20}
+    contrib_pulse = pulse_map.get(pulse, 0)
+    score += contrib_pulse
+    if pulse == "High":
+        extreme_factors += 0.5
+        triggers.append("High dissatisfaction (Pulse)")
+    elif pulse == "Low":
+        extreme_factors -= 0.5
+        triggers.append("Low dissatisfaction (Pulse)")
+    
+    # 9. Apply Extremity Multipliers (unchanged)
     if extreme_factors == 2:
         score = min(100, score * 1.3)
     elif extreme_factors == 3:
