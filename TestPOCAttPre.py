@@ -104,7 +104,7 @@ def train_model(training_df, target_column, industry):
         pickle.dump(feature_columns, f)
     
     st.success("Model trained and saved successfully!")
-    # Compute training accuracy (as a proxy for model confidence)
+    # Compute training accuracy as a proxy for confidence.
     training_accuracy = model.score(X_scaled, y) * 100
     st.info(f"Training Accuracy (Confidence): {training_accuracy:.2f}%")
     
@@ -533,7 +533,7 @@ if "nav" not in st.session_state:
     st.session_state.nav = "Tabs"  # "Tabs" means Train/Test mode
 
 #########################################
-# Main Navigation (via sidebar icon for My Account, otherwise Tabs)
+# Main Navigation (My Account vs. Tabs)
 #########################################
 if st.session_state.nav == "My Account":
     st.header("My Account")
