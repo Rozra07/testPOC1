@@ -526,7 +526,7 @@ if st.session_state.nav == "My Account":
     if st.button("Back to Main"):
         st.session_state.nav = "Tabs"
 else:
-    # Render the UI based on the mode selected in the sidebar.
+    # Render UI based on the selected mode from sidebar.
     if st.session_state.get("main_mode", "Train Mode") == "Train Mode":
         st.header("Train Mode")
         selected_train_industry = st.selectbox("Select Your Industry", industry_options, key="train_industry")
@@ -537,20 +537,20 @@ else:
         with col2:
             st.markdown("### Detailed Guide for Training File")
             st.markdown("""
-            **Your training file must include:**
-            - A **target column** (e.g., `Attrition` – use binary values 0/1, where **0: Active Employee** and **1: Non‑Active Employee**).
-            - **Feature columns:**  
-              - `Employee Age`  
-              - `Gender` (e.g., "Male", "Female")  
-              - `Tenure (Months)`  
-              - `Pulse` (e.g., "High", "Medium", "Low")  
-              - `Hasn't been promoted` (months since last promotion)  
-              - `Minimum Promotion Cycle` (in months)  
-              - `College Tier` (e.g., "Tier 1", "Tier 2", "Tier 3")  
-              - `Industry` (e.g., "Tech", "Finance", etc.)  
-              - `Company Type` (e.g., "Startup", "Enterprise", etc.)  
-              - `Last Performance Rating` (e.g., 1 to 5)  
-              - `Compa Ratio` (compensation ratio)
+**Your training file must include:**
+- A **target column** (e.g., `Attrition` – use binary values 0/1, where **0: Active Employee** and **1: Non‑Active Employee**).
+- **Feature columns:**  
+  - `Employee Age`  
+  - `Gender` (e.g., "Male", "Female")  
+  - `Tenure (Months)`  
+  - `Pulse` (e.g., "High", "Medium", "Low")  
+  - `Hasn't been promoted` (months since last promotion)  
+  - `Minimum Promotion Cycle` (in months)  
+  - `College Tier` (e.g., "Tier 1", "Tier 2", "Tier 3")  
+  - `Industry` (e.g., "Tech", "Finance", etc.)  
+  - `Company Type` (e.g., "Startup", "Enterprise", etc.)  
+  - `Last Performance Rating` (e.g., 1 to 5)  
+  - `Compa Ratio` (compensation ratio)
             """)
             st.download_button(
                 label="Download Dummy Training File",
@@ -724,6 +724,27 @@ else:
     
         else:  # Bulk Employees
             st.header("Bulk Employee Attrition Prediction")
+            st.markdown("""
+**Instructions for Bulk Testing:**
+
+- Ensure that you have trained a model in Train Mode.
+- The industry selection below is pre‑set to your training industry.
+- Upload a CSV or Excel file with the following columns:
+    - **Name**
+    - **Employee Age**
+    - **Gender**
+    - **Tenure (Months)**
+    - **Pulse**
+    - **Hasn't been promoted**
+    - **Minimum Promotion Cycle**
+    - **College Tier** *(e.g., "Tier 1", "Tier 2", "Tier 3")*
+    - **Industry** *(e.g., "Tech", "Finance", etc.)*
+    - **Company Type** *(e.g., "Startup", "Small Size", "Mid Size", "MNC/Giant Company")*
+    - **Last Performance Rating**
+    - **Compa Ratio*
+    
+*Note: The global settings defined in Train Mode (for Average Employee Age, Women % etc.) will be applied automatically to all bulk data.*
+            """)
             uploaded_file = st.file_uploader("Upload Bulk Data (CSV or Excel)", type=["csv", "xlsx"], key="bulk_file")
             if uploaded_file is not None:
                 try:
@@ -742,27 +763,6 @@ else:
                 if missing:
                     st.error(f"❌ Missing columns: {missing}")
                 else:
-                    st.markdown("""
-**Instructions for Bulk Testing:**
-
-- Ensure that you have trained a model in Train Mode.
-- The industry selection below is pre‑set to your training industry.
-- Upload a CSV or Excel file with the following columns:
-    - **Name**
-    - **Employee Age**
-    - **Gender**
-    - **Tenure (Months)**
-    - **Pulse**
-    - **Hasn't been promoted**
-    - **Minimum Promotion Cycle**
-    - **College Tier** *(e.g., "Tier 1", "Tier 2", "Tier 3")*
-    - **Industry** *(e.g., "Tech", "Finance", etc.)*
-    - **Company Type** *(e.g., "Startup", "Small Size", "Mid Size", "MNC/Giant Company")*
-    - **Last Performance Rating**
-    - **Compa Ratio**
-    
-*Note: The global settings defined in Train Mode (for Average Employee Age, Women % etc.) will be applied automatically to all bulk data.*
-                    """)
                     default_company_retention = st.session_state.get("retention_company", 60)
                     global_avg_age = st.session_state.get("global_avg_age", 35)
                     global_female_ratio = st.session_state.get("global_female_ratio", 40)
