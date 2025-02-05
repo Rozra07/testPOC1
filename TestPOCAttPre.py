@@ -779,8 +779,6 @@ elif nav == "Test Mode":
                     st.markdown("*No negative triggers in this scenario.*")
     
     elif test_mode_option == "Bulk Employees":
-        st.markdown("<h5 style='text-align: center; color: #FF2400;'>[Bulk Mode - Under Development]</h5>", unsafe_allow_html=True)
-        st.write("""
         ### 📁 Bulk Employee Attrition Prediction
         Upload a CSV or Excel file with the following columns:
         - **Name**
