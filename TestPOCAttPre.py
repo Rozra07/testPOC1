@@ -406,7 +406,7 @@ def predict_attrition(employee_data, industry):
     return combined_score, triggers, ml_probability
 
 def generate_sample_csv():
-    # Updated sample CSV for Bulk mode (remove "Average Employee Age" and "Female Employee Ratio")
+    # Updated bulk sample file does not require "Average Employee Age" or "Female Employee Ratio"
     sample_csv = pd.DataFrame({
         "Employee Age": [30, 45],
         "Gender": ["Male", "Female"],
@@ -425,13 +425,11 @@ def generate_sample_csv():
     return csv_buffer.getvalue()
 
 def generate_dummy_training_file():
-    # Training file may include all columns (needed for training the model)
+    # Updated dummy training file: remove "Average Employee Age" and "Female Employee Ratio"
     dummy_df = pd.DataFrame({
         "Name": ["Example 1", "Example 2", "Example 3"],
         "Employee Age": [30, 40, 35],
-        "Average Employee Age": [35, 38, 36],
         "Gender": ["Male", "Female", "Male"],
-        "Female Employee Ratio": [50, 20, 45],
         "Tenure (Months)": [36, 48, 24],
         "Pulse": ["Medium", "High", "Low"],
         "Hasn't been promoted": [12, 30, 15],
@@ -487,7 +485,8 @@ st.sidebar.success(f"Logged in as: {st.session_state.user['name']} ({st.session_
 mode = st.sidebar.radio("Select Mode", ["Train Mode", "Test Mode"])
 
 #########################################
-# GLOBAL SIDEBAR CONTROLS (for Bulk Analysis) – always visible in sidebar; disabled if Test Mode.
+# GLOBAL SIDEBAR CONTROLS (for Bulk Analysis)
+# These controls appear in the sidebar regardless but are disabled in Test Mode.
 #########################################
 with st.sidebar:
     st.markdown("### Global Settings for Bulk Analysis\n*These settings MUST be filled for bulk analysis*")
@@ -533,7 +532,7 @@ if mode == "Train Mode":
     st.header("Train Mode")
     selected_train_industry = st.selectbox("Select Your Industry", industry_options, key="train_industry")
     
-    col1, col2 = st.columns([1, 1])
+    col1, col2 = st.columns([1,1])
     with col1:
         uploaded_train = st.file_uploader("Upload Training Data (CSV or Excel)", type=["csv", "xlsx"], key="train_file")
     with col2:
@@ -543,9 +542,7 @@ if mode == "Train Mode":
         - A **target column** (e.g., `Attrition` – use binary values 0/1, where **0: Active Employee** and **1: Non‑Active Employee**).
         - **Feature columns:**  
           - `Employee Age`  
-          - `Average Employee Age`  
           - `Gender` (e.g., "Male", "Female")  
-          - `Female Employee Ratio` (as a percentage)  
           - `Tenure (Months)`  
           - `Pulse` (e.g., "High", "Medium", "Low")  
           - `Hasn't been promoted` (months since last promotion)  
@@ -580,7 +577,7 @@ if mode == "Train Mode":
             st.write("### Aggregated Training Data Preview")
             st.dataframe(aggregated_df.head())
             train_model(aggregated_df, target_column, selected_train_industry)
-
+    
 elif mode == "Test Mode":
     st.header("Test Mode")
     st.markdown("""
@@ -597,9 +594,9 @@ elif mode == "Test Mode":
          - **Pulse**
          - **Hasn't been promoted**
          - **Minimum Promotion Cycle**
-         - **College Tier**  *(e.g., "Tier 1", "Tier 2", "Tier 3")*
-         - **Industry**  *(e.g., "Tech", "Finance", etc.)*
-         - **Company Type**  *(e.g., "Startup", "Small Size", "Mid Size", "MNC/Giant Company")*
+         - **College Tier** *(e.g., "Tier 1", "Tier 2", "Tier 3")*
+         - **Industry** *(e.g., "Tech", "Finance", etc.)*
+         - **Company Type** *(e.g., "Startup", "Small Size", "Mid Size", "MNC/Giant Company")*
          - **Last Performance Rating**
          - **Compa Ratio**
          
@@ -610,7 +607,7 @@ elif mode == "Test Mode":
     
     test_mode_option = st.selectbox("Select Test Mode", ["Single Employee", "Bulk Employees"])
     
-    # No global controls appear here in Test Mode.
+    # No editable global controls appear here in Test Mode.
     if test_mode_option == "Single Employee":
         if "prediction_made" not in st.session_state:
             st.session_state.prediction_made = False
@@ -763,14 +760,14 @@ elif mode == "Test Mode":
         - **Pulse**
         - **Hasn't been promoted**
         - **Minimum Promotion Cycle**
-        - **College Tier**  *(e.g., "Tier 1", "Tier 2", "Tier 3")*
-        - **Industry**  *(e.g., "Tech", "Finance", etc.)*
-        - **Company Type**  *(e.g., "Startup", "Small Size", "Mid Size", "MNC/Giant Company")*
+        - **College Tier** *(e.g., "Tier 1", "Tier 2", "Tier 3")*
+        - **Industry** *(e.g., "Tech", "Finance", etc.)*
+        - **Company Type** *(e.g., "Startup", "Small Size", "Mid Size", "MNC/Giant Company")*
         - **Last Performance Rating**
         - **Compa Ratio**
         """)
-        # Note: "Average Employee Age" and "Female Employee Ratio" are NOT required in the bulk file.
-        # The app uses the global settings from Train Mode for those values.
+        # Note: The bulk file no longer includes "Average Employee Age" and "Female Employee Ratio".
+        # Instead, these values are taken from the global settings (set in Train Mode).
         global_avg_age = st.session_state.get("global_avg_age", 35)
         global_female_ratio = st.session_state.get("global_female_ratio", 40)
         bulk_tier1 = st.session_state.get("bulk_tier1", 60)
