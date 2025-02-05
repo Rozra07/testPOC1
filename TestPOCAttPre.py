@@ -9,6 +9,15 @@ from datetime import datetime
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
+# ---------------------------------------
+# Helper function for safe rerun
+# ---------------------------------------
+def safe_rerun():
+    if hasattr(st, "experimental_rerun"):
+        st.experimental_rerun()
+    else:
+        st.warning("Refresh functionality is not available. Please update Streamlit (>=0.65.0).")
+
 # ----------------------------------------------------
 # Initialize st.session_state keys if not already set
 # ----------------------------------------------------
@@ -474,7 +483,7 @@ if not st.session_state.logged_in:
                     st.success(f"Welcome back, {users[email]['name']}!")
                     st.session_state.user = users[email]
                     st.session_state.logged_in = True
-                    st.experimental_rerun()
+                    safe_rerun()
                 else:
                     st.error("Invalid email or password.")
     else:
@@ -507,7 +516,7 @@ if not st.session_state.logged_in:
                         st.success("Account created and logged in!")
                         st.session_state.user = user
                         st.session_state.logged_in = True
-                        st.experimental_rerun()
+                        safe_rerun()
     if not st.session_state.logged_in:
         st.stop()
 
@@ -517,7 +526,7 @@ if not st.session_state.logged_in:
 def logout():
     for key in list(st.session_state.keys()):
         del st.session_state[key]
-    st.experimental_rerun()
+    safe_rerun()
 
 header_container = st.container()
 with header_container:
