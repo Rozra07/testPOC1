@@ -104,22 +104,23 @@ def train_model(training_df, target_column, industry):
         pickle.dump(feature_columns, f)
     
     st.success("Model trained and saved successfully!")
-    # Compute training accuracy as a proxy for model confidence.
     training_accuracy = model.score(X_scaled, y) * 100
     st.info(f"Training Accuracy (Confidence): {training_accuracy:.2f}%")
     
     update_industry_record(industry, model_filename, scaler_filename, features_filename)
     
-    # Save global settings to user record.
+    # Save global settings to user record (using safe retrieval)
     user = st.session_state.user
-    # Use safe retrieval for settings:
     user_settings = user.get("settings") or {}
     user_settings["global_avg_age"] = st.session_state.global_avg_age
     user_settings["global_female_ratio"] = st.session_state.global_female_ratio
     user_settings["bulk_tier1"] = st.session_state.bulk_tier1
     user_settings["bulk_tier2"] = st.session_state.bulk_tier2
     user_settings["bulk_tier3"] = st.session_state.bulk_tier3
-    user_settings["bulk_industry_retention"] = {ind: st.session_state.get(f"bulk_ind_{ind}", 60 if ind=="Tech" else 50) for ind in industry_options}
+    user_settings["bulk_industry_retention"] = {
+        ind: st.session_state.get(f"bulk_ind_{ind}", 60 if ind=="Tech" else 50)
+        for ind in industry_options
+    }
     user_settings["bulk_company_retention"] = {
         "Startup": st.session_state.bulk_startup,
         "Small Size": st.session_state.bulk_small,
@@ -457,7 +458,7 @@ def generate_dummy_training_file():
     return csv_buffer.getvalue()
 
 #########################################
-# Ensure user data exists in session_state
+# Ensure user object exists in session_state
 #########################################
 if "user" not in st.session_state:
     st.session_state.user = None
@@ -540,7 +541,8 @@ if "nav" not in st.session_state:
 # Main Navigation
 #########################################
 if st.session_state.nav == "My Account":
-    st.header("My Account")
+    # Center the account info by using a container
+    st.markdown("<div style='text-align: center;'><h2>My Account</h2></div>", unsafe_allow_html=True)
     user = st.session_state.user
     st.write("### Account Information")
     st.write(f"**Name:** {user.get('name', '')}")
@@ -549,7 +551,7 @@ if st.session_state.nav == "My Account":
     st.write(f"**Email:** {user.get('email', '')}")
     
     st.write("### Saved Global Settings")
-    user_settings = (st.session_state.user.get("settings") or {})
+    user_settings = user.get("settings") or {}
     if user_settings:
         st.json(user_settings)
     else:
@@ -564,8 +566,8 @@ if st.session_state.nav == "My Account":
     
     if st.button("Back to Main"):
         st.session_state.nav = "Tabs"
-        
 else:
+    # Use tabs for Train and Test modes
     tabs = st.tabs(["Train Mode", "Test Mode"])
     
     with tabs[0]:
@@ -846,7 +848,7 @@ else:
                             # Apply global settings for Average Employee Age and Female Employee Ratio:
                             row_dict["Average Employee Age"] = global_avg_age
                             row_dict["Female Employee Ratio"] = global_female_ratio
-                            # Use global retention settings:
+                            # Apply global retention settings:
                             college_tier = row_dict.get("College Tier")
                             if college_tier == "Tier 1":
                                 row_dict["College Tier Retention"] = bulk_tier1
@@ -859,7 +861,6 @@ else:
                                 row_dict["College Tier Retention"] = 40
                             ind_val = row_dict.get("Industry")
                             row_dict["Industry Retention"] = bulk_industry_retention.get(ind_val, 50)
-                            comp_type = row_dict.get("Company Type")
                             row_dict["Company Type Retention"] = default_company_retention
         
                             try:
@@ -908,28 +909,3 @@ else:
                             st.write("### Row Data:")
                             st.json(row_info)
 
-elif st.session_state.nav == "My Account":
-    st.header("My Account")
-    user = st.session_state.user
-    st.write("### Account Information")
-    st.write(f"**Name:** {user.get('name', '')}")
-    st.write(f"**Designation:** {user.get('designation', '')}")
-    st.write(f"**Company:** {user.get('company', '')}")
-    st.write(f"**Email:** {user.get('email', '')}")
-    
-    st.write("### Saved Global Settings")
-    user_settings = (user.get("settings") or {})
-    if user_settings:
-        st.json(user_settings)
-    else:
-        st.info("No global settings saved. Please train your model to save settings.")
-    
-    st.write("### Analysis History")
-    history = load_user_history(user["email"])
-    if history:
-        st.dataframe(pd.DataFrame(history))
-    else:
-        st.info("No history available yet.")
-    
-    if st.button("Back to Main"):
-        st.session_state.nav = "Tabs"
