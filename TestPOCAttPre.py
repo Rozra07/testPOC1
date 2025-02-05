@@ -104,13 +104,13 @@ def train_model(training_df, target_column, industry):
         pickle.dump(feature_columns, f)
     
     st.success("Model trained and saved successfully!")
-    # Compute training accuracy (as a proxy for confidence)
+    # Compute training accuracy as a proxy for model confidence.
     training_accuracy = model.score(X_scaled, y) * 100
     st.info(f"Training Accuracy (Confidence): {training_accuracy:.2f}%")
     
     update_industry_record(industry, model_filename, scaler_filename, features_filename)
     
-    # Save global settings to user record
+    # Save global settings to user record.
     user = st.session_state.user
     user["settings"] = {
         "global_avg_age": st.session_state.global_avg_age,
@@ -418,7 +418,6 @@ def predict_attrition(employee_data, industry):
     return combined_score, triggers, ml_probability
 
 def generate_sample_csv():
-    # Bulk sample file (global fields not required)
     sample_csv = pd.DataFrame({
         "Employee Age": [30, 45],
         "Gender": ["Male", "Female"],
@@ -437,7 +436,6 @@ def generate_sample_csv():
     return csv_buffer.getvalue()
 
 def generate_dummy_training_file():
-    # Dummy training file no longer includes the global fields (Average Employee Age and Female Employee Ratio)
     dummy_df = pd.DataFrame({
         "Name": ["Example 1", "Example 2", "Example 3"],
         "Employee Age": [30, 40, 35],
@@ -479,7 +477,7 @@ if not st.session_state.logged_in:
                     st.session_state.logged_in = True
                 else:
                     st.error("Invalid email or password.")
-    else:  # Sign Up
+    else:
         with st.form("signup_form"):
             name = st.text_input("Name")
             designation = st.text_input("Designation")
@@ -520,25 +518,22 @@ def logout():
         del st.session_state[key]
     st.experimental_rerun()
 
-# Create a horizontal container for header
 header_container = st.container()
 with header_container:
     col1, col2 = st.columns([3, 1])
     with col1:
         st.markdown("<h1>Employee Attrition Prediction Tool</h1>", unsafe_allow_html=True)
     with col2:
-        # My Account icon (using an emoji) as a button
         if st.button("👤 My Account", key="account_button"):
             st.session_state.nav = "My Account"
         if st.button("Logout", key="logout_button"):
             logout()
 
-# Set navigation variable if not already set
 if "nav" not in st.session_state:
     st.session_state.nav = "Tabs"  # "Tabs" means Train/Test mode
 
 #########################################
-# Main Navigation
+# Main Navigation (via sidebar icon for My Account, otherwise Tabs)
 #########################################
 if st.session_state.nav == "My Account":
     st.header("My Account")
@@ -550,9 +545,9 @@ if st.session_state.nav == "My Account":
     st.write(f"**Email:** {user.get('email', '')}")
     
     st.write("### Saved Global Settings")
-    settings = user.get("settings", {})
-    if settings:
-        st.json(settings)
+    user_settings = user.get("settings") or {}
+    if user_settings:
+        st.json(user_settings)
     else:
         st.info("No global settings saved. Please train your model to save settings.")
     
@@ -567,14 +562,13 @@ if st.session_state.nav == "My Account":
         st.session_state.nav = "Tabs"
         
 else:
-    # Main Tabs for Train and Test Modes
     tabs = st.tabs(["Train Mode", "Test Mode"])
     
     with tabs[0]:
         st.header("Train Mode")
         selected_train_industry = st.selectbox("Select Your Industry", industry_options, key="train_industry")
         
-        col1, col2 = st.columns([1,1])
+        col1, col2 = st.columns([1, 1])
         with col1:
             uploaded_train = st.file_uploader("Upload Training Data (CSV or Excel)", type=["csv", "xlsx"], key="train_file")
         with col2:
@@ -783,7 +777,7 @@ else:
                         st.write("No change from original risk.")
                     neg_scenario_triggers = [t for t in scenario_triggers if t in TRIGGER_DETAILS]
                     if neg_scenario_triggers:
-                        st.write("**Scenario Negative Triggers**")
+                        st.write("### Scenario Negative Triggers")
                         for t in neg_scenario_triggers:
                             st.markdown(f"- **{t}**")
                     else:
@@ -830,8 +824,8 @@ else:
                 st.write("### Uploaded Data Preview:")
                 st.dataframe(df_bulk.head())
                 required_cols = [
-                    "Name", "Employee Age", "Gender", "Tenure (Months)", "Pulse",
-                    "Hasn't been promoted", "Minimum Promotion Cycle", "College Tier",
+                    "Name", "Employee Age", "Gender", "Tenure (Months)", "Pulse", 
+                    "Hasn't been promoted", "Minimum Promotion Cycle", "College Tier", 
                     "Industry", "Company Type", "Last Performance Rating", "Compa Ratio"
                 ]
                 missing = [c for c in required_cols if c not in df_bulk.columns]
@@ -845,10 +839,10 @@ else:
                         for idx, row in df_bulk.iterrows():
                             row_dict = row.to_dict()
                             names.append(row_dict.get("Name"))
-                            # Use global settings for Average Employee Age and Female Employee Ratio:
+                            # Apply global settings for Average Employee Age and Female Employee Ratio:
                             row_dict["Average Employee Age"] = global_avg_age
                             row_dict["Female Employee Ratio"] = global_female_ratio
-                            # Apply global retention settings:
+                            # Use global retention settings:
                             college_tier = row_dict.get("College Tier")
                             if college_tier == "Tier 1":
                                 row_dict["College Tier Retention"] = bulk_tier1
@@ -909,7 +903,7 @@ else:
                             row_info = df_bulk_reset.loc[sel_row].to_dict()
                             st.write("### Row Data:")
                             st.json(row_info)
-
+    
 elif st.session_state.nav == "My Account":
     st.header("My Account")
     user = st.session_state.user
@@ -920,7 +914,7 @@ elif st.session_state.nav == "My Account":
     st.write(f"**Email:** {user.get('email', '')}")
     
     st.write("### Saved Global Settings")
-    settings = user.get("settings", {})
+    settings = user.get("settings") or {}
     if settings:
         st.json(settings)
     else:
