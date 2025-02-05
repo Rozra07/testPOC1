@@ -5,13 +5,14 @@ import pickle
 import io
 import os
 import json
+import zipfile
 from datetime import datetime
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
-# -------------------------------
-# Initialize st.session_state keys
-# -------------------------------
+# ----------------------------------------------------
+# Initialize st.session_state keys if not already set
+# ----------------------------------------------------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "nav" not in st.session_state:
@@ -19,9 +20,9 @@ if "nav" not in st.session_state:
 if "user" not in st.session_state:
     st.session_state.user = {}
 
-# -------------------------------
+# ----------------------------------------------------
 # Helper functions for user storage
-# -------------------------------
+# ----------------------------------------------------
 USERS_FILE = "users.json"
 USER_DATA_DIR = "user_data"
 
@@ -62,17 +63,17 @@ def load_user_history(email):
     else:
         return []
 
-# -------------------------------
+# ----------------------------------------------------
 # Global: Expanded Industry Options
-# -------------------------------
+# ----------------------------------------------------
 industry_options = [
     "Tech", "Finance", "Healthcare", "Education", "Manufacturing", 
     "Retail", "Energy", "Telecommunications", "Government", "Nonprofit", "Other"
 ]
 
-# -------------------------------
+# ----------------------------------------------------
 # Functions for model training/prediction
-# -------------------------------
+# ----------------------------------------------------
 def update_aggregated_training_data(industry, new_data_df):
     filename = f"training_data_{industry}.csv"
     if os.path.exists(filename):
@@ -90,33 +91,25 @@ def update_aggregated_training_data(industry, new_data_df):
 def train_model(training_df, target_column, industry):
     X = training_df.drop(columns=[target_column])
     y = training_df[target_column]
-    
     X_encoded = pd.get_dummies(X)
     feature_columns = list(X_encoded.columns)
-    
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X_encoded)
-    
     model = LogisticRegression(solver="liblinear", random_state=42)
     model.fit(X_scaled, y)
-    
     model_filename = f"{industry}_model.pkl"
     scaler_filename = f"{industry}_scaler.pkl"
     features_filename = f"{industry}_feature_columns.pkl"
-    
     with open(model_filename, "wb") as f:
         pickle.dump(model, f)
     with open(scaler_filename, "wb") as f:
         pickle.dump(scaler, f)
     with open(features_filename, "wb") as f:
         pickle.dump(feature_columns, f)
-    
     st.success("Model trained and saved successfully!")
     training_accuracy = model.score(X_scaled, y) * 100
     st.info(f"Training Accuracy (Confidence): {training_accuracy:.2f}%")
-    
     update_industry_record(industry, model_filename, scaler_filename, features_filename)
-    
     # Save global settings to user record.
     user = st.session_state.user
     user_settings = user.get("settings") or {}
@@ -154,7 +147,7 @@ def update_industry_record(industry, model_file, scaler_file, feature_file):
         df = pd.read_csv(csv_filename)
         if industry in df["Industry"].values:
             df.loc[df["Industry"] == industry, ["Model_File", "Scaler_File", "Feature_File", "Training_Date"]] = \
-                [model_file, scaler_filename, feature_file, record["Training_Date"]]
+                [model_file, scaler_file, feature_file, record["Training_Date"]]
         else:
             df = df.append(record, ignore_index=True)
     else:
@@ -465,9 +458,95 @@ def generate_dummy_training_file():
     dummy_df.to_csv(csv_buffer, index=False)
     return csv_buffer.getvalue()
 
-# -------------------------------
+# ---------------------------------------
+# Create global sliders (visible when not on My Account)
+# ---------------------------------------
+if st.session_state.nav != "My Account":
+    with st.sidebar:
+        st.markdown("### Global Settings for Bulk Analysis\n*These settings MUST be filled for bulk analysis*")
+        # In Train Mode, enable the sliders; in Test Mode, disable them.
+        disabled_flag = (st.session_state.nav != "Tabs") or ("Test" in st.session_state.get("mode", "Train"))
+        global_avg_age = st.slider(
+            "Average Employee Age in Company", 18, 100,
+            st.session_state.user.get("settings", {}).get("global_avg_age", 35),
+            key="global_avg_age", disabled=disabled_flag
+        )
+        global_female_ratio = st.slider(
+            "Women % in Organization", 0, 100,
+            st.session_state.user.get("settings", {}).get("global_female_ratio", 40),
+            key="global_female_ratio", disabled=disabled_flag
+        )
+        with st.expander("College Tier Retention Settings", expanded=False):
+            bulk_tier1 = st.slider(
+                "Tier 1 Retention (%)", 10, 100,
+                st.session_state.user.get("settings", {}).get("bulk_tier1", 60),
+                key="bulk_tier1", disabled=disabled_flag
+            )
+            bulk_tier2 = st.slider(
+                "Tier 2 Retention (%)", 10, 100,
+                st.session_state.user.get("settings", {}).get("bulk_tier2", 50),
+                key="bulk_tier2", disabled=disabled_flag
+            )
+            bulk_tier3 = st.slider(
+                "Tier 3 Retention (%)", 10, 100,
+                st.session_state.user.get("settings", {}).get("bulk_tier3", 40),
+                key="bulk_tier3", disabled=disabled_flag
+            )
+        with st.expander("Industry Retention Settings", expanded=False):
+            bulk_industry_retention = {}
+            for ind in industry_options:
+                default_val = st.session_state.user.get("settings", {}).get("bulk_industry_retention", {}).get(ind, 60 if ind=="Tech" else 50)
+                bulk_industry_retention[ind] = st.slider(
+                    f"{ind} Retention (%)", 10, 100, default_val,
+                    key=f"bulk_ind_{ind}", disabled=disabled_flag
+                )
+        with st.expander("Company Type Retention Settings", expanded=False):
+            bulk_startup = st.slider(
+                "Startup Retention (%)", 10, 100,
+                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Startup", 60),
+                key="bulk_startup", disabled=disabled_flag
+            )
+            bulk_small = st.slider(
+                "Small Size Retention (%)", 10, 100,
+                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Small Size", 55),
+                key="bulk_small", disabled=disabled_flag
+            )
+            bulk_mid = st.slider(
+                "Mid Size Retention (%)", 10, 100,
+                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Mid Size", 50),
+                key="bulk_mid", disabled=disabled_flag
+            )
+            bulk_mnc = st.slider(
+                "MNC/Giant Company Retention (%)", 10, 100,
+                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("MNC/Giant Company", 45),
+                key="bulk_mnc", disabled=disabled_flag
+            )
+
+# ---------------------------------------
+# Function to create a zip archive of repository files
+# ---------------------------------------
+def create_zip_archive():
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
+        if os.path.exists("app.py"):
+            zipf.write("app.py")
+        for filename in ["users.json", "industry_models.csv"]:
+            if os.path.exists(filename):
+                zipf.write(filename)
+        for file in os.listdir("."):
+            if file.endswith(".pkl") or (file.startswith("training_data_") and file.endswith(".csv")):
+                zipf.write(file)
+        if os.path.exists("user_data"):
+            for root, dirs, files in os.walk("user_data"):
+                for file in files:
+                    filepath = os.path.join(root, file)
+                    zipf.write(filepath)
+    zip_buffer.seek(0)
+    return zip_buffer
+
+# ---------------------------------------
 # Login/Sign Up System
-# -------------------------------
+# ---------------------------------------
 if not st.session_state.logged_in:
     st.title("Employee Attrition Prediction Tool - Login / Sign Up")
     auth_mode = st.radio("Select Mode", ["Login", "Sign Up"], index=0)
@@ -514,12 +593,13 @@ if not st.session_state.logged_in:
                         st.success("Account created and logged in!")
                         st.session_state.user = user
                         st.session_state.logged_in = True
+                        st.experimental_rerun()  # Rerun to clear the signup form immediately
     if not st.session_state.logged_in:
         st.stop()
 
-# -------------------------------
+# ---------------------------------------
 # Top Header with Title, My Account Icon, and Logout
-# -------------------------------
+# ---------------------------------------
 def logout():
     for key in list(st.session_state.keys()):
         del st.session_state[key]
@@ -536,9 +616,9 @@ with header_container:
         if st.button("Logout", key="logout_button"):
             logout()
 
-# -------------------------------
+# ---------------------------------------
 # Main Navigation
-# -------------------------------
+# ---------------------------------------
 if st.session_state.nav == "My Account":
     st.markdown("<div style='text-align: center;'><h2>My Account</h2></div>", unsafe_allow_html=True)
     user = st.session_state.user
@@ -561,6 +641,9 @@ if st.session_state.nav == "My Account":
         st.dataframe(pd.DataFrame(history))
     else:
         st.info("No history available yet.")
+    
+    zip_buffer = create_zip_archive()
+    st.download_button("Download Repository Files", data=zip_buffer, file_name="repository_files.zip", mime="application/zip")
     
     if st.button("Back to Main"):
         st.session_state.nav = "Tabs"
@@ -842,10 +925,8 @@ else:
                         for idx, row in df_bulk.iterrows():
                             row_dict = row.to_dict()
                             names.append(row_dict.get("Name"))
-                            # Apply global settings for Average Employee Age and Female Employee Ratio:
                             row_dict["Average Employee Age"] = global_avg_age
                             row_dict["Female Employee Ratio"] = global_female_ratio
-                            # Apply global retention settings:
                             college_tier = row_dict.get("College Tier")
                             if college_tier == "Tier 1":
                                 row_dict["College Tier Retention"] = bulk_tier1
@@ -859,7 +940,6 @@ else:
                             ind_val = row_dict.get("Industry")
                             row_dict["Industry Retention"] = bulk_industry_retention.get(ind_val, 50)
                             row_dict["Company Type Retention"] = default_company_retention
-        
                             try:
                                 bulk_score, bulk_trigs, _ = predict_attrition(row_dict, selected_test_industry)
                             except Exception as e:
