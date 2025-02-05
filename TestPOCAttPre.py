@@ -82,20 +82,6 @@ industry_options = [
 # ----------------------------------------------------
 # Functions for model training/prediction
 # ----------------------------------------------------
-def update_aggregated_training_data(industry, new_data_df):
-    filename = f"training_data_{industry}.csv"
-    if os.path.exists(filename):
-        try:
-            existing_df = pd.read_csv(filename)
-        except Exception as e:
-            st.error(f"Error reading aggregated training data: {e}")
-            existing_df = pd.DataFrame()
-        combined_df = pd.concat([existing_df, new_data_df], ignore_index=True)
-    else:
-        combined_df = new_data_df
-    combined_df.to_csv(filename, index=False)
-    return combined_df
-
 def train_model(training_df, target_column, industry):
     X = training_df.drop(columns=[target_column])
     y = training_df[target_column]
@@ -117,7 +103,10 @@ def train_model(training_df, target_column, industry):
     st.success("Model trained and saved successfully!")
     training_accuracy = model.score(X_scaled, y) * 100
     st.info(f"Training Accuracy (Confidence): {training_accuracy:.2f}%")
+    
+    # Save industry record
     update_industry_record(industry, model_filename, scaler_filename, features_filename)
+    
     # Save global settings to user record.
     user = st.session_state.user
     user_settings = user.get("settings") or {}
@@ -679,11 +668,9 @@ else:
             except Exception as e:
                 st.error(f"Error reading file: {e}")
             
-            if st.button("Update Aggregated Data and Retrain Model"):
-                aggregated_df = update_aggregated_training_data(selected_train_industry, train_df)
-                st.write("### Aggregated Training Data Preview")
-                st.dataframe(aggregated_df.head())
-                train_model(aggregated_df, target_column, selected_train_industry)
+            # Directly train the model with the current uploaded data
+            if st.button("Train Model"):
+                train_model(train_df, target_column, selected_train_industry)
                 
     else:  # Test Mode
         st.header("Test Mode")
