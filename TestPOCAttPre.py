@@ -1,3 +1,9 @@
+pip install openpyxl
+```) and then restart your Streamlit app. Copy and paste the complete code below:
+
+---
+
+```python
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -19,6 +25,20 @@ def safe_rerun():
         st.experimental_rerun()
     else:
         st.warning("Refresh functionality is not available. Please update Streamlit (>=0.65.0).")
+
+# ---------------------------------------
+# Helper function to read Excel files
+# ---------------------------------------
+def read_excel_file(uploaded_file):
+    try:
+        # Try to read the Excel file using openpyxl engine.
+        return pd.read_excel(uploaded_file, engine="openpyxl")
+    except ImportError:
+        st.error("Missing optional dependency 'openpyxl'. Use pip or conda to install openpyxl.")
+        return None
+    except Exception as e:
+        st.error(f"Error reading Excel file: {e}")
+        return None
 
 # ----------------------------------------------------
 # Initialize st.session_state keys if not already set
@@ -77,7 +97,7 @@ def load_user_history(email):
 # Global: Expanded Industry Options
 # ----------------------------------------------------
 industry_options = [
-    "Tech", "Finance", "Healthcare", "Education", "Manufacturing", 
+    "Tech", "Finance", "Healthcare", "Education", "Manufacturing",
     "Retail", "Energy", "Telecommunications", "Government", "Nonprofit", "Other"
 ]
 
