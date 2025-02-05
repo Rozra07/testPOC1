@@ -112,20 +112,24 @@ def update_aggregated_training_data(industry, new_data_df):
     return combined_df
 
 def train_model(training_df, target_column, industry):
-    # Drop rows where the target is missing
+    # Drop rows where the target is missing.
     training_df = training_df.dropna(subset=[target_column])
     
     X = training_df.drop(columns=[target_column])
     y = training_df[target_column]
     
-    # One-hot encode categorical variables
+    # Fill missing values in X before encoding
+    X = X.fillna(0)
+    
+    # One-hot encode categorical variables.
     X_encoded = pd.get_dummies(X)
-    # Fill any missing values with 0 (or consider other imputation strategies)
+    # Additionally fill any missing values after encoding.
     X_encoded = X_encoded.fillna(0)
     
     feature_columns = list(X_encoded.columns)
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X_encoded)
+    
     model = LogisticRegression(solver="liblinear", random_state=42)
     model.fit(X_scaled, y)
     
@@ -557,12 +561,10 @@ else:
               - `Last Performance Rating` (e.g., 1 to 5)  
               - `Compa Ratio` (compensation ratio)
             """)
-            st.download_button(
-                label="Download Dummy Training File",
-                data=generate_dummy_training_file(),
-                file_name="dummy_training_file.csv",
-                mime="text/csv"
-            )
+            st.download_button(label="Download Dummy Training File",
+                               data=generate_dummy_training_file(),
+                               file_name="dummy_training_file.csv",
+                               mime="text/csv")
         target_column = st.text_input("Enter the name of the target column", value="Attrition")
         
         if uploaded_train is not None:
