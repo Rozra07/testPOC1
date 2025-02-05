@@ -83,6 +83,7 @@ industry_options = [
 # Functions for model training/prediction
 # ----------------------------------------------------
 def train_model(training_df, target_column, industry):
+    st.write("Training on data shape:", training_df.shape)
     X = training_df.drop(columns=[target_column])
     y = training_df[target_column]
     X_encoded = pd.get_dummies(X)
@@ -91,6 +92,8 @@ def train_model(training_df, target_column, industry):
     X_scaled = scaler.fit_transform(X_encoded)
     model = LogisticRegression(solver="liblinear", random_state=42)
     model.fit(X_scaled, y)
+    st.write("Model coefficients:", model.coef_)
+    
     model_filename = f"{industry}_model.pkl"
     scaler_filename = f"{industry}_scaler.pkl"
     features_filename = f"{industry}_feature_columns.pkl"
@@ -623,8 +626,8 @@ if st.session_state.nav == "My Account":
     if st.button("Back to Main"):
         st.session_state.nav = "Tabs"
 else:
-    # Render the UI based on the mode selected in the sidebar.
-    if st.session_state.get("main_mode", "Train Mode") == "Train Mode":
+    # Use the value of st.session_state.main_mode directly
+    if st.session_state.main_mode == "Train Mode":
         st.header("Train Mode")
         selected_train_industry = st.selectbox("Select Your Industry", industry_options, key="train_industry")
         
@@ -678,8 +681,7 @@ else:
         **Instructions for Testing:**
         
         - Ensure that you have trained a model in Train Mode.
-        - The industry selection below is pre‑set to your training industry.
-        - In Single Employee mode, enter the employee details (including retention percentages).
+        - In Single Employee mode, enter the employee details (without the `Attrition` column).
         - In Bulk Employees mode, upload a CSV or Excel file with the following columns:
              - **Name**
              - **Employee Age**
@@ -694,10 +696,12 @@ else:
              - **Last Performance Rating**
              - **Compa Ratio**
              
-             *Note: The global settings defined in Train Mode (for Average Employee Age, Women % etc.) will be applied automatically to all bulk data.*
+             *Note: The test data does not require an `Attrition` column.*
         """)
         default_test_industry = st.session_state.get("train_industry", industry_options[0])
-        selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=industry_options.index(default_test_industry) if default_test_industry in industry_options else 0, key="test_industry")
+        selected_test_industry = st.selectbox("Select Your Industry", industry_options,
+                                                index=industry_options.index(default_test_industry) if default_test_industry in industry_options else 0,
+                                                key="test_industry")
         
         test_mode_option = st.selectbox("Select Test Mode", ["Single Employee", "Bulk Employees"])
         
@@ -860,7 +864,7 @@ else:
              - **Last Performance Rating**
              - **Compa Ratio**
              
-             *Note: The global settings defined in Train Mode (for Average Employee Age, Women % etc.) will be applied automatically to all bulk data.*
+             *Note: The test data does not require an `Attrition` column.*
             """)
             global_avg_age = st.session_state.get("global_avg_age", 35)
             global_female_ratio = st.session_state.get("global_female_ratio", 40)
@@ -881,6 +885,7 @@ else:
                     st.stop()
                 st.write("### Uploaded Data Preview:")
                 st.dataframe(df_bulk.head())
+                # For test data, we do not expect an Attrition column.
                 required_cols = [
                     "Name", "Employee Age", "Gender", "Tenure (Months)", "Pulse",
                     "Hasn't been promoted", "Minimum Promotion Cycle", "College Tier",
