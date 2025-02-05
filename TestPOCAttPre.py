@@ -9,6 +9,8 @@ from datetime import datetime
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
+# Make sure openpyxl is installed (e.g., pip install openpyxl)
+
 # ---------------------------------------
 # Helper function for safe rerun
 # ---------------------------------------
@@ -17,6 +19,7 @@ def safe_rerun():
         st.experimental_rerun()
     else:
         st.warning("Refresh functionality is not available. Please update Streamlit (>=0.65.0).")
+
 # ----------------------------------------------------
 # Initialize st.session_state keys if not already set
 # ----------------------------------------------------
@@ -435,66 +438,44 @@ with header_container:
 # ---------------------------------------
 if st.session_state.nav != "My Account":
     with st.sidebar:
-        # Radio button to choose between Train and Test mode.
         mode = st.radio("Select Mode", ["Train Mode", "Test Mode"], index=0, key="main_mode", on_change=safe_rerun)
-        # Disable global settings when in Test Mode.
         disabled_flag = (mode == "Test Mode")
         st.markdown("### Global Settings for Bulk Analysis\n*These settings MUST be filled for bulk analysis*")
-        global_avg_age = st.slider(
-            "Average Employee Age in Company", 18, 100,
-            st.session_state.user.get("settings", {}).get("global_avg_age", 35),
-            key="global_avg_age", disabled=disabled_flag
-        )
-        global_female_ratio = st.slider(
-            "Women % in Organization", 0, 100,
-            st.session_state.user.get("settings", {}).get("global_female_ratio", 40),
-            key="global_female_ratio", disabled=disabled_flag
-        )
+        global_avg_age = st.slider("Average Employee Age in Company", 18, 100,
+                                   st.session_state.user.get("settings", {}).get("global_avg_age", 35),
+                                   key="global_avg_age", disabled=disabled_flag)
+        global_female_ratio = st.slider("Women % in Organization", 0, 100,
+                                        st.session_state.user.get("settings", {}).get("global_female_ratio", 40),
+                                        key="global_female_ratio", disabled=disabled_flag)
         with st.expander("College Tier Retention Settings", expanded=False):
-            bulk_tier1 = st.slider(
-                "Tier 1 Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_tier1", 60),
-                key="bulk_tier1", disabled=disabled_flag
-            )
-            bulk_tier2 = st.slider(
-                "Tier 2 Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_tier2", 50),
-                key="bulk_tier2", disabled=disabled_flag
-            )
-            bulk_tier3 = st.slider(
-                "Tier 3 Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_tier3", 40),
-                key="bulk_tier3", disabled=disabled_flag
-            )
+            bulk_tier1 = st.slider("Tier 1 Retention (%)", 10, 100,
+                                   st.session_state.user.get("settings", {}).get("bulk_tier1", 60),
+                                   key="bulk_tier1", disabled=disabled_flag)
+            bulk_tier2 = st.slider("Tier 2 Retention (%)", 10, 100,
+                                   st.session_state.user.get("settings", {}).get("bulk_tier2", 50),
+                                   key="bulk_tier2", disabled=disabled_flag)
+            bulk_tier3 = st.slider("Tier 3 Retention (%)", 10, 100,
+                                   st.session_state.user.get("settings", {}).get("bulk_tier3", 40),
+                                   key="bulk_tier3", disabled=disabled_flag)
         with st.expander("Industry Retention Settings", expanded=False):
             bulk_industry_retention = {}
             for ind in industry_options:
                 default_val = st.session_state.user.get("settings", {}).get("bulk_industry_retention", {}).get(ind, 60 if ind=="Tech" else 50)
-                bulk_industry_retention[ind] = st.slider(
-                    f"{ind} Retention (%)", 10, 100, default_val,
-                    key=f"bulk_ind_{ind}", disabled=disabled_flag
-                )
+                bulk_industry_retention[ind] = st.slider(f"{ind} Retention (%)", 10, 100, default_val,
+                                                         key=f"bulk_ind_{ind}", disabled=disabled_flag)
         with st.expander("Company Type Retention Settings", expanded=False):
-            bulk_startup = st.slider(
-                "Startup Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Startup", 60),
-                key="bulk_startup", disabled=disabled_flag
-            )
-            bulk_small = st.slider(
-                "Small Size Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Small Size", 55),
-                key="bulk_small", disabled=disabled_flag
-            )
-            bulk_mid = st.slider(
-                "Mid Size Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Mid Size", 50),
-                key="bulk_mid", disabled=disabled_flag
-            )
-            bulk_mnc = st.slider(
-                "MNC/Giant Company Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("MNC/Giant Company", 45),
-                key="bulk_mnc", disabled=disabled_flag
-            )
+            bulk_startup = st.slider("Startup Retention (%)", 10, 100,
+                                     st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Startup", 60),
+                                     key="bulk_startup", disabled=disabled_flag)
+            bulk_small = st.slider("Small Size Retention (%)", 10, 100,
+                                   st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Small Size", 55),
+                                   key="bulk_small", disabled=disabled_flag)
+            bulk_mid = st.slider("Mid Size Retention (%)", 10, 100,
+                                 st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Mid Size", 50),
+                                 key="bulk_mid", disabled=disabled_flag)
+            bulk_mnc = st.slider("MNC/Giant Company Retention (%)", 10, 100,
+                                 st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("MNC/Giant Company", 45),
+                                 key="bulk_mnc", disabled=disabled_flag)
 
 # ---------------------------------------
 # Main Navigation
@@ -525,7 +506,6 @@ if st.session_state.nav == "My Account":
     if st.button("Back to Main"):
         st.session_state.nav = "Tabs"
 else:
-    # Render UI based on the selected mode from sidebar.
     if st.session_state.get("main_mode", "Train Mode") == "Train Mode":
         st.header("Train Mode")
         selected_train_industry = st.selectbox("Select Your Industry", industry_options, key="train_industry")
@@ -536,27 +516,25 @@ else:
         with col2:
             st.markdown("### Detailed Guide for Training File")
             st.markdown("""
-**Your training file must include:**
-- A **target column** (e.g., `Attrition` – use binary values 0/1, where **0: Active Employee** and **1: Non‑Active Employee**).
-- **Feature columns:**  
-  - `Employee Age`  
-  - `Gender` (e.g., "Male", "Female")  
-  - `Tenure (Months)`  
-  - `Pulse` (e.g., "High", "Medium", "Low")  
-  - `Hasn't been promoted` (months since last promotion)  
-  - `Minimum Promotion Cycle` (in months)  
-  - `College Tier` (e.g., "Tier 1", "Tier 2", "Tier 3")  
-  - `Industry` (e.g., "Tech", "Finance", etc.)  
-  - `Company Type` (e.g., "Startup", "Enterprise", etc.)  
-  - `Last Performance Rating` (e.g., 1 to 5)  
-  - `Compa Ratio` (compensation ratio)
+            **Your training file must include:**
+            - A **target column** (e.g., `Attrition` – use binary values 0/1, where **0: Active Employee** and **1: Non‑Active Employee**).
+            - **Feature columns:**  
+              - `Employee Age`  
+              - `Gender` (e.g., "Male", "Female")  
+              - `Tenure (Months)`  
+              - `Pulse` (e.g., "High", "Medium", "Low")  
+              - `Hasn't been promoted` (months since last promotion)  
+              - `Minimum Promotion Cycle` (in months)  
+              - `College Tier` (e.g., "Tier 1", "Tier 2", "Tier 3")  
+              - `Industry` (e.g., "Tech", "Finance", etc.)  
+              - `Company Type` (e.g., "Startup", "Enterprise", etc.)  
+              - `Last Performance Rating` (e.g., 1 to 5)  
+              - `Compa Ratio` (compensation ratio)
             """)
-            st.download_button(
-                label="Download Dummy Training File",
-                data=generate_dummy_training_file(),
-                file_name="dummy_training_file.csv",
-                mime="text/csv"
-            )
+            st.download_button(label="Download Dummy Training File",
+                               data=generate_dummy_training_file(),
+                               file_name="dummy_training_file.csv",
+                               mime="text/csv")
         target_column = st.text_input("Enter the name of the target column", value="Attrition")
         
         if uploaded_train is not None:
@@ -564,7 +542,7 @@ else:
                 if uploaded_train.name.endswith(".csv"):
                     train_df = pd.read_csv(uploaded_train)
                 else:
-                    train_df = pd.read_excel(uploaded_train)
+                    train_df = pd.read_excel(uploaded_train, engine="openpyxl")
                 st.write("### Preview of Uploaded Training Data")
                 st.dataframe(train_df.head())
             except Exception as e:
@@ -633,15 +611,12 @@ else:
                     else:
                         bg_color = "#28a745"
                         msg_html = f"✅ SAFE! Low Attrition Risk <br> {score:.2f}% 🌱"
-                    st.markdown(
-                        f"""
+                    st.markdown(f"""
                         <div style="background-color:{bg_color}; color:white; padding:15px; border-radius:10px; 
                                     text-align:center; font-size:24px; font-weight:bold;">
                             {msg_html}
                         </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
+                        """, unsafe_allow_html=True)
                     st.markdown(f"**Model Confidence:** {ml_confidence:.2f}%")
             
                 col_left, col_right = st.columns(2)
@@ -688,22 +663,12 @@ else:
                 with col_right:
                     st.write("### What-If Scenario Planning")
                     scenario_data = dict(st.session_state.employee_data)
-                    scenario_data["Compa Ratio"] = st.slider(
-                        "Compa Ratio (%) [Scenario]",
-                        50, 150, scenario_data["Compa Ratio"],
-                        help="Adjust to see how risk changes if compensation changes."
-                    )
-                    scenario_data["Last Performance Rating"] = st.slider(
-                        "Last Performance Rating [Scenario]",
-                        1, 5, scenario_data["Last Performance Rating"],
-                        help="What if performance improves (higher rating) or worsens?"
-                    )
-                    scenario_data["Pulse"] = st.radio(
-                        "Pulse (Employee dissatisfaction) [Scenario]",
-                        ["High", "Medium", "Low"],
-                        index=["High", "Medium", "Low"].index(scenario_data["Pulse"]),
-                        horizontal=True
-                    )
+                    scenario_data["Compa Ratio"] = st.slider("Compa Ratio (%) [Scenario]", 50, 150, scenario_data["Compa Ratio"],
+                                                             help="Adjust to see how risk changes if compensation changes.")
+                    scenario_data["Last Performance Rating"] = st.slider("Last Performance Rating [Scenario]", 1, 5, scenario_data["Last Performance Rating"],
+                                                                        help="What if performance improves (higher rating) or worsens?")
+                    scenario_data["Pulse"] = st.radio("Pulse (Employee dissatisfaction) [Scenario]", ["High", "Medium", "Low"],
+                                                      index=["High", "Medium", "Low"].index(scenario_data["Pulse"]), horizontal=True)
                     scenario_score, scenario_triggers, _ = predict_attrition(scenario_data, selected_test_industry)
                     st.write(f"**Scenario Attrition Risk:** {scenario_score:.2f}%")
                     diff = scenario_score - score
@@ -723,7 +688,28 @@ else:
     
         else:  # Bulk Employees
             st.header("Bulk Employee Attrition Prediction")
-            st.markdown("""
+            uploaded_file = st.file_uploader("Upload Bulk Data (CSV or Excel)", type=["csv", "xlsx"], key="bulk_file")
+            if uploaded_file is not None:
+                try:
+                    if uploaded_file.name.endswith(".csv"):
+                        df_bulk = pd.read_csv(uploaded_file)
+                    else:
+                        df_bulk = pd.read_excel(uploaded_file, engine="openpyxl")
+                except Exception as e:
+                    st.error(f"❌ Error reading the file: {e}")
+                    st.stop()
+                st.write("### Uploaded Data Preview:")
+                st.dataframe(df_bulk.head())
+                required_cols = [
+                    "Name", "Employee Age", "Gender", "Tenure (Months)", "Pulse",
+                    "Hasn't been promoted", "Minimum Promotion Cycle", "College Tier",
+                    "Industry", "Company Type", "Last Performance Rating", "Compa Ratio"
+                ]
+                missing = [c for c in required_cols if c not in df_bulk.columns]
+                if missing:
+                    st.error(f"❌ Missing columns: {missing}")
+                else:
+                    st.markdown("""
 **Instructions for Bulk Testing:**
 
 - Ensure that you have trained a model in Train Mode.
@@ -740,28 +726,10 @@ else:
     - **Industry** *(e.g., "Tech", "Finance", etc.)*
     - **Company Type** *(e.g., "Startup", "Small Size", "Mid Size", "MNC/Giant Company")*
     - **Last Performance Rating**
-    - **Compa Ratio*
+    - **Compa Ratio**
     
 *Note: The global settings defined in Train Mode (for Average Employee Age, Women % etc.) will be applied automatically to all bulk data.*
-            """)
-            uploaded_file = st.file_uploader("Upload Bulk Data (CSV or Excel)", type=["csv", "xlsx"], key="bulk_file")
-            if uploaded_file is not None:
-                try:
-                    df_bulk = pd.read_csv(uploaded_file) if uploaded_file.name.endswith(".csv") else pd.read_excel(uploaded_file)
-                except Exception as e:
-                    st.error(f"❌ Error reading the file: {e}")
-                    st.stop()
-                st.write("### Uploaded Data Preview:")
-                st.dataframe(df_bulk.head())
-                required_cols = [
-                    "Name", "Employee Age", "Gender", "Tenure (Months)", "Pulse",
-                    "Hasn't been promoted", "Minimum Promotion Cycle", "College Tier",
-                    "Industry", "Company Type", "Last Performance Rating", "Compa Ratio"
-                ]
-                missing = [c for c in required_cols if c not in df_bulk.columns]
-                if missing:
-                    st.error(f"❌ Missing columns: {missing}")
-                else:
+                    """)
                     default_company_retention = st.session_state.get("retention_company", 60)
                     global_avg_age = st.session_state.get("global_avg_age", 35)
                     global_female_ratio = st.session_state.get("global_female_ratio", 40)
