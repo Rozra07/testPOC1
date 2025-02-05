@@ -3,4 +3,4 @@ numpy
 scikit-learn
 streamlit
 openai==0.28.0
-openpyxl==3.0.14
+openpyxl
