@@ -98,10 +98,17 @@ industry_options = [
 # Functions for model training/prediction
 # ----------------------------------------------------
 def update_aggregated_training_data(industry, new_data_df):
+    # Replace empty strings or spaces with NaN and then fill with 0
+    new_data_df = new_data_df.replace(r'^\s*$', np.nan, regex=True)
+    new_data_df = new_data_df.fillna(0)
+    
     filename = f"training_data_{industry}.csv"
     if os.path.exists(filename):
         try:
             existing_df = pd.read_csv(filename)
+            # Also do the replacement on the existing data:
+            existing_df = existing_df.replace(r'^\s*$', np.nan, regex=True)
+            existing_df = existing_df.fillna(0)
         except Exception as e:
             st.error(f"Error reading aggregated training data: {e}")
             existing_df = pd.DataFrame()
@@ -115,15 +122,16 @@ def train_model(training_df, target_column, industry):
     # Drop rows where the target is missing.
     training_df = training_df.dropna(subset=[target_column])
     
+    # Replace empty strings with NaN and fill with 0 for all columns.
+    training_df = training_df.replace(r'^\s*$', np.nan, regex=True)
+    training_df = training_df.fillna(0)
+    
     X = training_df.drop(columns=[target_column])
     y = training_df[target_column]
     
-    # Fill missing values in X before encoding
-    X = X.fillna(0)
-    
     # One-hot encode categorical variables.
     X_encoded = pd.get_dummies(X)
-    # Additionally fill any missing values after encoding.
+    # Fill any remaining missing values.
     X_encoded = X_encoded.fillna(0)
     
     feature_columns = list(X_encoded.columns)
