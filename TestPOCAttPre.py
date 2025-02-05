@@ -459,92 +459,6 @@ def generate_dummy_training_file():
     return csv_buffer.getvalue()
 
 # ---------------------------------------
-# Create global sliders (visible when not on My Account)
-# ---------------------------------------
-if st.session_state.nav != "My Account":
-    with st.sidebar:
-        st.markdown("### Global Settings for Bulk Analysis\n*These settings MUST be filled for bulk analysis*")
-        # In Train Mode, enable the sliders; in Test Mode, disable them.
-        disabled_flag = (st.session_state.nav != "Tabs") or ("Test" in st.session_state.get("mode", "Train"))
-        global_avg_age = st.slider(
-            "Average Employee Age in Company", 18, 100,
-            st.session_state.user.get("settings", {}).get("global_avg_age", 35),
-            key="global_avg_age", disabled=disabled_flag
-        )
-        global_female_ratio = st.slider(
-            "Women % in Organization", 0, 100,
-            st.session_state.user.get("settings", {}).get("global_female_ratio", 40),
-            key="global_female_ratio", disabled=disabled_flag
-        )
-        with st.expander("College Tier Retention Settings", expanded=False):
-            bulk_tier1 = st.slider(
-                "Tier 1 Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_tier1", 60),
-                key="bulk_tier1", disabled=disabled_flag
-            )
-            bulk_tier2 = st.slider(
-                "Tier 2 Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_tier2", 50),
-                key="bulk_tier2", disabled=disabled_flag
-            )
-            bulk_tier3 = st.slider(
-                "Tier 3 Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_tier3", 40),
-                key="bulk_tier3", disabled=disabled_flag
-            )
-        with st.expander("Industry Retention Settings", expanded=False):
-            bulk_industry_retention = {}
-            for ind in industry_options:
-                default_val = st.session_state.user.get("settings", {}).get("bulk_industry_retention", {}).get(ind, 60 if ind=="Tech" else 50)
-                bulk_industry_retention[ind] = st.slider(
-                    f"{ind} Retention (%)", 10, 100, default_val,
-                    key=f"bulk_ind_{ind}", disabled=disabled_flag
-                )
-        with st.expander("Company Type Retention Settings", expanded=False):
-            bulk_startup = st.slider(
-                "Startup Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Startup", 60),
-                key="bulk_startup", disabled=disabled_flag
-            )
-            bulk_small = st.slider(
-                "Small Size Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Small Size", 55),
-                key="bulk_small", disabled=disabled_flag
-            )
-            bulk_mid = st.slider(
-                "Mid Size Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Mid Size", 50),
-                key="bulk_mid", disabled=disabled_flag
-            )
-            bulk_mnc = st.slider(
-                "MNC/Giant Company Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("MNC/Giant Company", 45),
-                key="bulk_mnc", disabled=disabled_flag
-            )
-
-# ---------------------------------------
-# Function to create a zip archive of repository files
-# ---------------------------------------
-def create_zip_archive():
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
-        if os.path.exists("app.py"):
-            zipf.write("app.py")
-        for filename in ["users.json", "industry_models.csv"]:
-            if os.path.exists(filename):
-                zipf.write(filename)
-        for file in os.listdir("."):
-            if file.endswith(".pkl") or (file.startswith("training_data_") and file.endswith(".csv")):
-                zipf.write(file)
-        if os.path.exists("user_data"):
-            for root, dirs, files in os.walk("user_data"):
-                for file in files:
-                    filepath = os.path.join(root, file)
-                    zipf.write(filepath)
-    zip_buffer.seek(0)
-    return zip_buffer
-
-# ---------------------------------------
 # Login/Sign Up System
 # ---------------------------------------
 if not st.session_state.logged_in:
@@ -561,6 +475,8 @@ if not st.session_state.logged_in:
                     st.success(f"Welcome back, {users[email]['name']}!")
                     st.session_state.user = users[email]
                     st.session_state.logged_in = True
+                    # Immediately re-run so the login form is no longer visible
+                    st.experimental_rerun()
                 else:
                     st.error("Invalid email or password.")
     else:
@@ -652,6 +568,70 @@ else:
     
     with tabs[0]:
         st.header("Train Mode")
+        # -------------------------------------------------
+        # Global Settings (visible only in Train Mode)
+        # -------------------------------------------------
+        st.markdown("### Global Settings for Bulk Analysis")
+        st.markdown("*These settings MUST be filled for bulk analysis*")
+        global_avg_age = st.slider(
+            "Average Employee Age in Company", 18, 100,
+            st.session_state.user.get("settings", {}).get("global_avg_age", 35),
+            key="global_avg_age"
+        )
+        global_female_ratio = st.slider(
+            "Women % in Organization", 0, 100,
+            st.session_state.user.get("settings", {}).get("global_female_ratio", 40),
+            key="global_female_ratio"
+        )
+        with st.expander("College Tier Retention Settings", expanded=False):
+            bulk_tier1 = st.slider(
+                "Tier 1 Retention (%)", 10, 100,
+                st.session_state.user.get("settings", {}).get("bulk_tier1", 60),
+                key="bulk_tier1"
+            )
+            bulk_tier2 = st.slider(
+                "Tier 2 Retention (%)", 10, 100,
+                st.session_state.user.get("settings", {}).get("bulk_tier2", 50),
+                key="bulk_tier2"
+            )
+            bulk_tier3 = st.slider(
+                "Tier 3 Retention (%)", 10, 100,
+                st.session_state.user.get("settings", {}).get("bulk_tier3", 40),
+                key="bulk_tier3"
+            )
+        with st.expander("Industry Retention Settings", expanded=False):
+            bulk_industry_retention = {}
+            for ind in industry_options:
+                default_val = st.session_state.user.get("settings", {}).get("bulk_industry_retention", {}).get(ind, 60 if ind=="Tech" else 50)
+                bulk_industry_retention[ind] = st.slider(
+                    f"{ind} Retention (%)", 10, 100, default_val,
+                    key=f"bulk_ind_{ind}"
+                )
+        with st.expander("Company Type Retention Settings", expanded=False):
+            bulk_startup = st.slider(
+                "Startup Retention (%)", 10, 100,
+                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Startup", 60),
+                key="bulk_startup"
+            )
+            bulk_small = st.slider(
+                "Small Size Retention (%)", 10, 100,
+                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Small Size", 55),
+                key="bulk_small"
+            )
+            bulk_mid = st.slider(
+                "Mid Size Retention (%)", 10, 100,
+                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Mid Size", 50),
+                key="bulk_mid"
+            )
+            bulk_mnc = st.slider(
+                "MNC/Giant Company Retention (%)", 10, 100,
+                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("MNC/Giant Company", 45),
+                key="bulk_mnc"
+            )
+        # -------------------------------------------------
+        # End Global Settings
+        # -------------------------------------------------
+        
         selected_train_industry = st.selectbox("Select Your Industry", industry_options, key="train_industry")
         
         col1, col2 = st.columns([1, 1])
@@ -986,3 +966,24 @@ else:
                             st.write("### Row Data:")
                             st.json(row_info)
 
+# ---------------------------------------
+# Function to create a zip archive of repository files
+# ---------------------------------------
+def create_zip_archive():
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
+        if os.path.exists("app.py"):
+            zipf.write("app.py")
+        for filename in ["users.json", "industry_models.csv"]:
+            if os.path.exists(filename):
+                zipf.write(filename)
+        for file in os.listdir("."):
+            if file.endswith(".pkl") or (file.startswith("training_data_") and file.endswith(".csv")):
+                zipf.write(file)
+        if os.path.exists("user_data"):
+            for root, dirs, files in os.walk("user_data"):
+                for file in files:
+                    filepath = os.path.join(root, file)
+                    zipf.write(filepath)
+    zip_buffer.seek(0)
+    return zip_buffer
