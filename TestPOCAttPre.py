@@ -104,7 +104,7 @@ def train_model(training_df, target_column, industry):
         pickle.dump(feature_columns, f)
     
     st.success("Model trained and saved successfully!")
-    # Compute training accuracy as a proxy for confidence.
+    # Compute training accuracy as a proxy for model confidence.
     training_accuracy = model.score(X_scaled, y) * 100
     st.info(f"Training Accuracy (Confidence): {training_accuracy:.2f}%")
     
@@ -112,6 +112,7 @@ def train_model(training_df, target_column, industry):
     
     # Save global settings to user record.
     user = st.session_state.user
+    # Use safe retrieval for settings:
     user_settings = user.get("settings") or {}
     user_settings["global_avg_age"] = st.session_state.global_avg_age
     user_settings["global_female_ratio"] = st.session_state.global_female_ratio
@@ -456,11 +457,14 @@ def generate_dummy_training_file():
     return csv_buffer.getvalue()
 
 #########################################
+# Ensure user data exists in session_state
+#########################################
+if "user" not in st.session_state:
+    st.session_state.user = None
+
+#########################################
 # Login/Sign Up System
 #########################################
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-
 if not st.session_state.logged_in:
     st.title("Employee Attrition Prediction Tool - Login / Sign Up")
     auth_mode = st.radio("Select Mode", ["Login", "Sign Up"], index=0)
@@ -533,7 +537,7 @@ if "nav" not in st.session_state:
     st.session_state.nav = "Tabs"  # "Tabs" means Train/Test mode
 
 #########################################
-# Main Navigation (My Account vs. Tabs)
+# Main Navigation
 #########################################
 if st.session_state.nav == "My Account":
     st.header("My Account")
@@ -545,7 +549,7 @@ if st.session_state.nav == "My Account":
     st.write(f"**Email:** {user.get('email', '')}")
     
     st.write("### Saved Global Settings")
-    user_settings = user.get("settings") or {}
+    user_settings = (st.session_state.user.get("settings") or {})
     if user_settings:
         st.json(user_settings)
     else:
@@ -568,7 +572,7 @@ else:
         st.header("Train Mode")
         selected_train_industry = st.selectbox("Select Your Industry", industry_options, key="train_industry")
         
-        col1, col2 = st.columns([1,1])
+        col1, col2 = st.columns([1, 1])
         with col1:
             uploaded_train = st.file_uploader("Upload Training Data (CSV or Excel)", type=["csv", "xlsx"], key="train_file")
         with col2:
@@ -914,7 +918,7 @@ elif st.session_state.nav == "My Account":
     st.write(f"**Email:** {user.get('email', '')}")
     
     st.write("### Saved Global Settings")
-    user_settings = user.get("settings") or {}
+    user_settings = (user.get("settings") or {})
     if user_settings:
         st.json(user_settings)
     else:
