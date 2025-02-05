@@ -9,9 +9,9 @@ from datetime import datetime
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
-#####################################
+#########################################
 # Helper functions for user storage
-#####################################
+#########################################
 
 USERS_FILE = "users.json"
 USER_DATA_DIR = "user_data"
@@ -45,17 +45,25 @@ def save_user_event(email, event_type, event_data):
     with open(history_file, "w") as f:
         json.dump(history, f, indent=2)
 
-#####################################
+def load_user_history(email):
+    history_file = os.path.join(USER_DATA_DIR, f"{email}_history.json")
+    if os.path.exists(history_file):
+        with open(history_file, "r") as f:
+            return json.load(f)
+    else:
+        return []
+
+#########################################
 # Global: Expanded Industry Options
-#####################################
+#########################################
 industry_options = [
     "Tech", "Finance", "Healthcare", "Education", "Manufacturing", 
     "Retail", "Energy", "Telecommunications", "Government", "Nonprofit", "Other"
 ]
 
-#####################################
+#########################################
 # Functions for model training/prediction
-#####################################
+#########################################
 
 def update_aggregated_training_data(industry, new_data_df):
     filename = f"training_data_{industry}.csv"
@@ -98,7 +106,7 @@ def train_model(training_df, target_column, industry):
     st.success("Model trained and saved successfully!")
     update_industry_record(industry, model_filename, scaler_filename, features_filename)
     
-    # Save the global settings for this user
+    # Save global settings to the user record
     user = st.session_state.user
     user["settings"] = {
         "global_avg_age": st.session_state.global_avg_age,
@@ -164,7 +172,7 @@ TRIGGER_DETAILS = {
         },
         "solutions": {
             "lack_female_applicants": (
-                "- **Partner with Women’s Universities** or female-oriented professional groups.\n"
+                "- **Partner with Women’s Universities** or female‑oriented professional groups.\n"
                 "- **Highlight DEI** in your recruitment materials."
             ),
             "lack_female_mentors": (
@@ -173,7 +181,7 @@ TRIGGER_DETAILS = {
             ),
             "rigid_policies": (
                 "- Introduce **flexible working hours** and remote/hybrid options.\n"
-                "- Improve **maternity/paternity benefits** and family-friendly leave."
+                "- Improve **maternity/paternity benefits** and family‑friendly leave."
             )
         }
     },
@@ -193,15 +201,15 @@ TRIGGER_DETAILS = {
                 "- Offer **upskilling opportunities** and learning stipends."
             ),
             "bureaucratic_structure": (
-                "- **Streamline decision-making** or reduce hierarchical layers.\n"
-                "- Consider more **agile or cross-functional** teams to encourage skill growth."
+                "- **Streamline decision‑making** or reduce hierarchical layers.\n"
+                "- Consider more **agile or cross‑functional** teams to encourage skill growth."
             )
         }
     },
     "Very low performance rating": {
         "subproblems": {
             "misaligned_role": "Job role or expectations are unclear or mismatched",
-            "no_feedback": "Lack of continuous feedback or 1-on-1 sessions",
+            "no_feedback": "Lack of continuous feedback or 1‑on‑1 sessions",
             "skill_gaps": "Skill gaps or training needs not addressed"
         },
         "solutions": {
@@ -210,40 +218,40 @@ TRIGGER_DETAILS = {
                 "- Ensure roles align with employees’ **strengths** and career aspirations."
             ),
             "no_feedback": (
-                "- Implement **frequent 1:1 check-ins** and agile feedback loops.\n"
-                "- Use **performance dashboards** for real-time updates."
+                "- Implement **frequent 1‑on‑1 check‑ins** and agile feedback loops.\n"
+                "- Use **performance dashboards** for real‑time updates."
             ),
             "skill_gaps": (
                 "- Provide **targeted training** and eLearning modules.\n"
-                "- Offer **certification reimbursements** and skill-building workshops."
+                "- Offer **certification reimbursements** and skill‑building workshops."
             )
         }
     },
     "Low performance rating": {
         "subproblems": {
             "misaligned_role": "Job role or expectations are unclear or mismatched",
-            "no_feedback": "Lack of continuous feedback or 1-on-1 sessions",
+            "no_feedback": "Lack of continuous feedback or 1‑on‑1 sessions",
             "skill_gaps": "Skill gaps or training needs not addressed"
         },
         "solutions": {
             "misaligned_role": (
                 "- **Clarify job responsibilities** and set SMART goals.\n"
-                "- Align roles with employees’ strengths and preferences."
+                "- Align roles with employees’ **strengths** and preferences."
             ),
             "no_feedback": (
-                "- Implement **regular 1:1 check-ins**.\n"
+                "- Implement **regular 1‑on‑1 check‑ins**.\n"
                 "- Provide ongoing **coaching and feedback** rather than annual appraisals."
             ),
             "skill_gaps": (
                 "- Offer **targeted training** in needed skill areas.\n"
-                "- Encourage **peer-to-peer learning** or cross-functional rotations."
+                "- Encourage **peer‑to‑peer learning** or cross‑functional rotations."
             )
         }
     },
     "Low compensation competitiveness": {
         "subproblems": {
             "below_market": "Base salary is below market rates",
-            "minimal_bonus": "Bonuses or variable pay are minimal or non-existent",
+            "minimal_bonus": "Bonuses or variable pay are minimal or non‑existent",
             "poor_benefits": "Benefits package is lacking (insurance, retirement, etc.)"
         },
         "solutions": {
@@ -252,7 +260,7 @@ TRIGGER_DETAILS = {
                 "- Consider **geographic pay differentials** if applicable."
             ),
             "minimal_bonus": (
-                "- Introduce **performance-based incentives** or profit-sharing.\n"
+                "- Introduce **performance‑based incentives** or profit‑sharing.\n"
                 "- Evaluate **RSUs (Restricted Stock Units)** or equity grants for retention."
             ),
             "poor_benefits": (
@@ -263,7 +271,7 @@ TRIGGER_DETAILS = {
     },
     "Low college tier retention": {
         "subproblems": {
-            "high_turnover_talent_pools": "High turnover among certain colleges or entry-level hires",
+            "high_turnover_talent_pools": "High turnover among certain colleges or entry‑level hires",
             "mismatch_culture": "Mismatch between background and company culture",
             "poor_onboarding": "Insufficient onboarding or assimilation for these hires"
         },
@@ -277,7 +285,7 @@ TRIGGER_DETAILS = {
                 "- Pair new hires with **mentors** from similar backgrounds."
             ),
             "poor_onboarding": (
-                "- Enhance **onboarding programs** with structured check-ins (30/60/90 days).\n"
+                "- Enhance **onboarding programs** with structured check‑ins (30/60/90 days).\n"
                 "- Offer a **buddy system** for new graduates."
             )
         }
@@ -298,7 +306,7 @@ TRIGGER_DETAILS = {
                 "- Have **town halls** or Q&A sessions for lateral hires to assimilate."
             ),
             "poor_onboarding": (
-                "- Develop **structured assimilation** for mid-career folks.\n"
+                "- Develop **structured assimilation** for mid‑career folks.\n"
                 "- Provide a **transition buddy** who understands both industries."
             )
         }
@@ -326,7 +334,7 @@ TRIGGER_DETAILS = {
     },
     "High dissatisfaction (Pulse)": {
         "subproblems": {
-            "work_life_imbalance": "Work-life imbalance or excessive workload",
+            "work_life_imbalance": "Work‑life imbalance or excessive workload",
             "poor_manager_relationships": "Employees feel managers are unsupportive",
             "limited_growth": "Limited growth or recognition opportunities"
         },
@@ -337,7 +345,7 @@ TRIGGER_DETAILS = {
             ),
             "poor_manager_relationships": (
                 "- Train managers on **emotional intelligence** and communication.\n"
-                "- Collect **360-degree feedback** to identify manager blind spots."
+                "- Collect **360‑degree feedback** to identify manager blind spots."
             ),
             "limited_growth": (
                 "- Implement **career development** paths and internal mobility.\n"
@@ -406,7 +414,7 @@ def predict_attrition(employee_data, industry):
     return combined_score, triggers, ml_probability
 
 def generate_sample_csv():
-    # Updated bulk sample file does not require "Average Employee Age" or "Female Employee Ratio"
+    # Bulk sample file does not require global columns.
     sample_csv = pd.DataFrame({
         "Employee Age": [30, 45],
         "Gender": ["Male", "Female"],
@@ -425,7 +433,7 @@ def generate_sample_csv():
     return csv_buffer.getvalue()
 
 def generate_dummy_training_file():
-    # Updated dummy training file: remove "Average Employee Age" and "Female Employee Ratio"
+    # Dummy training file no longer includes global columns.
     dummy_df = pd.DataFrame({
         "Name": ["Example 1", "Example 2", "Example 3"],
         "Employee Age": [30, 40, 35],
@@ -446,34 +454,57 @@ def generate_dummy_training_file():
     return csv_buffer.getvalue()
 
 #########################################
-# Login System
+# Login/Sign Up System
 #########################################
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
 if not st.session_state.logged_in:
-    st.title("Login")
-    with st.form("login_form"):
-        name = st.text_input("Name")
-        designation = st.text_input("Designation")
-        company = st.text_input("Company Name")
-        email = st.text_input("Email")
-        submitted = st.form_submit_button("Login")
-        if submitted:
-            if not email:
-                st.error("Please enter your email.")
-            else:
+    st.title("Employee Attrition Prediction Tool - Login / Sign Up")
+    auth_mode = st.radio("Select Mode", ["Login", "Sign Up"])
+    if auth_mode == "Login":
+        with st.form("login_form"):
+            email = st.text_input("Email")
+            password = st.text_input("Password", type="password")
+            submitted = st.form_submit_button("Login")
+            if submitted:
                 users = load_users()
-                if email in users:
-                    user = users[email]
-                    st.success("Welcome back!")
+                if email in users and users[email]["password"] == password:
+                    st.success(f"Welcome back, {users[email]['name']}!")
+                    st.session_state.user = users[email]
+                    st.session_state.logged_in = True
                 else:
-                    user = {"name": name, "designation": designation, "company": company, "email": email}
-                    users[email] = user
-                    save_users(users)
-                    st.success("Account created and logged in!")
-                st.session_state.user = user
-                st.session_state.logged_in = True
+                    st.error("Invalid email or password.")
+    else:  # Sign Up
+        with st.form("signup_form"):
+            name = st.text_input("Name")
+            designation = st.text_input("Designation")
+            company = st.text_input("Company Name")
+            email = st.text_input("Email")
+            password = st.text_input("Password", type="password")
+            confirm_password = st.text_input("Confirm Password", type="password")
+            submitted = st.form_submit_button("Sign Up")
+            if submitted:
+                if password != confirm_password:
+                    st.error("Passwords do not match.")
+                else:
+                    users = load_users()
+                    if email in users:
+                        st.error("Email already exists. Please log in.")
+                    else:
+                        user = {
+                            "name": name,
+                            "designation": designation,
+                            "company": company,
+                            "email": email,
+                            "password": password,
+                            "settings": {}
+                        }
+                        users[email] = user
+                        save_users(users)
+                        st.success("Account created and logged in!")
+                        st.session_state.user = user
+                        st.session_state.logged_in = True
     st.stop()
 
 #########################################
@@ -481,16 +512,16 @@ if not st.session_state.logged_in:
 #########################################
 st.sidebar.success(f"Logged in as: {st.session_state.user['name']} ({st.session_state.user['email']})")
 
-# Use a sidebar radio to choose overall mode; global controls are in sidebar and become uneditable in Test Mode.
-mode = st.sidebar.radio("Select Mode", ["Train Mode", "Test Mode"])
+# Navigation: Train Mode, Test Mode, My Account
+nav = st.sidebar.radio("Navigation", ["Train Mode", "Test Mode", "My Account"])
 
 #########################################
 # GLOBAL SIDEBAR CONTROLS (for Bulk Analysis)
-# These controls appear in the sidebar regardless but are disabled in Test Mode.
+# These appear in the sidebar always but are editable only in Train Mode.
 #########################################
 with st.sidebar:
     st.markdown("### Global Settings for Bulk Analysis\n*These settings MUST be filled for bulk analysis*")
-    disabled_flag = (mode == "Test Mode")
+    disabled_flag = (nav != "Train Mode")
     global_avg_age = st.slider("Average Employee Age in Company", 18, 100, 
                                  st.session_state.user.get("settings", {}).get("global_avg_age", 35), 
                                  key="global_avg_age", disabled=disabled_flag)
@@ -526,13 +557,13 @@ with st.sidebar:
         }
 
 #########################################
-# MAIN CONTENT: Train Mode vs Test Mode
+# MAIN CONTENT
 #########################################
-if mode == "Train Mode":
+if nav == "Train Mode":
     st.header("Train Mode")
     selected_train_industry = st.selectbox("Select Your Industry", industry_options, key="train_industry")
     
-    col1, col2 = st.columns([1,1])
+    col1, col2 = st.columns([1, 1])
     with col1:
         uploaded_train = st.file_uploader("Upload Training Data (CSV or Excel)", type=["csv", "xlsx"], key="train_file")
     with col2:
@@ -577,14 +608,14 @@ if mode == "Train Mode":
             st.write("### Aggregated Training Data Preview")
             st.dataframe(aggregated_df.head())
             train_model(aggregated_df, target_column, selected_train_industry)
-    
-elif mode == "Test Mode":
+
+elif nav == "Test Mode":
     st.header("Test Mode")
     st.markdown("""
     **Instructions for Testing:**
     
     - Ensure that you have trained a model in Train Mode.
-    - The industry selection below is pre-set to your training industry.
+    - The industry selection below is pre‑set to your training industry.
     - In Single Employee mode, enter the employee details (including retention percentages).
     - In Bulk Employees mode, upload a CSV or Excel file with the following columns:
          - **Name**
@@ -607,7 +638,6 @@ elif mode == "Test Mode":
     
     test_mode_option = st.selectbox("Select Test Mode", ["Single Employee", "Bulk Employees"])
     
-    # No editable global controls appear here in Test Mode.
     if test_mode_option == "Single Employee":
         if "prediction_made" not in st.session_state:
             st.session_state.prediction_made = False
@@ -766,8 +796,7 @@ elif mode == "Test Mode":
         - **Last Performance Rating**
         - **Compa Ratio**
         """)
-        # Note: The bulk file no longer includes "Average Employee Age" and "Female Employee Ratio".
-        # Instead, these values are taken from the global settings (set in Train Mode).
+        # The bulk file does NOT include global fields; these are applied from global settings.
         global_avg_age = st.session_state.get("global_avg_age", 35)
         global_female_ratio = st.session_state.get("global_female_ratio", 40)
         bulk_tier1 = st.session_state.get("bulk_tier1", 60)
@@ -806,7 +835,7 @@ elif mode == "Test Mode":
                         # Override with global settings from Train Mode:
                         row_dict["Average Employee Age"] = global_avg_age
                         row_dict["Female Employee Ratio"] = global_female_ratio
-                        # Use global retention settings based on categorical values:
+                        # Use global retention settings:
                         college_tier = row_dict.get("College Tier")
                         if college_tier == "Tier 1":
                             row_dict["College Tier Retention"] = bulk_tier1
@@ -870,3 +899,26 @@ elif mode == "Test Mode":
                         st.write("""
                         *You can expand this section to include more detailed analysis or individual scenario planning for each employee.*
                         """)
+                        
+elif nav == "My Account":
+    st.header("My Account")
+    user = st.session_state.user
+    st.write("### Account Information")
+    st.write(f"**Name:** {user.get('name', '')}")
+    st.write(f"**Designation:** {user.get('designation', '')}")
+    st.write(f"**Company:** {user.get('company', '')}")
+    st.write(f"**Email:** {user.get('email', '')}")
+    
+    st.write("### Saved Global Settings")
+    settings = user.get("settings", {})
+    if settings:
+        st.json(settings)
+    else:
+        st.info("No global settings saved. Please train your model to save settings.")
+    
+    st.write("### User History")
+    history = load_user_history(user["email"])
+    if history:
+        st.json(history)
+    else:
+        st.info("No history available yet.")
