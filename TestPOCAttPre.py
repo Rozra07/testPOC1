@@ -104,7 +104,7 @@ def train_model(training_df, target_column, industry):
         pickle.dump(feature_columns, f)
     
     st.success("Model trained and saved successfully!")
-    # Compute training accuracy as a proxy for model confidence.
+    # Compute training accuracy (as a proxy for model confidence)
     training_accuracy = model.score(X_scaled, y) * 100
     st.info(f"Training Accuracy (Confidence): {training_accuracy:.2f}%")
     
@@ -112,20 +112,20 @@ def train_model(training_df, target_column, industry):
     
     # Save global settings to user record.
     user = st.session_state.user
-    user["settings"] = {
-        "global_avg_age": st.session_state.global_avg_age,
-        "global_female_ratio": st.session_state.global_female_ratio,
-        "bulk_tier1": st.session_state.bulk_tier1,
-        "bulk_tier2": st.session_state.bulk_tier2,
-        "bulk_tier3": st.session_state.bulk_tier3,
-        "bulk_industry_retention": {ind: st.session_state[f"bulk_ind_{ind}"] for ind in industry_options},
-        "bulk_company_retention": {
-            "Startup": st.session_state.bulk_startup,
-            "Small Size": st.session_state.bulk_small,
-            "Mid Size": st.session_state.bulk_mid,
-            "MNC/Giant Company": st.session_state.bulk_mnc
-        }
+    user_settings = user.get("settings") or {}
+    user_settings["global_avg_age"] = st.session_state.global_avg_age
+    user_settings["global_female_ratio"] = st.session_state.global_female_ratio
+    user_settings["bulk_tier1"] = st.session_state.bulk_tier1
+    user_settings["bulk_tier2"] = st.session_state.bulk_tier2
+    user_settings["bulk_tier3"] = st.session_state.bulk_tier3
+    user_settings["bulk_industry_retention"] = {ind: st.session_state.get(f"bulk_ind_{ind}", 60 if ind=="Tech" else 50) for ind in industry_options}
+    user_settings["bulk_company_retention"] = {
+        "Startup": st.session_state.bulk_startup,
+        "Small Size": st.session_state.bulk_small,
+        "Mid Size": st.session_state.bulk_mid,
+        "MNC/Giant Company": st.session_state.bulk_mnc
     }
+    user["settings"] = user_settings
     users = load_users()
     users[user["email"]] = user
     save_users(users)
@@ -568,7 +568,7 @@ else:
         st.header("Train Mode")
         selected_train_industry = st.selectbox("Select Your Industry", industry_options, key="train_industry")
         
-        col1, col2 = st.columns([1, 1])
+        col1, col2 = st.columns([1,1])
         with col1:
             uploaded_train = st.file_uploader("Upload Training Data (CSV or Excel)", type=["csv", "xlsx"], key="train_file")
         with col2:
@@ -824,8 +824,8 @@ else:
                 st.write("### Uploaded Data Preview:")
                 st.dataframe(df_bulk.head())
                 required_cols = [
-                    "Name", "Employee Age", "Gender", "Tenure (Months)", "Pulse", 
-                    "Hasn't been promoted", "Minimum Promotion Cycle", "College Tier", 
+                    "Name", "Employee Age", "Gender", "Tenure (Months)", "Pulse",
+                    "Hasn't been promoted", "Minimum Promotion Cycle", "College Tier",
                     "Industry", "Company Type", "Last Performance Rating", "Compa Ratio"
                 ]
                 missing = [c for c in required_cols if c not in df_bulk.columns]
@@ -903,7 +903,7 @@ else:
                             row_info = df_bulk_reset.loc[sel_row].to_dict()
                             st.write("### Row Data:")
                             st.json(row_info)
-    
+
 elif st.session_state.nav == "My Account":
     st.header("My Account")
     user = st.session_state.user
@@ -914,9 +914,9 @@ elif st.session_state.nav == "My Account":
     st.write(f"**Email:** {user.get('email', '')}")
     
     st.write("### Saved Global Settings")
-    settings = user.get("settings") or {}
-    if settings:
-        st.json(settings)
+    user_settings = user.get("settings") or {}
+    if user_settings:
+        st.json(user_settings)
     else:
         st.info("No global settings saved. Please train your model to save settings.")
     
@@ -926,5 +926,6 @@ elif st.session_state.nav == "My Account":
         st.dataframe(pd.DataFrame(history))
     else:
         st.info("No history available yet.")
+    
     if st.button("Back to Main"):
         st.session_state.nav = "Tabs"
