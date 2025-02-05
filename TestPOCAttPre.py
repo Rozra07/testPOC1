@@ -28,7 +28,6 @@ def save_users(users):
         json.dump(users, f, indent=2)
 
 def save_user_event(email, event_type, event_data):
-    # Ensure user_data directory exists
     if not os.path.exists(USER_DATA_DIR):
         os.makedirs(USER_DATA_DIR)
     history_file = os.path.join(USER_DATA_DIR, f"{email}_history.json")
@@ -407,11 +406,10 @@ def predict_attrition(employee_data, industry):
     return combined_score, triggers, ml_probability
 
 def generate_sample_csv():
+    # Updated sample CSV for Bulk mode (remove "Average Employee Age" and "Female Employee Ratio")
     sample_csv = pd.DataFrame({
         "Employee Age": [30, 45],
-        "Average Employee Age": [35, 40],
         "Gender": ["Male", "Female"],
-        "Female Employee Ratio": [50, 10],
         "Tenure (Months)": [36, 48],
         "Pulse": ["Medium", "High"],
         "Hasn't been promoted": [12, 36],
@@ -427,6 +425,7 @@ def generate_sample_csv():
     return csv_buffer.getvalue()
 
 def generate_dummy_training_file():
+    # Training file may include all columns (needed for training the model)
     dummy_df = pd.DataFrame({
         "Name": ["Example 1", "Example 2", "Example 3"],
         "Employee Age": [30, 40, 35],
@@ -487,7 +486,9 @@ st.sidebar.success(f"Logged in as: {st.session_state.user['name']} ({st.session_
 # Use a sidebar radio to choose overall mode; global controls are in sidebar and become uneditable in Test Mode.
 mode = st.sidebar.radio("Select Mode", ["Train Mode", "Test Mode"])
 
-# GLOBAL SIDEBAR CONTROLS (for Bulk Analysis) – always visible, but disabled if mode is Test Mode.
+#########################################
+# GLOBAL SIDEBAR CONTROLS (for Bulk Analysis) – always visible in sidebar; disabled if Test Mode.
+#########################################
 with st.sidebar:
     st.markdown("### Global Settings for Bulk Analysis\n*These settings MUST be filled for bulk analysis*")
     disabled_flag = (mode == "Test Mode")
@@ -579,7 +580,7 @@ if mode == "Train Mode":
             st.write("### Aggregated Training Data Preview")
             st.dataframe(aggregated_df.head())
             train_model(aggregated_df, target_column, selected_train_industry)
-    
+
 elif mode == "Test Mode":
     st.header("Test Mode")
     st.markdown("""
@@ -588,16 +589,28 @@ elif mode == "Test Mode":
     - Ensure that you have trained a model in Train Mode.
     - The industry selection below is pre-set to your training industry.
     - In Single Employee mode, enter the employee details (including retention percentages).
-    - In Bulk Employees mode, upload a file in the new format (with categorical values for College Tier, Industry, and Company Type).
-      The global settings (saved from Train Mode) will be applied automatically.
+    - In Bulk Employees mode, upload a CSV or Excel file with the following columns:
+         - **Name**
+         - **Employee Age**
+         - **Gender**
+         - **Tenure (Months)**
+         - **Pulse**
+         - **Hasn't been promoted**
+         - **Minimum Promotion Cycle**
+         - **College Tier**  *(e.g., "Tier 1", "Tier 2", "Tier 3")*
+         - **Industry**  *(e.g., "Tech", "Finance", etc.)*
+         - **Company Type**  *(e.g., "Startup", "Small Size", "Mid Size", "MNC/Giant Company")*
+         - **Last Performance Rating**
+         - **Compa Ratio**
+         
+         *Note: The global settings you defined in Train Mode (for Average Employee Age, Women % etc.) will be applied automatically to all bulk data.*
     """)
     default_test_industry = st.session_state.get("train_industry", industry_options[0])
     selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=industry_options.index(default_test_industry) if default_test_industry in industry_options else 0, key="test_industry")
     
     test_mode_option = st.selectbox("Select Test Mode", ["Single Employee", "Bulk Employees"])
     
-    # No global controls appear in Test Mode.
-    
+    # No global controls appear here in Test Mode.
     if test_mode_option == "Single Employee":
         if "prediction_made" not in st.session_state:
             st.session_state.prediction_made = False
@@ -745,9 +758,7 @@ elif mode == "Test Mode":
         Upload a CSV or Excel file with the following columns:
         - **Name**
         - **Employee Age**
-        - **Average Employee Age**
         - **Gender**
-        - **Female Employee Ratio**
         - **Tenure (Months)**
         - **Pulse**
         - **Hasn't been promoted**
@@ -758,6 +769,8 @@ elif mode == "Test Mode":
         - **Last Performance Rating**
         - **Compa Ratio**
         """)
+        # Note: "Average Employee Age" and "Female Employee Ratio" are NOT required in the bulk file.
+        # The app uses the global settings from Train Mode for those values.
         global_avg_age = st.session_state.get("global_avg_age", 35)
         global_female_ratio = st.session_state.get("global_female_ratio", 40)
         bulk_tier1 = st.session_state.get("bulk_tier1", 60)
@@ -778,9 +791,9 @@ elif mode == "Test Mode":
             st.write("**📊 Uploaded Data Preview:**")
             st.dataframe(df_bulk.head())
             required_cols = [
-                "Name", "Employee Age", "Average Employee Age", "Gender", "Female Employee Ratio",
-                "Tenure (Months)", "Pulse", "Hasn't been promoted", "Minimum Promotion Cycle",
-                "College Tier", "Industry", "Company Type", "Last Performance Rating", "Compa Ratio"
+                "Name", "Employee Age", "Gender", "Tenure (Months)", "Pulse", 
+                "Hasn't been promoted", "Minimum Promotion Cycle", "College Tier", 
+                "Industry", "Company Type", "Last Performance Rating", "Compa Ratio"
             ]
             missing = [c for c in required_cols if c not in df_bulk.columns]
             if missing:
@@ -793,8 +806,10 @@ elif mode == "Test Mode":
                     for idx, row in df_bulk.iterrows():
                         row_dict = row.to_dict()
                         names.append(row_dict.get("Name"))
+                        # Override with global settings from Train Mode:
                         row_dict["Average Employee Age"] = global_avg_age
                         row_dict["Female Employee Ratio"] = global_female_ratio
+                        # Use global retention settings based on categorical values:
                         college_tier = row_dict.get("College Tier")
                         if college_tier == "Tier 1":
                             row_dict["College Tier Retention"] = bulk_tier1
