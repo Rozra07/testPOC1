@@ -9,10 +9,19 @@ from datetime import datetime
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
-#########################################
-# Helper functions for user storage
-#########################################
+# -------------------------------
+# Initialize st.session_state keys
+# -------------------------------
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "nav" not in st.session_state:
+    st.session_state.nav = "Tabs"  # "Tabs" indicates Train/Test mode
+if "user" not in st.session_state:
+    st.session_state.user = {}
 
+# -------------------------------
+# Helper functions for user storage
+# -------------------------------
 USERS_FILE = "users.json"
 USER_DATA_DIR = "user_data"
 
@@ -53,18 +62,17 @@ def load_user_history(email):
     else:
         return []
 
-#########################################
+# -------------------------------
 # Global: Expanded Industry Options
-#########################################
+# -------------------------------
 industry_options = [
     "Tech", "Finance", "Healthcare", "Education", "Manufacturing", 
     "Retail", "Energy", "Telecommunications", "Government", "Nonprofit", "Other"
 ]
 
-#########################################
+# -------------------------------
 # Functions for model training/prediction
-#########################################
-
+# -------------------------------
 def update_aggregated_training_data(industry, new_data_df):
     filename = f"training_data_{industry}.csv"
     if os.path.exists(filename):
@@ -109,7 +117,7 @@ def train_model(training_df, target_column, industry):
     
     update_industry_record(industry, model_filename, scaler_filename, features_filename)
     
-    # Save global settings to user record (using safe retrieval)
+    # Save global settings to user record.
     user = st.session_state.user
     user_settings = user.get("settings") or {}
     user_settings["global_avg_age"] = st.session_state.global_avg_age
@@ -146,7 +154,7 @@ def update_industry_record(industry, model_file, scaler_file, feature_file):
         df = pd.read_csv(csv_filename)
         if industry in df["Industry"].values:
             df.loc[df["Industry"] == industry, ["Model_File", "Scaler_File", "Feature_File", "Training_Date"]] = \
-                [model_file, scaler_file, feature_file, record["Training_Date"]]
+                [model_file, scaler_filename, feature_file, record["Training_Date"]]
         else:
             df = df.append(record, ignore_index=True)
     else:
@@ -457,15 +465,9 @@ def generate_dummy_training_file():
     dummy_df.to_csv(csv_buffer, index=False)
     return csv_buffer.getvalue()
 
-#########################################
-# Ensure user object exists in session_state
-#########################################
-if "user" not in st.session_state:
-    st.session_state.user = None
-
-#########################################
+# -------------------------------
 # Login/Sign Up System
-#########################################
+# -------------------------------
 if not st.session_state.logged_in:
     st.title("Employee Attrition Prediction Tool - Login / Sign Up")
     auth_mode = st.radio("Select Mode", ["Login", "Sign Up"], index=0)
@@ -515,9 +517,9 @@ if not st.session_state.logged_in:
     if not st.session_state.logged_in:
         st.stop()
 
-#########################################
+# -------------------------------
 # Top Header with Title, My Account Icon, and Logout
-#########################################
+# -------------------------------
 def logout():
     for key in list(st.session_state.keys()):
         del st.session_state[key]
@@ -534,14 +536,10 @@ with header_container:
         if st.button("Logout", key="logout_button"):
             logout()
 
-if "nav" not in st.session_state:
-    st.session_state.nav = "Tabs"  # "Tabs" means Train/Test mode
-
-#########################################
+# -------------------------------
 # Main Navigation
-#########################################
+# -------------------------------
 if st.session_state.nav == "My Account":
-    # Center the account info by using a container
     st.markdown("<div style='text-align: center;'><h2>My Account</h2></div>", unsafe_allow_html=True)
     user = st.session_state.user
     st.write("### Account Information")
@@ -567,7 +565,6 @@ if st.session_state.nav == "My Account":
     if st.button("Back to Main"):
         st.session_state.nav = "Tabs"
 else:
-    # Use tabs for Train and Test modes
     tabs = st.tabs(["Train Mode", "Test Mode"])
     
     with tabs[0]:
