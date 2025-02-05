@@ -9,6 +9,8 @@ from datetime import datetime
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
+# Make sure openpyxl is installed: pip install openpyxl
+
 # ---------------------------------------
 # Helper function for safe rerun
 # ---------------------------------------
@@ -17,6 +19,19 @@ def safe_rerun():
         st.experimental_rerun()
     else:
         st.warning("Refresh functionality is not available. Please update Streamlit (>=0.65.0).")
+
+# ---------------------------------------
+# Helper function to read Excel files
+# ---------------------------------------
+def read_excel_file(uploaded_file):
+    try:
+        return pd.read_excel(uploaded_file, engine="openpyxl")
+    except ImportError:
+        st.error("Missing optional dependency 'openpyxl'. Use pip or conda to install openpyxl.")
+        return None
+    except Exception as e:
+        st.error(f"Error reading Excel file: {e}")
+        return None
 
 # ----------------------------------------------------
 # Initialize st.session_state keys if not already set
@@ -97,27 +112,40 @@ def update_aggregated_training_data(industry, new_data_df):
     return combined_df
 
 def train_model(training_df, target_column, industry):
+    # Drop rows where the target is missing
+    training_df = training_df.dropna(subset=[target_column])
+    
     X = training_df.drop(columns=[target_column])
     y = training_df[target_column]
+    
+    # One-hot encode categorical variables
     X_encoded = pd.get_dummies(X)
+    # Fill any missing values with 0 (or consider other imputation strategies)
+    X_encoded = X_encoded.fillna(0)
+    
     feature_columns = list(X_encoded.columns)
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X_encoded)
     model = LogisticRegression(solver="liblinear", random_state=42)
     model.fit(X_scaled, y)
+    
     model_filename = f"{industry}_model.pkl"
     scaler_filename = f"{industry}_scaler.pkl"
     features_filename = f"{industry}_feature_columns.pkl"
+    
     with open(model_filename, "wb") as f:
         pickle.dump(model, f)
     with open(scaler_filename, "wb") as f:
         pickle.dump(scaler, f)
     with open(features_filename, "wb") as f:
         pickle.dump(feature_columns, f)
+    
     st.success("Model trained and saved successfully!")
     training_accuracy = model.score(X_scaled, y) * 100
     st.info(f"Training Accuracy (Confidence): {training_accuracy:.2f}%")
+    
     update_industry_record(industry, model_filename, scaler_filename, features_filename)
+    
     # Save global settings to user record.
     user = st.session_state.user
     user_settings = user.get("settings") or {}
@@ -154,8 +182,7 @@ def update_industry_record(industry, model_file, scaler_file, feature_file):
     if os.path.exists(csv_filename):
         df = pd.read_csv(csv_filename)
         if industry in df["Industry"].values:
-            df.loc[df["Industry"] == industry, ["Model_File", "Scaler_File", "Feature_File", "Training_Date"]] = \
-                [model_file, scaler_file, feature_file, record["Training_Date"]]
+            df.loc[df["Industry"] == industry, ["Model_File", "Scaler_File", "Feature_File", "Training_Date"]] = [model_file, scaler_file, feature_file, record["Training_Date"]]
         else:
             df = df.append(record, ignore_index=True)
     else:
@@ -178,230 +205,123 @@ def load_model(industry):
         st.error("No trained model found for the selected industry. Please train your model in Train Mode first.")
         return None, None, None
 
-TRIGGER_DETAILS = {
-    "Low gender diversity": {
-        "subproblems": {
-            "lack_female_applicants": "We are not getting enough female applicants",
-            "lack_female_mentors": "We have few female mentors or leaders",
-            "rigid_policies": "We do not offer flexible policies (e.g., maternity, remote, etc.)"
-        },
-        "solutions": {
-            "lack_female_applicants": (
-                "- **Partner with Women’s Universities** or female‑oriented professional groups.\n"
-                "- **Highlight DEI** in your recruitment materials."
-            ),
-            "lack_female_mentors": (
-                "- **Implement formal mentorship** programs.\n"
-                "- **Sponsor leadership development** for existing female employees."
-            ),
-            "rigid_policies": (
-                "- Introduce **flexible working hours** and remote/hybrid options.\n"
-                "- Improve **maternity/paternity benefits** and family‑friendly leave."
-            )
-        }
-    },
-    "Stagnant promotions": {
-        "subproblems": {
-            "unclear_criteria": "Promotion criteria are unclear or inconsistent",
-            "no_mentorship": "No proper mentorship or upskilling tracks exist",
-            "bureaucratic_structure": "The organization structure is too bureaucratic"
-        },
-        "solutions": {
-            "unclear_criteria": (
-                "- **Publish transparent promotion guidelines** linked to clear KPIs.\n"
-                "- Provide employees with **regular promotion readiness feedback**."
-            ),
-            "no_mentorship": (
-                "- Launch **formal mentoring** or buddy programs.\n"
-                "- Offer **upskilling opportunities** and learning stipends."
-            ),
-            "bureaucratic_structure": (
-                "- **Streamline decision‑making** or reduce hierarchical layers.\n"
-                "- Consider more **agile or cross‑functional** teams to encourage skill growth."
-            )
-        }
-    },
-    "Very low performance rating": {
-        "subproblems": {
-            "misaligned_role": "Job role or expectations are unclear or mismatched",
-            "no_feedback": "Lack of continuous feedback or 1‑on‑1 sessions",
-            "skill_gaps": "Skill gaps or training needs not addressed"
-        },
-        "solutions": {
-            "misaligned_role": (
-                "- **Clarify job responsibilities** and set SMART goals.\n"
-                "- Ensure roles align with employees’ **strengths** and career aspirations."
-            ),
-            "no_feedback": (
-                "- Implement **frequent 1‑on‑1 check‑ins** and agile feedback loops.\n"
-                "- Use **performance dashboards** for real‑time updates."
-            ),
-            "skill_gaps": (
-                "- Provide **targeted training** and eLearning modules.\n"
-                "- Offer **certification reimbursements** and skill‑building workshops."
-            )
-        }
-    },
-    "Low performance rating": {
-        "subproblems": {
-            "misaligned_role": "Job role or expectations are unclear or mismatched",
-            "no_feedback": "Lack of continuous feedback or 1‑on‑1 sessions",
-            "skill_gaps": "Skill gaps or training needs not addressed"
-        },
-        "solutions": {
-            "misaligned_role": (
-                "- **Clarify job responsibilities** and set SMART goals.\n"
-                "- Align roles with employees’ **strengths** and preferences."
-            ),
-            "no_feedback": (
-                "- Implement **regular 1‑on‑1 check‑ins**.\n"
-                "- Provide ongoing **coaching and feedback** rather than annual appraisals."
-            ),
-            "skill_gaps": (
-                "- Offer **targeted training** in needed skill areas.\n"
-                "- Encourage **peer‑to‑peer learning** or cross‑functional rotations."
-            )
-        }
-    },
-    "Low compensation competitiveness": {
-        "subproblems": {
-            "below_market": "Base salary is below market rates",
-            "minimal_bonus": "Bonuses or variable pay are minimal or non‑existent",
-            "poor_benefits": "Benefits package is lacking (insurance, retirement, etc.)"
-        },
-        "solutions": {
-            "below_market": (
-                "- **Conduct market benchmarking** to adjust salaries to median or above.\n"
-                "- Consider **geographic pay differentials** if applicable."
-            ),
-            "minimal_bonus": (
-                "- Introduce **performance‑based incentives** or profit‑sharing.\n"
-                "- Evaluate **RSUs (Restricted Stock Units)** or equity grants for retention."
-            ),
-            "poor_benefits": (
-                "- Offer **competitive health insurance**, retirement contributions.\n"
-                "- Provide **flexible schedules**, wellness programs, and other perks."
-            )
-        }
-    },
-    "Low college tier retention": {
-        "subproblems": {
-            "high_turnover_talent_pools": "High turnover among certain colleges or entry‑level hires",
-            "mismatch_culture": "Mismatch between background and company culture",
-            "poor_onboarding": "Insufficient onboarding or assimilation for these hires"
-        },
-        "solutions": {
-            "high_turnover_talent_pools": (
-                "- Investigate root causes via **exit interviews**.\n"
-                "- Build **campus ambassador** programs to attract the right fit."
-            ),
-            "mismatch_culture": (
-                "- Provide better **orientation** on company culture.\n"
-                "- Pair new hires with **mentors** from similar backgrounds."
-            ),
-            "poor_onboarding": (
-                "- Enhance **onboarding programs** with structured check‑ins (30/60/90 days).\n"
-                "- Offer a **buddy system** for new graduates."
-            )
-        }
-    },
-    "Low industry retention": {
-        "subproblems": {
-            "high_turnover_talent_pools": "High turnover among employees from this industry",
-            "mismatch_culture": "Mismatch between industry norms and your company's culture",
-            "poor_onboarding": "Insufficient onboarding for these lateral hires"
-        },
-        "solutions": {
-            "high_turnover_talent_pools": (
-                "- Conduct **benchmarking** to see if salaries and roles align with industry standards.\n"
-                "- Explore **targeted retention strategies** (mentorship, training)."
-            ),
-            "mismatch_culture": (
-                "- Emphasize **company values** and create inclusive teams.\n"
-                "- Have **town halls** or Q&A sessions for lateral hires to assimilate."
-            ),
-            "poor_onboarding": (
-                "- Develop **structured assimilation** for mid‑career folks.\n"
-                "- Provide a **transition buddy** who understands both industries."
-            )
-        }
-    },
-    "Low company type retention": {
-        "subproblems": {
-            "high_turnover_talent_pools": "High turnover among employees from certain company backgrounds",
-            "mismatch_culture": "Mismatch between prior company culture and current environment",
-            "poor_onboarding": "Onboarding doesn’t address differences in processes, tools, or structures"
-        },
-        "solutions": {
-            "high_turnover_talent_pools": (
-                "- Identify if certain **company backgrounds** always churn quickly.\n"
-                "- Adapt your onboarding or project assignments accordingly."
-            ),
-            "mismatch_culture": (
-                "- Provide **culture assimilation** sessions or manager training.\n"
-                "- Encourage **peer networking** to help them adapt faster."
-            ),
-            "poor_onboarding": (
-                "- Have a **comprehensive onboarding** covering your processes & tools.\n"
-                "- Assign **buddies** who previously transitioned from similar backgrounds."
-            )
-        }
-    },
-    "High dissatisfaction (Pulse)": {
-        "subproblems": {
-            "work_life_imbalance": "Work‑life imbalance or excessive workload",
-            "poor_manager_relationships": "Employees feel managers are unsupportive",
-            "limited_growth": "Limited growth or recognition opportunities"
-        },
-        "solutions": {
-            "work_life_imbalance": (
-                "- Offer **flexible scheduling** and **mental health** resources.\n"
-                "- Encourage **healthy boundaries** around work hours."
-            ),
-            "poor_manager_relationships": (
-                "- Train managers on **emotional intelligence** and communication.\n"
-                "- Collect **360‑degree feedback** to identify manager blind spots."
-            ),
-            "limited_growth": (
-                "- Implement **career development** paths and internal mobility.\n"
-                "- Recognize achievements publicly and **reward** top performers."
-            )
-        }
-    }
-}
+# ----------------------------------------------------
+# Helper for Retention Contribution
+# ----------------------------------------------------
+def compute_retention_contrib(R):
+    """
+    For a retention value R (in %):
+      - If R < 15: return +15.
+      - If R is between 15 and 70: use a cubic smooth-step function to transition from +15 to -15.
+      - If R > 70: return -15.
+    """
+    if R < 15:
+        return 15
+    elif R > 70:
+        return -15
+    else:
+        x = (R - 15) / 55.0
+        return 15 - 30 * (3 * x**2 - 2 * x**3)
 
+# ----------------------------------------------------
+# Modified compute_weighted_attrition with requested adjustments
+# ----------------------------------------------------
 def compute_weighted_attrition(employee, return_triggers=False):
     score = 0
     extreme_factors = 0
     triggers = []
     
-    if employee["Gender"] == "Female" and employee["Female Employee Ratio"] <= 15:
-        score += 30; extreme_factors += 1; triggers.append("Low gender diversity")
-    if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
-        score += 30; extreme_factors += 1; triggers.append("Stagnant promotions")
-    if employee["Last Performance Rating"] == 1:
-        score += 25; extreme_factors += 1; triggers.append("Very low performance rating")
-    elif employee["Last Performance Rating"] == 2:
-        score += 15; extreme_factors += 0.5; triggers.append("Low performance rating")
-    elif employee["Last Performance Rating"] == 5:
-        score -= 15; extreme_factors -= 0.5; triggers.append("Excellent performance rating")
-    if employee["Compa Ratio"] < 80:
-        score += 20; extreme_factors += 0.8; triggers.append("Low compensation competitiveness")
-    elif employee["Compa Ratio"] < 70:
-        score += 25; extreme_factors += 1; triggers.append("Low compensation competitiveness")
-    elif employee["Compa Ratio"] > 110:
-        score -= 15; extreme_factors -= 0.5; triggers.append("High compensation ratio")
-    if employee["College Tier Retention"] < 15:
-        score += 15; extreme_factors += 0.5; triggers.append("Low college tier retention")
-    if employee["Industry Retention"] < 15:
-        score += 15; extreme_factors += 0.5; triggers.append("Low industry retention")
-    if employee["Company Type Retention"] < 15:
-        score += 15; extreme_factors += 0.5; triggers.append("Low company type retention")
-    if employee["Pulse"] == "High":
-        score += 20; extreme_factors += 0.5; triggers.append("High dissatisfaction (Pulse)")
-    elif employee["Pulse"] == "Low":
-        score -= 20; extreme_factors -= 0.5; triggers.append("Low dissatisfaction (Pulse)")
+    # 1. Female Employee Ratio
+    if employee["Gender"] == "Female":
+        fr = employee["Female Employee Ratio"]
+        if fr <= 15:
+            contrib_female = 30
+        elif fr < 60:
+            contrib_female = 30 - ((fr - 15) / (60 - 15)) * 50
+        else:
+            contrib_female = -20
+        score += contrib_female
+        if fr <= 15:
+            extreme_factors += 1
+            triggers.append("Low gender diversity")
     
+    # 2. Promotion History (unchanged)
+    months_since = employee["Hasn't been promoted"]
+    min_cycle = employee["Minimum Promotion Cycle"]
+    if months_since >= 2 * min_cycle:
+        contrib_promotion = 30
+        score += contrib_promotion
+        extreme_factors += 1
+        triggers.append("Stagnant promotions")
+    
+    # 3. Performance Rating (unchanged)
+    r = employee["Last Performance Rating"]
+    contrib_rating = np.interp(r, [1, 2, 3, 4, 5], [25, 15, 0, 0, -15])
+    score += contrib_rating
+    if r == 1:
+        extreme_factors += 1
+        triggers.append("Very low performance rating")
+    elif r == 2:
+        extreme_factors += 0.5
+        triggers.append("Low performance rating")
+    elif r == 5:
+        score -= 15
+        extreme_factors -= 0.5
+        triggers.append("Excellent performance rating")
+    
+    # 4. Compa Ratio (unchanged)
+    compa = employee["Compa Ratio"]
+    if compa < 70:
+        contrib_compa = 25
+        extreme_factors += 1
+        triggers.append("Low compensation competitiveness")
+    elif compa < 80:
+        contrib_compa = 25 - 2.5 * (compa - 70)
+    elif compa <= 110:
+        contrib_compa = 0
+    else:
+        contrib_compa = -15 * (compa - 110) / 40
+        extreme_factors -= 0.5
+        triggers.append("High compensation ratio")
+    score += contrib_compa
+    
+    # 5. College Tier Retention
+    ctr = employee["College Tier Retention"]
+    contrib_ctr = compute_retention_contrib(ctr)
+    score += contrib_ctr
+    if ctr < 15:
+        extreme_factors += 0.5
+        triggers.append("Low college tier retention")
+    
+    # 6. Industry Retention
+    ir = employee["Industry Retention"]
+    contrib_ir = compute_retention_contrib(ir)
+    score += contrib_ir
+    if ir < 15:
+        extreme_factors += 0.5
+        triggers.append("Low industry retention")
+    
+    # 7. Company Type Retention
+    ctrt = employee["Company Type Retention"]
+    contrib_ctrt = compute_retention_contrib(ctrt)
+    score += contrib_ctrt
+    if ctrt < 15:
+        extreme_factors += 0.5
+        triggers.append("Low company type retention")
+    
+    # 8. Pulse (unchanged)
+    pulse = employee["Pulse"]
+    pulse_map = {"High": 20, "Medium": 0, "Low": -20}
+    contrib_pulse = pulse_map.get(pulse, 0)
+    score += contrib_pulse
+    if pulse == "High":
+        extreme_factors += 0.5
+        triggers.append("High dissatisfaction (Pulse)")
+    elif pulse == "Low":
+        extreme_factors -= 0.5
+        triggers.append("Low dissatisfaction (Pulse)")
+    
+    # 9. Apply Extremity Multipliers (unchanged)
     if extreme_factors == 2:
         score = min(100, score * 1.3)
     elif extreme_factors == 3:
@@ -544,66 +464,44 @@ with header_container:
 # ---------------------------------------
 if st.session_state.nav != "My Account":
     with st.sidebar:
-        # Radio button to choose between Train and Test mode.
-        mode = st.radio("Select Mode", ["Train Mode", "Test Mode"], index=0, key="main_mode")
-        # Disable global settings when in Test Mode.
+        mode = st.radio("Select Mode", ["Train Mode", "Test Mode"], index=0, key="main_mode", on_change=safe_rerun)
         disabled_flag = (mode == "Test Mode")
         st.markdown("### Global Settings for Bulk Analysis\n*These settings MUST be filled for bulk analysis*")
-        global_avg_age = st.slider(
-            "Average Employee Age in Company", 18, 100,
-            st.session_state.user.get("settings", {}).get("global_avg_age", 35),
-            key="global_avg_age", disabled=disabled_flag
-        )
-        global_female_ratio = st.slider(
-            "Women % in Organization", 0, 100,
-            st.session_state.user.get("settings", {}).get("global_female_ratio", 40),
-            key="global_female_ratio", disabled=disabled_flag
-        )
+        global_avg_age = st.slider("Average Employee Age in Company", 18, 100,
+                                   st.session_state.user.get("settings", {}).get("global_avg_age", 35),
+                                   key="global_avg_age", disabled=disabled_flag)
+        global_female_ratio = st.slider("Women % in Organization", 0, 100,
+                                        st.session_state.user.get("settings", {}).get("global_female_ratio", 40),
+                                        key="global_female_ratio", disabled=disabled_flag)
         with st.expander("College Tier Retention Settings", expanded=False):
-            bulk_tier1 = st.slider(
-                "Tier 1 Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_tier1", 60),
-                key="bulk_tier1", disabled=disabled_flag
-            )
-            bulk_tier2 = st.slider(
-                "Tier 2 Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_tier2", 50),
-                key="bulk_tier2", disabled=disabled_flag
-            )
-            bulk_tier3 = st.slider(
-                "Tier 3 Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_tier3", 40),
-                key="bulk_tier3", disabled=disabled_flag
-            )
+            bulk_tier1 = st.slider("Tier 1 Retention (%)", 10, 100,
+                                   st.session_state.user.get("settings", {}).get("bulk_tier1", 60),
+                                   key="bulk_tier1", disabled=disabled_flag)
+            bulk_tier2 = st.slider("Tier 2 Retention (%)", 10, 100,
+                                   st.session_state.user.get("settings", {}).get("bulk_tier2", 50),
+                                   key="bulk_tier2", disabled=disabled_flag)
+            bulk_tier3 = st.slider("Tier 3 Retention (%)", 10, 100,
+                                   st.session_state.user.get("settings", {}).get("bulk_tier3", 40),
+                                   key="bulk_tier3", disabled=disabled_flag)
         with st.expander("Industry Retention Settings", expanded=False):
             bulk_industry_retention = {}
             for ind in industry_options:
                 default_val = st.session_state.user.get("settings", {}).get("bulk_industry_retention", {}).get(ind, 60 if ind=="Tech" else 50)
-                bulk_industry_retention[ind] = st.slider(
-                    f"{ind} Retention (%)", 10, 100, default_val,
-                    key=f"bulk_ind_{ind}", disabled=disabled_flag
-                )
+                bulk_industry_retention[ind] = st.slider(f"{ind} Retention (%)", 10, 100, default_val,
+                                                         key=f"bulk_ind_{ind}", disabled=disabled_flag)
         with st.expander("Company Type Retention Settings", expanded=False):
-            bulk_startup = st.slider(
-                "Startup Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Startup", 60),
-                key="bulk_startup", disabled=disabled_flag
-            )
-            bulk_small = st.slider(
-                "Small Size Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Small Size", 55),
-                key="bulk_small", disabled=disabled_flag
-            )
-            bulk_mid = st.slider(
-                "Mid Size Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Mid Size", 50),
-                key="bulk_mid", disabled=disabled_flag
-            )
-            bulk_mnc = st.slider(
-                "MNC/Giant Company Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("MNC/Giant Company", 45),
-                key="bulk_mnc", disabled=disabled_flag
-            )
+            bulk_startup = st.slider("Startup Retention (%)", 10, 100,
+                                     st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Startup", 60),
+                                     key="bulk_startup", disabled=disabled_flag)
+            bulk_small = st.slider("Small Size Retention (%)", 10, 100,
+                                   st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Small Size", 55),
+                                   key="bulk_small", disabled=disabled_flag)
+            bulk_mid = st.slider("Mid Size Retention (%)", 10, 100,
+                                 st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Mid Size", 50),
+                                 key="bulk_mid", disabled=disabled_flag)
+            bulk_mnc = st.slider("MNC/Giant Company Retention (%)", 10, 100,
+                                 st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("MNC/Giant Company", 45),
+                                 key="bulk_mnc", disabled=disabled_flag)
 
 # ---------------------------------------
 # Main Navigation
@@ -634,7 +532,6 @@ if st.session_state.nav == "My Account":
     if st.button("Back to Main"):
         st.session_state.nav = "Tabs"
 else:
-    # Render the UI based on the mode selected in the sidebar.
     if st.session_state.get("main_mode", "Train Mode") == "Train Mode":
         st.header("Train Mode")
         selected_train_industry = st.selectbox("Select Your Industry", industry_options, key="train_industry")
@@ -673,7 +570,7 @@ else:
                 if uploaded_train.name.endswith(".csv"):
                     train_df = pd.read_csv(uploaded_train)
                 else:
-                    train_df = pd.read_excel(uploaded_train)
+                    train_df = pd.read_excel(uploaded_train, engine="openpyxl")
                 st.write("### Preview of Uploaded Training Data")
                 st.dataframe(train_df.head())
             except Exception as e:
@@ -723,7 +620,7 @@ else:
                 st.session_state.triggers = []
             if "employee_data" not in st.session_state:
                 st.session_state.employee_data = {}
-        
+            
             st.write("### Enter Employee / Company Details")
             with st.form("attrition_form"):
                 input_data = {
@@ -749,7 +646,7 @@ else:
                     st.session_state.prediction_made = True
                     st.session_state.employee_data = input_data
                     save_user_event(st.session_state.user["email"], "test_single", {"input_data": input_data, "result": final_score})
-        
+            
             if st.session_state.prediction_made:
                 score = st.session_state.score
                 triggers = st.session_state.triggers
@@ -766,17 +663,14 @@ else:
                     else:
                         bg_color = "#28a745"
                         msg_html = f"✅ SAFE! Low Attrition Risk <br> {score:.2f}% 🌱"
-                    st.markdown(
-                        f"""
+                    st.markdown(f"""
                         <div style="background-color:{bg_color}; color:white; padding:15px; border-radius:10px; 
                                     text-align:center; font-size:24px; font-weight:bold;">
                             {msg_html}
                         </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
+                        """, unsafe_allow_html=True)
                     st.markdown(f"**Model Confidence:** {ml_confidence:.2f}%")
-        
+            
                 col_left, col_right = st.columns(2)
                 with col_left:
                     st.write("### Key Contributing Factors")
@@ -787,7 +681,7 @@ else:
                             st.markdown(f"- **{t}**")
                     if not negative_triggers:
                         st.markdown("*No major negative triggers identified.*")
-        
+            
                     st.write("### Sub-Problems Selection")
                     sub_problem_selections = {}
                     for trig in negative_triggers:
@@ -802,7 +696,7 @@ else:
                             if new_val:
                                 chosen_list.append(sub_key)
                         sub_problem_selections[trig] = chosen_list
-        
+            
                     if st.button("💡 Show Solutions"):
                         st.write("### Recommended Solutions")
                         any_chosen = False
@@ -817,26 +711,16 @@ else:
                                     st.markdown(f"{solution_text}")
                         if not any_chosen:
                             st.info("No sub-problems selected, so no solutions to display.")
-        
+            
                 with col_right:
                     st.write("### What-If Scenario Planning")
                     scenario_data = dict(st.session_state.employee_data)
-                    scenario_data["Compa Ratio"] = st.slider(
-                        "Compa Ratio (%) [Scenario]",
-                        50, 150, scenario_data["Compa Ratio"],
-                        help="Adjust to see how risk changes if compensation changes."
-                    )
-                    scenario_data["Last Performance Rating"] = st.slider(
-                        "Last Performance Rating [Scenario]",
-                        1, 5, scenario_data["Last Performance Rating"],
-                        help="What if performance improves (higher rating) or worsens?"
-                    )
-                    scenario_data["Pulse"] = st.radio(
-                        "Pulse (Employee dissatisfaction) [Scenario]",
-                        ["High", "Medium", "Low"],
-                        index=["High", "Medium", "Low"].index(scenario_data["Pulse"]),
-                        horizontal=True
-                    )
+                    scenario_data["Compa Ratio"] = st.slider("Compa Ratio (%) [Scenario]", 50, 150, scenario_data["Compa Ratio"],
+                                                             help="Adjust to see how risk changes if compensation changes.")
+                    scenario_data["Last Performance Rating"] = st.slider("Last Performance Rating [Scenario]", 1, 5, scenario_data["Last Performance Rating"],
+                                                                        help="What if performance improves (higher rating) or worsens?")
+                    scenario_data["Pulse"] = st.radio("Pulse (Employee dissatisfaction) [Scenario]", ["High", "Medium", "Low"],
+                                                      index=["High", "Medium", "Low"].index(scenario_data["Pulse"]), horizontal=True)
                     scenario_score, scenario_triggers, _ = predict_attrition(scenario_data, selected_test_industry)
                     st.write(f"**Scenario Attrition Risk:** {scenario_score:.2f}%")
                     diff = scenario_score - score
@@ -857,23 +741,25 @@ else:
         elif test_mode_option == "Bulk Employees":
             st.header("Bulk Employee Attrition Prediction")
             st.markdown("""
-            **Instructions:**
-            
-            Upload a CSV or Excel file with the following columns:
-             - **Name**
-             - **Employee Age**
-             - **Gender**
-             - **Tenure (Months)**
-             - **Pulse**
-             - **Hasn't been promoted**
-             - **Minimum Promotion Cycle**
-             - **College Tier** *(e.g., "Tier 1", "Tier 2", "Tier 3")*
-             - **Industry** *(e.g., "Tech", "Finance", etc.)*
-             - **Company Type** *(e.g., "Startup", "Small Size", "Mid Size", "MNC/Giant Company")*
-             - **Last Performance Rating**
-             - **Compa Ratio**
-             
-             *Note: The global settings defined in Train Mode (for Average Employee Age, Women % etc.) will be applied automatically to all bulk data.*
+**Instructions for Bulk Testing:**
+
+- Ensure that you have trained a model in Train Mode.
+- The industry selection below is pre‑set to your training industry.
+- Upload a CSV or Excel file with the following columns:
+    - **Name**
+    - **Employee Age**
+    - **Gender**
+    - **Tenure (Months)**
+    - **Pulse**
+    - **Hasn't been promoted**
+    - **Minimum Promotion Cycle**
+    - **College Tier** *(e.g., "Tier 1", "Tier 2", "Tier 3")*
+    - **Industry** *(e.g., "Tech", "Finance", etc.)*
+    - **Company Type** *(e.g., "Startup", "Small Size", "Mid Size", "MNC/Giant Company")*
+    - **Last Performance Rating**
+    - **Compa Ratio**
+    
+*Note: The global settings defined in Train Mode (for Average Employee Age, Women % etc.) will be applied automatically to all bulk data.*
             """)
             global_avg_age = st.session_state.get("global_avg_age", 35)
             global_female_ratio = st.session_state.get("global_female_ratio", 40)
@@ -888,7 +774,10 @@ else:
             uploaded_file = st.file_uploader("Upload Bulk Data (CSV or Excel)", type=["csv", "xlsx"], key="bulk_file")
             if uploaded_file is not None:
                 try:
-                    df_bulk = pd.read_csv(uploaded_file) if uploaded_file.name.endswith(".csv") else pd.read_excel(uploaded_file)
+                    if uploaded_file.name.endswith(".csv"):
+                        df_bulk = pd.read_csv(uploaded_file)
+                    else:
+                        df_bulk = pd.read_excel(uploaded_file, engine="openpyxl")
                 except Exception as e:
                     st.error(f"❌ Error reading the file: {e}")
                     st.stop()
