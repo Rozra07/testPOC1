@@ -17,21 +17,6 @@ def safe_rerun():
         st.experimental_rerun()
     else:
         st.warning("Refresh functionality is not available. Please update Streamlit (>=0.65.0).")
- # ---------------------------------------
- #hidecode 
- # ---------------------------------------
-st.markdown(
-    """
-    <style>
-    .css-1jc7ptx, .e1ewe7hr3, .viewerBadge_container__1QSob,
-    .styles_viewerBadge__1yB5_, .viewerBadge_link__1S137,
-    .viewerBadge_text__1JaDK {
-        display: none;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
 # ----------------------------------------------------
 # Initialize st.session_state keys if not already set
 # ----------------------------------------------------
