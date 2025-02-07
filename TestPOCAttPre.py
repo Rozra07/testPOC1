@@ -380,7 +380,6 @@ TRIGGER_DETAILS = {
 # Mapping for What-If Scenario inputs
 # For each negative trigger, we define the associated parameter,
 # input type, range/options, and a default value.
-# (Adjust the defaults as needed.)
 trigger_param_map = {
     "Low gender diversity": {"param": "Female Employee Ratio", "type": "slider", "min": 0, "max": 100, "default": 40},
     "Stagnant promotions": {"param": "Hasn't been promoted", "type": "number", "min": 0, "max": 60, "default": 12},
@@ -836,13 +835,15 @@ else:
                 
                 if st.session_state.bulk_prediction_complete:
                     df_bulk = st.session_state.bulk_result
-                    # Divide screen into two columns: Left for pie chart & risk distribution; right for drill-down details.
-                    left_col, right_col = st.columns(2)
+                    # --- Layout: Two columns ---
+                    # Left Column: Bulk results, risk distribution, and drill down details.
+                    # Right Column: What-If Analysis toggle and scenario creation.
+                    left_col, right_col = st.columns([2,1])
                     
                     with left_col:
                         st.success("✅ Bulk Prediction Completed!")
                         st.dataframe(df_bulk)
-                        # Risk Distribution Chart
+                        # Risk Distribution Chart for default predictions
                         high_risk = (df_bulk["Attrition Score"] >= 75).sum()
                         mod_high = ((df_bulk["Attrition Score"] >= 60) & (df_bulk["Attrition Score"] < 75)).sum()
                         moderate = ((df_bulk["Attrition Score"] >= 35) & (df_bulk["Attrition Score"] < 60)).sum()
@@ -853,30 +854,7 @@ else:
                         })
                         st.write("Risk Distribution")
                         st.bar_chart(risk_df.set_index("Risk Category"))
-                        # Pie Chart and Legend arranged side-by-side:
-                        trig_series = compute_trigger_counts(df_bulk, "Negative Triggers")
-                        if not trig_series.empty:
-                            pie_data = pd.DataFrame({"Trigger": trig_series.index, "Count": trig_series.values})
-                            pie_data["Percentage"] = (pie_data["Count"] / pie_data["Count"].sum() * 100).round(1)
-                            pie_chart = alt.Chart(pie_data).mark_arc(innerRadius=50).encode(
-                                theta=alt.Theta(field="Count", type="quantitative"),
-                                color=alt.Color(field="Trigger", type="nominal",
-                                                scale=alt.Scale(range=["#FFD700", "#FF8C00", "#00CED1", "#ADFF2F", "#FF69B4", "#7B68EE", "#FFB6C1"]),
-                                                legend=None)
-                            ).properties(width=300, height=300)
-                            # Build legend dataframe
-                            legend_df = pie_data[["Trigger", "Percentage"]].sort_values(by="Percentage", ascending=False)
-                            color_scale = ["#FFD700", "#FF8C00", "#00CED1", "#ADFF2F", "#FF69B4", "#7B68EE", "#FFB6C1"]
-                            legend_df["Color"] = color_scale[:len(legend_df)]
-                            
-                            pie_col, legend_col = st.columns([2,1])
-                            with pie_col:
-                                st.altair_chart(pie_chart, use_container_width=True)
-                            with legend_col:
-                                st.write("Legends")
-                                st.table(legend_df)
-                    
-                    with right_col:
+                        # Drill Down Section
                         st.write("### Drill Down into Individual Employee Details")
                         employee_names = df_bulk["Name"].tolist()
                         sel_employee = st.selectbox("Select an Employee (by Name)", employee_names, key="drilldown")
@@ -884,62 +862,85 @@ else:
                             selected_row = df_bulk[df_bulk["Name"] == sel_employee]
                             st.dataframe(selected_row)
                     
-                    # ---------------------------
-                    # New What-If Scenario Section
-                    # ---------------------------
-                    st.markdown("## New What-If Scenario")
-                    if st.button("Create New Scenario"):
-                        st.session_state.show_scenario_form = True
-                    if st.session_state.show_scenario_form:
-                        # Compute top 4 negative triggers from bulk results (by frequency)
-                        trigger_counts = compute_trigger_counts(df_bulk, "Negative Triggers")
-                        top_triggers = list(trigger_counts.index[:4])
-                        st.write("Top Negative Triggers from Bulk Prediction:")
-                        st.write(top_triggers)
-                        scenario_inputs = {}
-                        # Arrange inputs in two columns per row:
-                        cols = st.columns(2)
-                        for i, trigger in enumerate(top_triggers):
-                            mapping = trigger_param_map.get(trigger, None)
-                            if mapping is not None:
-                                col = cols[i % 2]
-                                label = f"{trigger} ({mapping['param']})"
-                                if mapping["type"] == "slider":
-                                    scenario_inputs[mapping["param"]] = col.slider(label, min_value=mapping["min"], max_value=mapping["max"], value=mapping["default"], key=f"scenario_{trigger}")
-                                elif mapping["type"] == "number":
-                                    scenario_inputs[mapping["param"]] = col.number_input(label, min_value=mapping["min"], max_value=mapping["max"], value=mapping["default"], key=f"scenario_{trigger}")
-                                elif mapping["type"] == "selectbox":
-                                    scenario_inputs[mapping["param"]] = col.selectbox(label, options=mapping["options"], index=mapping["options"].index(mapping["default"]), key=f"scenario_{trigger}")
-                        if st.button("Apply Scenario"):
-                            new_scores = []
-                            for idx, row in df_bulk.iterrows():
-                                new_row = row.copy()
-                                for key in ["Attrition Score", "Negative Triggers"]:
-                                    new_row.pop(key, None)
-                                # Override with scenario inputs
-                                for param, value in scenario_inputs.items():
-                                    new_row[param] = value
-                                # Ensure numeric fields are floats
-                                numeric_keys = ["Female Employee Ratio", "Hasn't been promoted", "Minimum Promotion Cycle", "Last Performance Rating", "Compa Ratio", "College Tier Retention", "Industry Retention", "Company Type Retention"]
-                                for key in numeric_keys:
-                                    if key in new_row:
+                    with right_col:
+                        st.write("## What-If Analysis")
+                        # Toggle for enabling what-if analysis
+                        enable_what_if = st.checkbox("Enable What-If Analysis", key="enable_what_if")
+                        if enable_what_if:
+                            if "scenario_counter" not in st.session_state:
+                                st.session_state.scenario_counter = 1
+                            if "scenario_form_active" not in st.session_state:
+                                st.session_state.scenario_form_active = False
+                            if not st.session_state.scenario_form_active:
+                                if st.button("Create New Scenario"):
+                                    st.session_state.scenario_form_active = True
+                            if st.session_state.scenario_form_active:
+                                st.write("### Scenario Editor")
+                                default_scenario_name = f"Scenario {st.session_state.scenario_counter}"
+                                scenario_name = st.text_input("Scenario Name", value=default_scenario_name, key="scenario_name")
+                                # Compute top 4 negative triggers from the bulk results
+                                trigger_counts = compute_trigger_counts(df_bulk, "Negative Triggers")
+                                top_triggers = list(trigger_counts.index[:4])
+                                st.write("Top Negative Triggers from Bulk Prediction:", top_triggers)
+                                scenario_inputs = {}
+                                for trigger in top_triggers:
+                                    mapping = trigger_param_map.get(trigger, None)
+                                    if mapping is not None:
+                                        label = f"{trigger} ({mapping['param']})"
+                                        if mapping["type"] == "slider":
+                                            scenario_inputs[mapping["param"]] = st.slider(label, min_value=mapping["min"], max_value=mapping["max"], value=mapping["default"], key=f"scenario_{trigger}")
+                                        elif mapping["type"] == "number":
+                                            scenario_inputs[mapping["param"]] = st.number_input(label, min_value=mapping["min"], max_value=mapping["max"], value=mapping["default"], key=f"scenario_{trigger}")
+                                        elif mapping["type"] == "selectbox":
+                                            scenario_inputs[mapping["param"]] = st.selectbox(label, options=mapping["options"], index=mapping["options"].index(mapping["default"]), key=f"scenario_{trigger}")
+                                if st.button("Apply Scenario"):
+                                    new_scores = []
+                                    for idx, row in df_bulk.iterrows():
+                                        new_row = row.copy()
+                                        # Remove previous prediction columns if they exist
+                                        new_row.pop("Attrition Score", None)
+                                        new_row.pop("Negative Triggers", None)
+                                        # Override with scenario inputs
+                                        for param, value in scenario_inputs.items():
+                                            new_row[param] = value
+                                        # Ensure numeric fields are converted properly
+                                        numeric_keys = ["Female Employee Ratio", "Hasn't been promoted", "Minimum Promotion Cycle", "Last Performance Rating", "Compa Ratio", "College Tier Retention", "Industry Retention", "Company Type Retention"]
+                                        for key in numeric_keys:
+                                            if key in new_row:
+                                                try:
+                                                    new_row[key] = float(new_row[key])
+                                                except:
+                                                    pass
                                         try:
-                                            new_row[key] = float(new_row[key])
-                                        except:
-                                            pass
-                                new_score, new_trigs, _ = predict_attrition(new_row, selected_test_industry)
-                                new_scores.append(new_score)
-                            df_bulk["What-If Attrition Score"] = new_scores
-                            st.success("Scenario applied. New predictions computed.")
-                            st.dataframe(df_bulk)
-                            high_risk_w = (df_bulk["What-If Attrition Score"] >= 75).sum()
-                            mod_high_w = ((df_bulk["What-If Attrition Score"] >= 60) & (df_bulk["What-If Attrition Score"] < 75)).sum()
-                            moderate_w = ((df_bulk["What-If Attrition Score"] >= 35) & (df_bulk["What-If Attrition Score"] < 60)).sum()
-                            low_w = (df_bulk["What-If Attrition Score"] < 35).sum()
-                            risk_df_w = pd.DataFrame({
-                                "Risk Category": ["High (>=75)", "Mod-High (60-74)", "Moderate (35-59)", "Low (<35)"],
-                                "Count": [high_risk_w, mod_high_w, moderate_w, low_w]
-                            })
-                            st.bar_chart(risk_df_w.set_index("Risk Category"))
+                                            new_score, new_trigs, _ = predict_attrition(new_row, selected_test_industry)
+                                        except Exception as e:
+                                            st.error(f"Error in prediction for row {idx}: {e}")
+                                            new_score = None
+                                        new_scores.append(new_score)
+                                    df_bulk["What-If Attrition Score"] = new_scores
+                                    st.success("Scenario applied. New predictions computed.")
+                                    st.dataframe(df_bulk)
+                                    # What-If Risk Distribution Chart
+                                    high_risk_w = (df_bulk["What-If Attrition Score"] >= 75).sum()
+                                    mod_high_w = ((df_bulk["What-If Attrition Score"] >= 60) & (df_bulk["What-If Attrition Score"] < 75)).sum()
+                                    moderate_w = ((df_bulk["What-If Attrition Score"] >= 35) & (df_bulk["What-If Attrition Score"] < 60)).sum()
+                                    low_w = (df_bulk["What-If Attrition Score"] < 35).sum()
+                                    risk_df_w = pd.DataFrame({
+                                        "Risk Category": ["High (>=75)", "Mod-High (60-74)", "Moderate (35-59)", "Low (<35)"],
+                                        "Count": [high_risk_w, mod_high_w, moderate_w, low_w]
+                                    })
+                                    st.write("What-If Risk Distribution")
+                                    st.bar_chart(risk_df_w.set_index("Risk Category"))
+                                    # Save scenario details in user's history
+                                    scenario_details = {
+                                        "scenario_name": scenario_name,
+                                        "scenario_inputs": scenario_inputs,
+                                        "applied_on": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                        "num_employees": len(df_bulk)
+                                    }
+                                    save_user_event(st.session_state.user["email"], "what_if_scenario", scenario_details)
+                                    st.session_state.scenario_counter += 1
+                                    st.session_state.scenario_form_active = False
+                                    st.session_state.bulk_result = df_bulk
         else:
             st.info("Please upload a bulk data file to begin analysis.")
