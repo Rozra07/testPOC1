@@ -38,6 +38,8 @@ if "bulk_result" not in st.session_state:
     st.session_state.bulk_result = None
 if "show_scenario_form" not in st.session_state:
     st.session_state.show_scenario_form = False
+if "saved_scenarios" not in st.session_state:
+    st.session_state.saved_scenarios = []
 
 # ----------------------------------------------------
 # Helper functions for user storage
@@ -789,7 +791,7 @@ else:
             if missing:
                 st.error(f"❌ Missing columns: {missing}")
             else:
-                btn_cols = st.columns([1,1])
+                btn_cols = st.columns(2)
                 with btn_cols[0]:
                     if st.button("🚀 Run Bulk Prediction"):
                         scores = []
@@ -834,20 +836,18 @@ else:
                     st.info("After bulk prediction, review the results below.")
                 
                 if st.session_state.bulk_prediction_complete:
-                    df_bulk = st.session_state.bulk_result
-                    # --- Layout: Two columns ---
-                    # Left Column: Bulk results, risk distribution, and drill down details.
-                    # Right Column: What-If Analysis toggle and scenario creation.
-                    left_col, right_col = st.columns([2,1])
+                    # Create two equal-width columns
+                    left_col, right_col = st.columns(2)
                     
                     with left_col:
                         st.success("✅ Bulk Prediction Completed!")
-                        st.dataframe(df_bulk)
+                        st.dataframe(st.session_state.bulk_result)
                         # Risk Distribution Chart for default predictions
-                        high_risk = (df_bulk["Attrition Score"] >= 75).sum()
-                        mod_high = ((df_bulk["Attrition Score"] >= 60) & (df_bulk["Attrition Score"] < 75)).sum()
-                        moderate = ((df_bulk["Attrition Score"] >= 35) & (df_bulk["Attrition Score"] < 60)).sum()
-                        low = (df_bulk["Attrition Score"] < 35).sum()
+                        df_display = st.session_state.bulk_result.copy()
+                        high_risk = (df_display["Attrition Score"] >= 75).sum()
+                        mod_high = ((df_display["Attrition Score"] >= 60) & (df_display["Attrition Score"] < 75)).sum()
+                        moderate = ((df_display["Attrition Score"] >= 35) & (df_display["Attrition Score"] < 60)).sum()
+                        low = (df_display["Attrition Score"] < 35).sum()
                         risk_df = pd.DataFrame({
                             "Risk Category": ["High (>=75)", "Mod-High (60-74)", "Moderate (35-59)", "Low (<35)"],
                             "Count": [high_risk, mod_high, moderate, low]
@@ -856,91 +856,88 @@ else:
                         st.bar_chart(risk_df.set_index("Risk Category"))
                         # Drill Down Section
                         st.write("### Drill Down into Individual Employee Details")
-                        employee_names = df_bulk["Name"].tolist()
+                        employee_names = df_display["Name"].tolist()
                         sel_employee = st.selectbox("Select an Employee (by Name)", employee_names, key="drilldown")
                         if sel_employee:
-                            selected_row = df_bulk[df_bulk["Name"] == sel_employee]
+                            selected_row = df_display[df_display["Name"] == sel_employee]
                             st.dataframe(selected_row)
                     
                     with right_col:
                         st.write("## What-If Analysis")
-                        # Toggle for enabling what-if analysis
                         enable_what_if = st.checkbox("Enable What-If Analysis", key="enable_what_if")
+                        
+                        # If the user enables what-if analysis, show the scenario editor.
                         if enable_what_if:
-                            if "scenario_counter" not in st.session_state:
-                                st.session_state.scenario_counter = 1
-                            if "scenario_form_active" not in st.session_state:
-                                st.session_state.scenario_form_active = False
-                            if not st.session_state.scenario_form_active:
+                            if not st.session_state.get("scenario_form_active", False):
                                 if st.button("Create New Scenario"):
                                     st.session_state.scenario_form_active = True
-                            if st.session_state.scenario_form_active:
+                            if st.session_state.get("scenario_form_active", False):
                                 st.write("### Scenario Editor")
-                                default_scenario_name = f"Scenario {st.session_state.scenario_counter}"
+                                default_scenario_name = f"Scenario {len(st.session_state.saved_scenarios)+1}"
                                 scenario_name = st.text_input("Scenario Name", value=default_scenario_name, key="scenario_name")
+                                
                                 # Compute top 4 negative triggers from the bulk results
-                                trigger_counts = compute_trigger_counts(df_bulk, "Negative Triggers")
+                                trigger_counts = compute_trigger_counts(st.session_state.bulk_result, "Negative Triggers")
                                 top_triggers = list(trigger_counts.index[:4])
                                 st.write("Top Negative Triggers from Bulk Prediction:", top_triggers)
+                                
+                                # Arrange the parameter inputs in two columns
                                 scenario_inputs = {}
+                                cols = st.columns(2)
+                                i = 0
                                 for trigger in top_triggers:
                                     mapping = trigger_param_map.get(trigger, None)
                                     if mapping is not None:
+                                        col = cols[i % 2]
                                         label = f"{trigger} ({mapping['param']})"
                                         if mapping["type"] == "slider":
-                                            scenario_inputs[mapping["param"]] = st.slider(label, min_value=mapping["min"], max_value=mapping["max"], value=mapping["default"], key=f"scenario_{trigger}")
+                                            scenario_inputs[mapping["param"]] = col.slider(label, min_value=mapping["min"], max_value=mapping["max"], value=mapping["default"], key=f"scenario_{trigger}")
                                         elif mapping["type"] == "number":
-                                            scenario_inputs[mapping["param"]] = st.number_input(label, min_value=mapping["min"], max_value=mapping["max"], value=mapping["default"], key=f"scenario_{trigger}")
+                                            scenario_inputs[mapping["param"]] = col.number_input(label, min_value=mapping["min"], max_value=mapping["max"], value=mapping["default"], key=f"scenario_{trigger}")
                                         elif mapping["type"] == "selectbox":
-                                            scenario_inputs[mapping["param"]] = st.selectbox(label, options=mapping["options"], index=mapping["options"].index(mapping["default"]), key=f"scenario_{trigger}")
+                                            scenario_inputs[mapping["param"]] = col.selectbox(label, options=mapping["options"], index=mapping["options"].index(mapping["default"]), key=f"scenario_{trigger}")
+                                        i += 1
+                                
+                                # Live update: compute scenario result from the current slider values.
+                                live_df = st.session_state.bulk_result.copy()
+                                new_scores = []
+                                for idx, row in live_df.iterrows():
+                                    row_dict = row.to_dict()  # convert to dict so pop(key, default) works
+                                    row_dict.pop("Attrition Score", None)
+                                    row_dict.pop("Negative Triggers", None)
+                                    for param, value in scenario_inputs.items():
+                                        row_dict[param] = value
+                                    try:
+                                        new_score, new_trigs, _ = predict_attrition(row_dict, selected_test_industry)
+                                    except Exception as e:
+                                        new_score = None
+                                    new_scores.append(new_score)
+                                live_df["What-If Attrition Score"] = new_scores
+                                st.write("### Live Scenario Result")
+                                st.dataframe(live_df)
+                                
                                 if st.button("Apply Scenario"):
-                                    new_scores = []
-                                    for idx, row in df_bulk.iterrows():
-                                        new_row = row.copy()
-                                        # Remove previous prediction columns if they exist
-                                        new_row.pop("Attrition Score", None)
-                                        new_row.pop("Negative Triggers", None)
-                                        # Override with scenario inputs
-                                        for param, value in scenario_inputs.items():
-                                            new_row[param] = value
-                                        # Ensure numeric fields are converted properly
-                                        numeric_keys = ["Female Employee Ratio", "Hasn't been promoted", "Minimum Promotion Cycle", "Last Performance Rating", "Compa Ratio", "College Tier Retention", "Industry Retention", "Company Type Retention"]
-                                        for key in numeric_keys:
-                                            if key in new_row:
-                                                try:
-                                                    new_row[key] = float(new_row[key])
-                                                except:
-                                                    pass
-                                        try:
-                                            new_score, new_trigs, _ = predict_attrition(new_row, selected_test_industry)
-                                        except Exception as e:
-                                            st.error(f"Error in prediction for row {idx}: {e}")
-                                            new_score = None
-                                        new_scores.append(new_score)
-                                    df_bulk["What-If Attrition Score"] = new_scores
-                                    st.success("Scenario applied. New predictions computed.")
-                                    st.dataframe(df_bulk)
-                                    # What-If Risk Distribution Chart
-                                    high_risk_w = (df_bulk["What-If Attrition Score"] >= 75).sum()
-                                    mod_high_w = ((df_bulk["What-If Attrition Score"] >= 60) & (df_bulk["What-If Attrition Score"] < 75)).sum()
-                                    moderate_w = ((df_bulk["What-If Attrition Score"] >= 35) & (df_bulk["What-If Attrition Score"] < 60)).sum()
-                                    low_w = (df_bulk["What-If Attrition Score"] < 35).sum()
-                                    risk_df_w = pd.DataFrame({
-                                        "Risk Category": ["High (>=75)", "Mod-High (60-74)", "Moderate (35-59)", "Low (<35)"],
-                                        "Count": [high_risk_w, mod_high_w, moderate_w, low_w]
-                                    })
-                                    st.write("What-If Risk Distribution")
-                                    st.bar_chart(risk_df_w.set_index("Risk Category"))
-                                    # Save scenario details in user's history
                                     scenario_details = {
                                         "scenario_name": scenario_name,
                                         "scenario_inputs": scenario_inputs,
                                         "applied_on": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                                        "num_employees": len(df_bulk)
+                                        "num_employees": len(live_df),
+                                        "result_df": live_df.to_dict()  # save as a dictionary
                                     }
+                                    st.session_state.saved_scenarios.append(scenario_details)
                                     save_user_event(st.session_state.user["email"], "what_if_scenario", scenario_details)
-                                    st.session_state.scenario_counter += 1
+                                    st.success(f"Scenario '{scenario_name}' saved.")
                                     st.session_state.scenario_form_active = False
-                                    st.session_state.bulk_result = df_bulk
+                            
+                            # Dropdown for saved scenarios
+                            if st.session_state.saved_scenarios:
+                                scenario_names = [s["scenario_name"] for s in st.session_state.saved_scenarios]
+                                selected_saved = st.selectbox("Select Saved Scenario", scenario_names, key="saved_scenario_select")
+                                for s in st.session_state.saved_scenarios:
+                                    if s["scenario_name"] == selected_saved:
+                                        saved_df = pd.DataFrame(s["result_df"])
+                                        st.write(f"### Result for {selected_saved}")
+                                        st.dataframe(saved_df)
+                                        break
         else:
             st.info("Please upload a bulk data file to begin analysis.")
