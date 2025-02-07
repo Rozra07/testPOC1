@@ -9,6 +9,7 @@ from datetime import datetime
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 import altair as alt
+import streamlit.components.v1 as components  # For rendering raw HTML
 
 # Set page configuration to wide (full screen)
 st.set_page_config(layout="wide")
@@ -853,7 +854,7 @@ else:
                             st.write("### Overall Negative Triggers (Pie Chart)")
                             st.altair_chart(pie_chart, use_container_width=True)
                             
-                            # Modified Legend: Display a colored box for each trigger
+                            # Modified Legend: Render the legend HTML using components.html
                             legend_df = pie_data[["Trigger", "Percentage"]].sort_values(by="Percentage", ascending=False)
                             color_scale = ["#AEC6CF", "#FFD1DC", "#C3B1E1", "#FDFD96", "#77DD77", "#B19CD9", "#FFB347"]
                             legend_df["Color"] = color_scale[:len(legend_df)]
@@ -879,7 +880,7 @@ else:
                             html_legend += "</table>"
                             
                             st.markdown("### Pie Chart Legend")
-                            st.markdown(html_legend, unsafe_allow_html=True)
+                            components.html(html_legend, height=150)
                             
                             st.write("### Drill Down into Individual Employee Details")
                             st.markdown("""
@@ -963,6 +964,15 @@ else:
                                 new_row["Industry Retention"] = whatif_params.get("industry_retention", new_row.get("Industry Retention"))
                                 new_row["Company Type Retention"] = whatif_params.get("company_retention", new_row.get("Company Type Retention"))
                                 new_row["Pulse"] = whatif_params.get("pulse", new_row.get("Pulse"))
+                                
+                                # Convert expected numeric fields to float
+                                numeric_keys = ["Hasn't been promoted", "Minimum Promotion Cycle", "Last Performance Rating", "Compa Ratio", "College Tier Retention", "Industry Retention", "Company Type Retention"]
+                                for key in numeric_keys:
+                                    try:
+                                        new_row[key] = float(new_row[key])
+                                    except Exception:
+                                        pass
+                                
                                 try:
                                     new_score, new_trigs, _ = predict_attrition(new_row, selected_test_industry)
                                 except Exception as e:
