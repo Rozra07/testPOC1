@@ -8,6 +8,8 @@ import json
 from datetime import datetime
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
+import altair as alt
+from fpdf import FPDF
 
 # ---------------------------------------
 # Helper function for safe rerun
@@ -373,7 +375,7 @@ TRIGGER_DETAILS = {
 
 # ----------------------------------------------------
 # Rule-based attrition computation
-# Now reintroducing the "Hasn't been promoted" and "Minimum Promotion Cycle" factors.
+# Reintroducing the "Hasn't been promoted" and "Minimum Promotion Cycle" factors.
 # ----------------------------------------------------
 def compute_weighted_attrition(employee, return_triggers=False):
     score = 0
@@ -382,7 +384,6 @@ def compute_weighted_attrition(employee, return_triggers=False):
     
     if employee["Gender"] == "Female" and employee["Female Employee Ratio"] <= 15:
         score += 30; extreme_factors += 1; triggers.append("Low gender diversity")
-    # Reintroduce the stagnant promotions factor:
     if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
         score += 30; extreme_factors += 1; triggers.append("Stagnant promotions")
     if employee["Last Performance Rating"] == 1:
@@ -474,6 +475,51 @@ def generate_dummy_training_file():
     csv_buffer = io.StringIO()
     dummy_df.to_csv(csv_buffer, index=False)
     return csv_buffer.getvalue()
+
+# ----------------------------------------------------
+# Function to compute trigger counts from a column with comma-separated triggers
+# ----------------------------------------------------
+def compute_trigger_counts(df, column_name):
+    triggers_list = []
+    for val in df[column_name].dropna():
+        if val.strip() != "" and val != "None":
+            triggers_list.extend([x.strip() for x in val.split(",") if x.strip()])
+    if triggers_list:
+        return pd.Series(triggers_list).value_counts()
+    else:
+        return pd.Series(dtype=int)
+
+# ----------------------------------------------------
+# Function to generate a PDF report of the analysis using FPDF
+# ----------------------------------------------------
+def generate_pdf_report(df, risk_df, trig_series, selected_trigger):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 16)
+    pdf.cell(0, 10, "Employee Attrition Analysis Report", ln=True, align="C")
+    pdf.set_font("Arial", size=12)
+    pdf.ln(10)
+    pdf.cell(0, 10, f"Total Employees: {len(df)}", ln=True)
+    # Extract risk numbers from risk_df
+    high = risk_df[risk_df["Risk Category"]=="High (>=75)"]["Count"].values[0] if not risk_df[risk_df["Risk Category"]=="High (>=75)"].empty else 0
+    mod_high = risk_df[risk_df["Risk Category"]=="Mod-High (60-74)"]["Count"].values[0] if not risk_df[risk_df["Risk Category"]=="Mod-High (60-74)"].empty else 0
+    moderate = risk_df[risk_df["Risk Category"]=="Moderate (35-59)"]["Count"].values[0] if not risk_df[risk_df["Risk Category"]=="Moderate (35-59)"].empty else 0
+    low = risk_df[risk_df["Risk Category"]=="Low (<35)"]["Count"].values[0] if not risk_df[risk_df["Risk Category"]=="Low (<35)"].empty else 0
+    pdf.cell(0, 10, f"High Risk: {high}", ln=True)
+    pdf.cell(0, 10, f"Moderate-High Risk: {mod_high}", ln=True)
+    pdf.cell(0, 10, f"Moderate Risk: {moderate}", ln=True)
+    pdf.cell(0, 10, f"Low Risk: {low}", ln=True)
+    pdf.ln(10)
+    pdf.cell(0, 10, "Top Negative Triggers:", ln=True)
+    for trigger, count in trig_series.items():
+         pdf.cell(0, 10, f"{trigger}: {count}", ln=True)
+    pdf.ln(10)
+    if selected_trigger:
+         pdf.cell(0, 10, f"Recommended Solutions for {selected_trigger}:", ln=True)
+         if selected_trigger in TRIGGER_DETAILS:
+             for key, sol in TRIGGER_DETAILS[selected_trigger]["solutions"].items():
+                 pdf.multi_cell(0, 10, sol)
+    return pdf.output(dest="S").encode("latin-1")
 
 # ---------------------------------------
 # Login/Sign Up System
@@ -780,11 +826,12 @@ else:
                     if st.session_state.bulk_prediction_complete:
                         st.session_state.enable_what_if = st.checkbox("Enable What-If Analysis", key="whatif_toggle")
                 
-                # If bulk prediction is completed, show the results, drill-down and What-If Analysis.
+                # If bulk prediction is completed, show the results, additional charts, drill-down and What-If Analysis.
                 if st.session_state.bulk_prediction_complete:
                     df_bulk = st.session_state.bulk_result
                     st.success("✅ Bulk Prediction Completed!")
                     st.dataframe(df_bulk)
+                    # Risk distribution bar chart
                     high_risk = (df_bulk["Attrition Score"] >= 75).sum()
                     mod_high = ((df_bulk["Attrition Score"] >= 60) & (df_bulk["Attrition Score"] < 75)).sum()
                     moderate = ((df_bulk["Attrition Score"] >= 35) & (df_bulk["Attrition Score"] < 60)).sum()
@@ -795,28 +842,62 @@ else:
                     })
                     st.write("### Risk Distribution")
                     st.bar_chart(risk_df.set_index("Risk Category"))
-                    all_trigs = []
-                    for val in df_bulk["Negative Triggers"]:
-                        if pd.notna(val) and val.strip() != "" and val != "None":
-                            splitted = [x.strip() for x in val.split(",")]
-                            all_trigs.extend(splitted)
-                    if all_trigs:
-                        trig_series = pd.Series(all_trigs).value_counts()
-                        st.write("### Top Negative Triggers")
-                        st.bar_chart(trig_series)
-                    else:
-                        st.info("No negative triggers found across the batch.")
                     
-                    # Drill-down by employee name (displayed as a horizontal table)
-                    st.write("### Drill Down into Individual Rows")
+                    # Compute overall negative triggers and display a pie chart.
+                    trig_series = compute_trigger_counts(df_bulk, "Negative Triggers")
+                    if not trig_series.empty:
+                        pie_data = pd.DataFrame({"Trigger": trig_series.index, "Count": trig_series.values})
+                        pie_chart = alt.Chart(pie_data).mark_arc().encode(
+                            theta=alt.Theta(field="Count", type="quantitative"),
+                            color=alt.Color(field="Trigger", type="nominal"),
+                            tooltip=["Trigger", "Count"]
+                        )
+                        st.write("### Overall Negative Triggers (Pie Chart)")
+                        st.altair_chart(pie_chart, use_container_width=True)
+                    
+                    # Compute negative triggers for employees with Attrition Score >= 60.
+                    df_high_mod = df_bulk[df_bulk["Attrition Score"] >= 60]
+                    trig_series_hm = compute_trigger_counts(df_high_mod, "Negative Triggers")
+                    if not trig_series_hm.empty:
+                        pie_data_hm = pd.DataFrame({"Trigger": trig_series_hm.index, "Count": trig_series_hm.values})
+                        pie_chart_hm = alt.Chart(pie_data_hm).mark_arc().encode(
+                            theta=alt.Theta(field="Count", type="quantitative"),
+                            color=alt.Color(field="Trigger", type="nominal"),
+                            tooltip=["Trigger", "Count"]
+                        )
+                        st.write("### Negative Triggers in High/Moderate-High Cases (Pie Chart)")
+                        st.altair_chart(pie_chart_hm, use_container_width=True)
+                    
+                    # Dropdown for recommended solutions based on negative triggers present.
+                    if not trig_series.empty:
+                        selected_trigger = st.selectbox("Select a Negative Trigger for Solutions", options=trig_series.index.tolist())
+                        if selected_trigger in TRIGGER_DETAILS:
+                            st.markdown(f"### Recommended Solutions for {selected_trigger}")
+                            for key, sol in TRIGGER_DETAILS[selected_trigger]["solutions"].items():
+                                st.markdown(sol)
+                        else:
+                            st.info("No solutions available for the selected trigger.")
+                    else:
+                        selected_trigger = None
+                    
+                    # Employee Drill Down:
+                    st.write("### Drill Down into Individual Employee Details")
+                    # Custom CSS to increase cell width and allow horizontal scrolling:
+                    st.markdown("""
+                    <style>
+                    div[data-baseweb="table"] {
+                        min-width: 1000px !important;
+                        overflow-x: auto;
+                    }
+                    </style>
+                    """, unsafe_allow_html=True)
                     employee_names = df_bulk["Name"].tolist()
                     sel_employee = st.selectbox("Select an Employee (by Name)", employee_names, key="drilldown")
                     if sel_employee:
                         selected_row = df_bulk[df_bulk["Name"] == sel_employee]
-                        st.write("### Employee Details")
-                        st.table(selected_row)
+                        st.dataframe(selected_row)
                     
-                    # What-If Analysis: In the What-If recalculation, we leave the "Hasn't been promoted" and "Minimum Promotion Cycle" as-is.
+                    # What-If Analysis:
                     if st.session_state.enable_what_if:
                         main_cols = st.columns([3, 1])
                         with main_cols[1]:
@@ -869,5 +950,9 @@ else:
                             })
                             st.write("### What-If Risk Distribution")
                             st.bar_chart(risk_df_w.set_index("Risk Category"))
+                    
+                    # PDF Report Download:
+                    pdf_data = generate_pdf_report(df_bulk, risk_df, trig_series, selected_trigger)
+                    st.download_button("Download PDF Report", data=pdf_data, file_name="analysis_report.pdf", mime="application/pdf")
         else:
             st.info("Please upload a bulk data file to begin analysis.")
