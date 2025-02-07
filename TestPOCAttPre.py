@@ -36,7 +36,7 @@ if "bulk_prediction_complete" not in st.session_state:
 if "bulk_result" not in st.session_state:
     st.session_state.bulk_result = None
 if "enable_what_if" not in st.session_state:
-    st.session_state.enable_what_if = False
+    st.session_state.enable_what_if = False  # Boolean for the custom toggle
 
 # ----------------------------------------------------
 # Helper functions for user storage
@@ -424,7 +424,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
         return final_score
 
 # ----------------------------------------------------
-# Predict attrition using both ML and rule-based approaches
+# Predict attrition using both ML + rule-based
 # ----------------------------------------------------
 def predict_attrition(employee_data, industry):
     model, scaler, feature_columns = load_model(industry)
@@ -478,7 +478,7 @@ def generate_dummy_training_file():
     return csv_buffer.getvalue()
 
 # ----------------------------------------------------
-# Compute trigger counts from "Negative Triggers" column
+# Compute trigger counts from "Negative Triggers"
 # ----------------------------------------------------
 def compute_trigger_counts(df, column_name):
     triggers_list = []
@@ -789,8 +789,9 @@ else:
                         for idx, row in df_bulk.iterrows():
                             row_dict = row.to_dict()
                             names.append(row_dict.get("Name"))
-                            row_dict["Average Employee Age"] = global_avg_age
-                            row_dict["Female Employee Ratio"] = global_female_ratio
+                            row_dict["Average Employee Age"] = st.session_state.global_avg_age
+                            row_dict["Female Employee Ratio"] = st.session_state.global_female_ratio
+
                             college_tier = row_dict.get("College Tier")
                             if college_tier == "Tier 1":
                                 row_dict["College Tier Retention"] = bulk_tier1
@@ -844,87 +845,9 @@ else:
                         )
 
                 with btn_cols[1]:
-                    # -- Instead of a normal checkbox, we create a custom TOGGLE with CSS.
-                    #    But we still keep an invisible st.checkbox to control session_state.
-                    # ------------------------------------------------------------
-                    if st.session_state.bulk_prediction_complete:
-                        st.markdown(
-                            """
-                            <style>
-                            /* Hide the default checkbox from Streamlit's UI (keeping the internal functionality) */
-                            div[data-testid="stSessionStateCheckbox"] > div:first-child {
-                                display: none;
-                            }
-                            /* The container for our custom toggle switch */
-                            .switch {
-                                position: relative;
-                                display: inline-block;
-                                width: 46px;
-                                height: 24px;
-                                margin-right: 10px;
-                                vertical-align: middle;
-                            }
-                            /* Hide default HTML checkbox */
-                            .switch input {
-                                opacity: 0;
-                                width: 0;
-                                height: 0;
-                            }
-                            /* The slider */
-                            .slider {
-                                position: absolute;
-                                cursor: pointer;
-                                top: 0; left: 0; right: 0; bottom: 0;
-                                background-color: #ccc;
-                                transition: .4s;
-                                border-radius: 24px;
-                            }
-                            .slider:before {
-                                position: absolute;
-                                content: "";
-                                height: 18px; 
-                                width: 18px;
-                                left: 3px; 
-                                bottom: 3px;
-                                background-color: white;
-                                transition: .4s;
-                                border-radius: 50%;
-                            }
-                            input:checked + .slider {
-                                background-color: #2196F3;
-                            }
-                            input:focus + .slider {
-                                box-shadow: 0 0 1px #2196F3;
-                            }
-                            input:checked + .slider:before {
-                                transform: translateX(22px);
-                            }
-                            </style>
-                            """,
-                            unsafe_allow_html=True
-                        )
+                    # We don't place the old st.checkbox here. Instead, we rely on the hidden checkbox + toggle below
+                    pass
 
-                        # Actual hidden checkbox for session state
-                        # We label it with "Enable What-If" but hide the text:
-                        toggled = st.checkbox("Enable What-If Analysis",
-                                              value=st.session_state.enable_what_if,
-                                              key="enable_what_if",
-                                              label_visibility="collapsed")
-                        
-                        # Render the custom toggle + label
-                        # Just visually matches the session_state above
-                        st.markdown(
-                            f"""
-                            <label class="switch">
-                                <input type="checkbox" {'checked' if toggled else ''} 
-                                       onchange="document.querySelector('button[data-baseweb=button]').click();" />
-                                <span class="slider"></span>
-                            </label>
-                            <span style="vertical-align: middle;">Enable What-If Analysis</span>
-                            """,
-                            unsafe_allow_html=True
-                        )
-                
                 if st.session_state.bulk_prediction_complete:
                     df_bulk = st.session_state.bulk_result
                     left_col, right_col = st.columns(2)
@@ -963,7 +886,7 @@ else:
                             selected_row = df_bulk[df_bulk["Name"] == sel_employee]
                             st.dataframe(selected_row)
                         
-                        # Show recommended solutions
+                        # Show recommended solutions for triggers
                         if not trig_series.empty:
                             selected_trigger = st.selectbox(
                                 "Select a Negative Trigger for Solutions",
@@ -979,22 +902,112 @@ else:
                             selected_trigger = None
                     
                     with right_col:
-                        # Show the What-If block only if toggled on
+                        # ----------------------------
+                        # 1) Place a hidden real checkbox for session_state
+                        # ----------------------------
+                        toggled = st.checkbox(
+                            "",  # no label
+                            value=st.session_state.enable_what_if,
+                            key="enable_what_if",
+                            label_visibility="collapsed"
+                        )
+
+                        # 2) Hide the real checkbox from UI globally
+                        st.markdown(
+                            """
+                            <style>
+                            /* Hide all st.checkbox in the entire page */
+                            [data-testid="stCheckbox"] {
+                                display: none;
+                            }
+                            </style>
+                            """,
+                            unsafe_allow_html=True
+                        )
+
+                        # 3) Render a custom HTML toggle
+                        st.markdown(
+                            f"""
+                            <style>
+                            .switch {{
+                                position: relative;
+                                display: inline-block;
+                                width: 46px;
+                                height: 24px;
+                                vertical-align: middle;
+                                margin-right: 8px;
+                            }}
+                            .switch input {{
+                                opacity: 0;
+                                width: 0;
+                                height: 0;
+                            }}
+                            .slider {{
+                                position: absolute;
+                                cursor: pointer;
+                                top: 0; 
+                                left: 0; 
+                                right: 0; 
+                                bottom: 0;
+                                background-color: #ccc;
+                                transition: .4s;
+                                border-radius: 24px;
+                            }}
+                            .slider:before {{
+                                position: absolute;
+                                content: "";
+                                height: 18px; 
+                                width: 18px;
+                                left: 3px; 
+                                bottom: 3px;
+                                background-color: white;
+                                transition: .4s;
+                                border-radius: 50%;
+                            }}
+                            input:checked + .slider {{
+                                background-color: #2196F3;
+                            }}
+                            input:focus + .slider {{
+                                box-shadow: 0 0 1px #2196F3;
+                            }}
+                            input:checked + .slider:before {{
+                                transform: translateX(22px);
+                            }}
+                            </style>
+
+                            <label class="switch">
+                                <input type="checkbox" {"checked" if toggled else ""} onclick="
+                                    // Find the hidden real Streamlit checkbox:
+                                    var hiddenChecks = window.parent.document.querySelectorAll('[data-testid=\"stCheckbox\"] input[type=checkbox]');
+                                    // We expect the first one to be our 'enable_what_if' checkbox.
+                                    if(hiddenChecks.length > 0) {{
+                                        hiddenChecks[0].click();
+                                    }}
+                                ">
+                                <span class="slider"></span>
+                            </label>
+                            <span style="vertical-align: middle;">Enable What-If Analysis</span>
+                            """,
+                            unsafe_allow_html=True
+                        )
+
+                        # 4) If toggled on, show the What-If block
                         if st.session_state.enable_what_if:
-                            # Wrap the entire block in a "box" with a box-shadow
                             st.markdown(
                                 """
                                 <div style="box-shadow: 0 2px 8px rgba(0,0,0,0.15); 
                                             padding: 1rem; 
                                             border-radius: 8px; 
-                                            margin-bottom: 1rem;">
+                                            margin-top: 1rem;">
                                 """,
                                 unsafe_allow_html=True
                             )
 
                             st.markdown("## What-If Analysis")
-                            whatif_params = {}
+
+                            # For triggers:
                             trig_series = compute_trigger_counts(df_bulk, "Negative Triggers")
+                            whatif_params = {}
                             
                             if "Low gender diversity" in trig_series.index:
                                 whatif_params["female_ratio"] = st.slider(
