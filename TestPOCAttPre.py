@@ -654,12 +654,9 @@ if st.session_state.nav == "My Account":
     if st.button("Back to Main"):
         st.session_state.nav = "Tabs"
 else:
-    # In Test Mode, start immediately with industry selection (without a large instruction block)
+    # In Test Mode, start immediately with industry selection after header.
     if st.session_state.main_mode == "Test Mode":
-        # Industry selection immediately after header:
         selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=0, key="test_industry")
-        
-        # Display a hover button with instructions
         st.markdown("""
         <div class="tooltip">Read Instructions
           <span class="tooltiptext">
@@ -818,9 +815,10 @@ else:
                         st.session_state.bulk_prediction_complete = True
                         save_user_event(st.session_state.user["email"], "bulk_prediction", {"rows": len(df_bulk)})
                 with btn_cols[1]:
-                    if st.session_state.bulk_prediction_complete:
-                        st.session_state.enable_what_if = st.checkbox("Enable What-If Analysis", key="whatif_toggle")
-                
+                    # Replace the checkbox with a button to activate what-if mode
+                    if st.session_state.bulk_prediction_complete and not st.session_state.enable_what_if:
+                        if st.button("Activate What-if Mode"):
+                            st.session_state.enable_what_if = True
                 if st.session_state.bulk_prediction_complete:
                     df_bulk = st.session_state.bulk_result
                     # Divide screen into two columns: Left (Original Results) and Right (What-If Analysis)
@@ -853,12 +851,13 @@ else:
                             st.write("### Overall Negative Triggers (Pie Chart)")
                             st.altair_chart(pie_chart, use_container_width=True)
                             
-                            # Display a table with the legend
-                            legend_df = pie_data[["Trigger", "Percentage"]].sort_values(by="Percentage", ascending=False)
+                            # Display legend as a table with colored boxes
+                            legend_html = "<table><tr><th>Trigger</th><th>Percentage</th><th>Color</th></tr>"
                             color_scale = ["#AEC6CF", "#FFD1DC", "#C3B1E1", "#FDFD96", "#77DD77", "#B19CD9", "#FFB347"]
-                            legend_df["Color"] = color_scale[:len(legend_df)]
-                            st.write("### Pie Chart Legend")
-                            st.table(legend_df)
+                            for i, row in pie_data.iterrows():
+                                legend_html += f"<tr><td>{row['Trigger']}</td><td><b>{row['Percentage']}%</b></td><td style='background-color:{color_scale[i]}; width:50px;'>&nbsp;</td></tr>"
+                            legend_html += "</table>"
+                            st.markdown(legend_html, unsafe_allow_html=True)
                         
                         st.write("### Drill Down into Individual Employee Details")
                         st.markdown("""
@@ -886,77 +885,91 @@ else:
                         else:
                             selected_trigger = None
                     
-                    with right_col:
-                        st.markdown("## What-If Analysis")
-                        whatif_params = {}
-                        if "Low gender diversity" in trig_series.index:
-                            whatif_params["female_ratio"] = st.slider("Women % in Organization", 0, 100, global_female_ratio, key="whatif_female")
-                        if "Stagnant promotions" in trig_series.index:
-                            default_not_promoted = int(df_bulk["Hasn't been promoted"].mean())
-                            default_min_cycle = int(df_bulk["Minimum Promotion Cycle"].mean())
-                            whatif_params["not_promoted"] = st.slider("Months Since Last Promotion", 0, 60, default_not_promoted, key="whatif_not_promoted")
-                            whatif_params["min_cycle"] = st.slider("Minimum Promotion Cycle", 12, 60, default_min_cycle, key="whatif_min_cycle")
-                        if any(x in trig_series.index for x in ["Very low performance rating", "Low performance rating"]):
-                            default_rating = int(df_bulk["Last Performance Rating"].mean())
-                            whatif_params["rating"] = st.selectbox("Last Performance Rating", [1, 2, 3, 4, 5], index=max(0, default_rating-1), key="whatif_rating")
-                        if any(x in trig_series.index for x in ["Low compensation competitiveness", "High compensation ratio"]):
-                            default_compa = int(df_bulk["Compa Ratio"].mean())
-                            whatif_params["compa_ratio"] = st.slider("Compa Ratio (%)", 50, 150, default_compa, key="whatif_compa")
-                        if "Low college tier retention" in trig_series.index:
-                            whatif_params["tier1"] = st.slider("Tier 1 Retention (%)", 10, 100, bulk_tier1, key="whatif_tier1")
-                            whatif_params["tier2"] = st.slider("Tier 2 Retention (%)", 10, 100, bulk_tier2, key="whatif_tier2")
-                            whatif_params["tier3"] = st.slider("Tier 3 Retention (%)", 10, 100, bulk_tier3, key="whatif_tier3")
-                        if "Low industry retention" in trig_series.index:
-                            avg_ind = int(np.mean(list(bulk_industry_retention.values())))
-                            whatif_params["industry_retention"] = st.slider("Industry Retention (%)", 10, 100, avg_ind, key="whatif_industry")
-                        if "Low company type retention" in trig_series.index:
-                            default_company = st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Startup", 60)
-                            whatif_params["company_retention"] = st.slider("Company Type Retention (%)", 10, 100, default_company, key="whatif_company")
-                        if "High dissatisfaction (Pulse)" in trig_series.index:
-                            whatif_params["pulse"] = st.selectbox("Pulse", ["High", "Medium", "Low"], index=0, key="whatif_pulse")
-                        
-                        st.write("### Recalculated Predictions with What-If Adjustments")
-                        new_scores = []
-                        new_triggers_list = []
-                        df_bulk_whatif = df_bulk.copy()
-                        for idx, row in df_bulk_whatif.iterrows():
-                            new_row = dict(row)
-                            new_row["Average Employee Age"] = global_avg_age
-                            new_row["Female Employee Ratio"] = whatif_params.get("female_ratio", new_row.get("Female Employee Ratio", global_female_ratio))
-                            new_row["Hasn't been promoted"] = whatif_params.get("not_promoted", new_row.get("Hasn't been promoted"))
-                            new_row["Minimum Promotion Cycle"] = whatif_params.get("min_cycle", new_row.get("Minimum Promotion Cycle"))
-                            new_row["Last Performance Rating"] = whatif_params.get("rating", new_row.get("Last Performance Rating"))
-                            new_row["Compa Ratio"] = whatif_params.get("compa_ratio", new_row.get("Compa Ratio"))
-                            if new_row.get("College Tier") == "Tier 1":
-                                new_row["College Tier Retention"] = whatif_params.get("tier1", new_row.get("College Tier Retention", bulk_tier1))
-                            elif new_row.get("College Tier") == "Tier 2":
-                                new_row["College Tier Retention"] = whatif_params.get("tier2", new_row.get("College Tier Retention", bulk_tier2))
-                            elif new_row.get("College Tier") == "Tier 3":
-                                new_row["College Tier Retention"] = whatif_params.get("tier3", new_row.get("College Tier Retention", bulk_tier3))
-                            new_row["Industry Retention"] = whatif_params.get("industry_retention", new_row.get("Industry Retention"))
-                            new_row["Company Type Retention"] = whatif_params.get("company_retention", new_row.get("Company Type Retention"))
-                            new_row["Pulse"] = whatif_params.get("pulse", new_row.get("Pulse"))
-                            try:
-                                new_score, new_trigs, _ = predict_attrition(new_row, selected_test_industry)
-                            except Exception as e:
-                                new_score = None
-                                new_trigs = ["Prediction Failed"]
-                            new_scores.append(new_score)
-                            neg_trigs = [t for t in new_trigs if t in TRIGGER_DETAILS]
-                            triggers_str = ", ".join(neg_trigs) if neg_trigs else "None"
-                            new_triggers_list.append(triggers_str)
-                        df_bulk_whatif["What-If Attrition Score"] = new_scores
-                        df_bulk_whatif["What-If Negative Triggers"] = new_triggers_list
-                        st.dataframe(df_bulk_whatif)
-                        high_risk_w = (df_bulk_whatif["What-If Attrition Score"] >= 75).sum()
-                        mod_high_w = ((df_bulk_whatif["What-If Attrition Score"] >= 60) & (df_bulk_whatif["What-If Attrition Score"] < 75)).sum()
-                        moderate_w = ((df_bulk_whatif["What-If Attrition Score"] >= 35) & (df_bulk_whatif["What-If Attrition Score"] < 60)).sum()
-                        low_w = (df_bulk_whatif["What-If Attrition Score"] < 35).sum()
-                        risk_df_w = pd.DataFrame({
-                            "Risk Category": ["High (>=75)", "Mod-High (60-74)", "Moderate (35-59)", "Low (<35)"],
-                            "Count": [high_risk_w, mod_high_w, moderate_w, low_w]
-                        })
-                        st.write("### What-If Risk Distribution")
-                        st.bar_chart(risk_df_w.set_index("Risk Category"))
+                    if st.session_state.enable_what_if:
+                        # Right column: What-If Analysis Panel with futuristic styling
+                        with right_col:
+                            st.markdown(
+                                """
+                                <div style="background-color:#e6f7ff; padding:20px; border-radius:10px;">
+                                <h2 style="color:#005c99;">What-If Analysis</h2>
+                                </div>
+                                """, unsafe_allow_html=True)
+                            # Wrap the what-if controls and recalculation inside a container
+                            with st.container():
+                                whatif_params = {}
+                                if "Low gender diversity" in trig_series.index:
+                                    whatif_params["female_ratio"] = st.slider("Women % in Organization", 0, 100, global_female_ratio, key="whatif_female")
+                                if "Stagnant promotions" in trig_series.index:
+                                    default_not_promoted = int(df_bulk["Hasn't been promoted"].mean())
+                                    default_min_cycle = int(df_bulk["Minimum Promotion Cycle"].mean())
+                                    whatif_params["not_promoted"] = st.slider("Months Since Last Promotion", 0, 60, default_not_promoted, key="whatif_not_promoted")
+                                    whatif_params["min_cycle"] = st.slider("Minimum Promotion Cycle", 12, 60, default_min_cycle, key="whatif_min_cycle")
+                                if any(x in trig_series.index for x in ["Very low performance rating", "Low performance rating"]):
+                                    default_rating = int(df_bulk["Last Performance Rating"].mean())
+                                    whatif_params["rating"] = st.selectbox("Last Performance Rating", [1, 2, 3, 4, 5], index=max(0, default_rating-1), key="whatif_rating")
+                                if any(x in trig_series.index for x in ["Low compensation competitiveness", "High compensation ratio"]):
+                                    default_compa = int(df_bulk["Compa Ratio"].mean())
+                                    whatif_params["compa_ratio"] = st.slider("Compa Ratio (%)", 50, 150, default_compa, key="whatif_compa")
+                                if "Low college tier retention" in trig_series.index:
+                                    whatif_params["tier1"] = st.slider("Tier 1 Retention (%)", 10, 100, bulk_tier1, key="whatif_tier1")
+                                    whatif_params["tier2"] = st.slider("Tier 2 Retention (%)", 10, 100, bulk_tier2, key="whatif_tier2")
+                                    whatif_params["tier3"] = st.slider("Tier 3 Retention (%)", 10, 100, bulk_tier3, key="whatif_tier3")
+                                if "Low industry retention" in trig_series.index:
+                                    avg_ind = int(np.mean(list(bulk_industry_retention.values())))
+                                    whatif_params["industry_retention"] = st.slider("Industry Retention (%)", 10, 100, avg_ind, key="whatif_industry")
+                                if "Low company type retention" in trig_series.index:
+                                    default_company = st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Startup", 60)
+                                    whatif_params["company_retention"] = st.slider("Company Type Retention (%)", 10, 100, default_company, key="whatif_company")
+                                if "High dissatisfaction (Pulse)" in trig_series.index:
+                                    whatif_params["pulse"] = st.selectbox("Pulse", ["High", "Medium", "Low"], index=0, key="whatif_pulse")
+                                
+                                st.write("### Recalculated Predictions with What-If Adjustments")
+                                new_scores = []
+                                new_triggers_list = []
+                                df_bulk_whatif = df_bulk.copy()
+                                for idx, row in df_bulk_whatif.iterrows():
+                                    new_row = dict(row)
+                                    # Ensure numeric fields are cast appropriately
+                                    try:
+                                        new_row["Average Employee Age"] = float(global_avg_age)
+                                        new_row["Female Employee Ratio"] = float(whatif_params.get("female_ratio", new_row.get("Female Employee Ratio", global_female_ratio)))
+                                        new_row["Hasn't been promoted"] = float(whatif_params.get("not_promoted", new_row.get("Hasn't been promoted")))
+                                        new_row["Minimum Promotion Cycle"] = float(whatif_params.get("min_cycle", new_row.get("Minimum Promotion Cycle")))
+                                        new_row["Last Performance Rating"] = int(whatif_params.get("rating", new_row.get("Last Performance Rating")))
+                                        new_row["Compa Ratio"] = float(whatif_params.get("compa_ratio", new_row.get("Compa Ratio")))
+                                        if new_row.get("College Tier") == "Tier 1":
+                                            new_row["College Tier Retention"] = float(whatif_params.get("tier1", new_row.get("College Tier Retention", bulk_tier1)))
+                                        elif new_row.get("College Tier") == "Tier 2":
+                                            new_row["College Tier Retention"] = float(whatif_params.get("tier2", new_row.get("College Tier Retention", bulk_tier2)))
+                                        elif new_row.get("College Tier") == "Tier 3":
+                                            new_row["College Tier Retention"] = float(whatif_params.get("tier3", new_row.get("College Tier Retention", bulk_tier3)))
+                                        new_row["Industry Retention"] = float(whatif_params.get("industry_retention", new_row.get("Industry Retention")))
+                                        new_row["Company Type Retention"] = float(whatif_params.get("company_retention", new_row.get("Company Type Retention")))
+                                    except Exception as e:
+                                        st.error(f"Error converting types for row {idx}: {e}")
+                                    new_row["Pulse"] = whatif_params.get("pulse", new_row.get("Pulse"))
+                                    try:
+                                        new_score, new_trigs, _ = predict_attrition(new_row, selected_test_industry)
+                                    except Exception as e:
+                                        new_score = None
+                                        new_trigs = ["Prediction Failed"]
+                                    new_scores.append(new_score)
+                                    neg_trigs = [t for t in new_trigs if t in TRIGGER_DETAILS]
+                                    triggers_str = ", ".join(neg_trigs) if neg_trigs else "None"
+                                    new_triggers_list.append(triggers_str)
+                                df_bulk_whatif["What-If Attrition Score"] = new_scores
+                                df_bulk_whatif["What-If Negative Triggers"] = new_triggers_list
+                                st.dataframe(df_bulk_whatif)
+                                high_risk_w = (df_bulk_whatif["What-If Attrition Score"] >= 75).sum()
+                                mod_high_w = ((df_bulk_whatif["What-If Attrition Score"] >= 60) & (df_bulk_whatif["What-If Attrition Score"] < 75)).sum()
+                                moderate_w = ((df_bulk_whatif["What-If Attrition Score"] >= 35) & (df_bulk_whatif["What-If Attrition Score"] < 60)).sum()
+                                low_w = (df_bulk_whatif["What-If Attrition Score"] < 35).sum()
+                                risk_df_w = pd.DataFrame({
+                                    "Risk Category": ["High (>=75)", "Mod-High (60-74)", "Moderate (35-59)", "Low (<35)"],
+                                    "Count": [high_risk_w, mod_high_w, moderate_w, low_w]
+                                })
+                                st.write("### What-If Risk Distribution")
+                                st.bar_chart(risk_df_w.set_index("Risk Category"))
+                        # End of What-If Panel
         else:
             st.info("Please upload a bulk data file to begin analysis.")
