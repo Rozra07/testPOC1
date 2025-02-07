@@ -170,6 +170,9 @@ def load_model(industry):
         st.error("No trained model found for the selected industry. Please train your model in Train Mode first.")
         return None, None, None
 
+# ----------------------------------------------------
+# Trigger Details for Weighted Logic
+# ----------------------------------------------------
 TRIGGER_DETAILS = {
     "Low gender diversity": {
         "subproblems": {
@@ -362,38 +365,76 @@ TRIGGER_DETAILS = {
     }
 }
 
+# ----------------------------------------------------
+# Weighted Rules Engine (Compute Weighted Attrition)
+# ----------------------------------------------------
 def compute_weighted_attrition(employee, return_triggers=False):
     score = 0
     extreme_factors = 0
     triggers = []
     
+    # Gender Diversity
     if employee["Gender"] == "Female" and employee["Female Employee Ratio"] <= 15:
-        score += 30; extreme_factors += 1; triggers.append("Low gender diversity")
+        score += 30
+        extreme_factors += 1
+        triggers.append("Low gender diversity")
+    # Promotion
     if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
-        score += 30; extreme_factors += 1; triggers.append("Stagnant promotions")
+        score += 30
+        extreme_factors += 1
+        triggers.append("Stagnant promotions")
+    # Performance Rating
     if employee["Last Performance Rating"] == 1:
-        score += 25; extreme_factors += 1; triggers.append("Very low performance rating")
+        score += 25
+        extreme_factors += 1
+        triggers.append("Very low performance rating")
     elif employee["Last Performance Rating"] == 2:
-        score += 15; extreme_factors += 0.5; triggers.append("Low performance rating")
+        score += 15
+        extreme_factors += 0.5
+        triggers.append("Low performance rating")
     elif employee["Last Performance Rating"] == 5:
-        score -= 15; extreme_factors -= 0.5; triggers.append("Excellent performance rating")
-    if employee["Compa Ratio"] < 80:
-        score += 20; extreme_factors += 0.8; triggers.append("Low compensation competitiveness")
-    elif employee["Compa Ratio"] < 70:
-        score += 25; extreme_factors += 1; triggers.append("Low compensation competitiveness")
+        score -= 15
+        extreme_factors -= 0.5
+        triggers.append("Excellent performance rating")
+    # Compa Ratio
+    if employee["Compa Ratio"] < 70:
+        score += 25
+        extreme_factors += 1
+        triggers.append("Low compensation competitiveness")
+    elif employee["Compa Ratio"] < 80:
+        score += 20
+        extreme_factors += 0.8
+        triggers.append("Low compensation competitiveness")
     elif employee["Compa Ratio"] > 110:
-        score -= 15; extreme_factors -= 0.5; triggers.append("High compensation ratio")
+        score -= 15
+        extreme_factors -= 0.5
+        triggers.append("High compensation ratio")
+    # College Tier Retention
     if employee["College Tier Retention"] < 15:
-        score += 15; extreme_factors += 0.5; triggers.append("Low college tier retention")
+        score += 15
+        extreme_factors += 0.5
+        triggers.append("Low college tier retention")
+    # Industry Retention
     if employee["Industry Retention"] < 15:
-        score += 15; extreme_factors += 0.5; triggers.append("Low industry retention")
+        score += 15
+        extreme_factors += 0.5
+        triggers.append("Low industry retention")
+    # Company Type Retention
     if employee["Company Type Retention"] < 15:
-        score += 15; extreme_factors += 0.5; triggers.append("Low company type retention")
+        score += 15
+        extreme_factors += 0.5
+        triggers.append("Low company type retention")
+    # Pulse
     if employee["Pulse"] == "High":
-        score += 20; extreme_factors += 0.5; triggers.append("High dissatisfaction (Pulse)")
+        score += 20
+        extreme_factors += 0.5
+        triggers.append("High dissatisfaction (Pulse)")
     elif employee["Pulse"] == "Low":
-        score -= 20; extreme_factors -= 0.5; triggers.append("Low dissatisfaction (Pulse)")
+        score -= 20
+        extreme_factors -= 0.5
+        triggers.append("Low dissatisfaction (Pulse)")
     
+    # Amplify if multiple extremes
     if extreme_factors == 2:
         score = min(100, score * 1.3)
     elif extreme_factors == 3:
@@ -407,7 +448,16 @@ def compute_weighted_attrition(employee, return_triggers=False):
     else:
         return final_score
 
+# ----------------------------------------------------
+# Primary Prediction (ML + Weighted Hybrid)
+# ----------------------------------------------------
 def predict_attrition(employee_data, industry):
+    """
+    1. Loads the appropriate model/scaler/feature set for the selected industry.
+    2. Uses the logistic model's probability (ml_probability).
+    3. Uses a custom rules-based engine (rule_probability).
+    4. Returns combined_score, triggers, ml_probability
+    """
     model, scaler, feature_columns = load_model(industry)
     if model is None:
         return None, None, None
@@ -415,11 +465,19 @@ def predict_attrition(employee_data, industry):
     df_input = pd.get_dummies(df_input)
     df_input = df_input.reindex(columns=feature_columns, fill_value=0)
     X_scaled = scaler.transform(df_input)
+    
+    # Model-based Probability
     ml_probability = model.predict_proba(X_scaled)[:, 1][0] * 100
+    # Weighted-rules Probability
     rule_probability, triggers = compute_weighted_attrition(employee_data, return_triggers=True)
+    
+    # Combine
     combined_score = 0.75 * rule_probability + 0.25 * ml_probability
     return combined_score, triggers, ml_probability
 
+# ----------------------------------------------------
+# Sample CSV Generators
+# ----------------------------------------------------
 def generate_sample_csv():
     sample_csv = pd.DataFrame({
         "Employee Age": [30, 45],
@@ -457,6 +515,101 @@ def generate_dummy_training_file():
     csv_buffer = io.StringIO()
     dummy_df.to_csv(csv_buffer, index=False)
     return csv_buffer.getvalue()
+
+# ----------------------------------------------------
+# Bulk Prediction Helper Functions
+# ----------------------------------------------------
+def run_bulk_prediction(df, industry, global_params, apply_adjustments=False, adjustments=None):
+    """
+    Given a DataFrame df, run predict_attrition for each row.
+    global_params includes:
+      - "global_avg_age", "global_female_ratio", "tier_retention_dict",
+        "industry_retention_dict", "company_retention_dict"
+    If apply_adjustments=True, we apply the adjustments from the 'adjustments' dict
+    to certain columns before the final predictions.
+    """
+    # Create a copy so we don't mutate the original
+    df_result = df.copy()
+
+    # For each row, we will fill in some global values from global_params
+    # and also apply adjustments if any.
+    scores = []
+    triggers_list = []
+    ml_probs = []
+
+    for idx, row in df_result.iterrows():
+        row_data = row.to_dict()
+
+        # Insert global references
+        row_data["Average Employee Age"] = global_params["global_avg_age"]
+        row_data["Female Employee Ratio"] = global_params["global_female_ratio"]
+
+        # Insert retention based on College Tier
+        college_tier = str(row_data.get("College Tier", "Tier 3"))
+        tier_retention = global_params["tier_retention_dict"].get(college_tier, 40)
+        row_data["College Tier Retention"] = tier_retention
+
+        # Insert retention based on Industry
+        ind_val = str(row_data.get("Industry", "Other"))
+        industry_ret = global_params["industry_retention_dict"].get(ind_val, 50)
+        row_data["Industry Retention"] = industry_ret
+
+        # Insert retention based on Company Type
+        comp_type = str(row_data.get("Company Type", "Small Size"))
+        company_ret = global_params["company_retention_dict"].get(comp_type, 50)
+        row_data["Company Type Retention"] = company_ret
+
+        # Apply what-if adjustments (numeric changes)
+        if apply_adjustments and adjustments is not None:
+            # Example: adjust Compa Ratio
+            if "compa_adjust" in adjustments:
+                row_data["Compa Ratio"] = row_data["Compa Ratio"] + adjustments["compa_adjust"]
+            # Ensure hasn't been promoted is clipped above 0
+            if "promo_reduction" in adjustments:
+                new_val = row_data["Hasn't been promoted"] - adjustments["promo_reduction"]
+                row_data["Hasn't been promoted"] = max(0, new_val)
+            # Potentially more logic for changing Pulse or other columns if desired
+
+        # Predict
+        bulk_score, bulk_trigs, ml_probability = predict_attrition(row_data, industry)
+        scores.append(bulk_score)
+        ml_probs.append(ml_probability)
+
+        neg_trigs = [t for t in bulk_trigs if t in TRIGGER_DETAILS]
+        triggers_str = ", ".join(neg_trigs) if neg_trigs else "None"
+        triggers_list.append(triggers_str)
+
+    df_result["Attrition Score"] = scores
+    df_result["Negative Triggers"] = triggers_list
+    df_result["ML Probability"] = ml_probs
+    return df_result
+
+def show_risk_distribution(df_result):
+    """Plot a bar chart (or other charts) for the distribution of scores."""
+    high_risk = (df_result["Attrition Score"] >= 75).sum()
+    mod_high  = ((df_result["Attrition Score"] >= 60) & (df_result["Attrition Score"] < 75)).sum()
+    moderate  = ((df_result["Attrition Score"] >= 35) & (df_result["Attrition Score"] < 60)).sum()
+    low       = (df_result["Attrition Score"] < 35).sum()
+
+    risk_df = pd.DataFrame({
+        "Risk Category": ["High (>=75)", "Mod-High (60-74)", "Moderate (35-59)", "Low (<35)"],
+        "Count": [high_risk, mod_high, moderate, low]
+    })
+    st.bar_chart(risk_df.set_index("Risk Category"))
+
+def show_triggers_distribution(df_result):
+    """Plot a bar chart of frequency of negative triggers."""
+    all_trigs = []
+    for val in df_result["Negative Triggers"]:
+        if pd.notna(val) and val.strip() != "" and val != "None":
+            splitted = [x.strip() for x in val.split(",")]
+            all_trigs.extend(splitted)
+    if all_trigs:
+        trig_series = pd.Series(all_trigs).value_counts()
+        st.write("### Top Negative Triggers")
+        st.bar_chart(trig_series)
+    else:
+        st.info("No negative triggers found across the batch.")
 
 # ---------------------------------------
 # Login/Sign Up System
@@ -536,7 +689,7 @@ with header_container:
 # ---------------------------------------
 if st.session_state.nav != "My Account":
     with st.sidebar:
-        # Radio button to choose between Train and Test mode.
+        # Radio button to choose between Train and Test mode only
         mode = st.radio("Select Mode", ["Train Mode", "Test Mode"], index=0, key="main_mode")
         # Disable global settings when in Test Mode.
         disabled_flag = (mode == "Test Mode")
@@ -625,9 +778,11 @@ if st.session_state.nav == "My Account":
     
     if st.button("Back to Main"):
         st.session_state.nav = "Tabs"
+
 else:
     # Use the value of st.session_state.main_mode directly
     if st.session_state.main_mode == "Train Mode":
+        # -------------- TRAIN MODE --------------
         st.header("Train Mode")
         selected_train_industry = st.selectbox("Select Your Industry", industry_options, key="train_industry")
         
@@ -638,7 +793,7 @@ else:
             st.markdown("### Detailed Guide for Training File")
             st.markdown("""
             **Your training file must include:**
-            - A **target column** (e.g., `Attrition` – use binary values 0/1, where **0: Active Employee** and **1: Non‑Active Employee**).
+            - A **target column** (e.g., `Attrition` – use binary values 0/1)
             - **Feature columns:**  
               - `Employee Age`  
               - `Gender` (e.g., "Male", "Female")  
@@ -649,7 +804,7 @@ else:
               - `College Tier` (e.g., "Tier 1", "Tier 2", "Tier 3")  
               - `Industry` (e.g., "Tech", "Finance", etc.)  
               - `Company Type` (e.g., "Startup", "Enterprise", etc.)  
-              - `Last Performance Rating` (e.g., 1 to 5)  
+              - `Last Performance Rating` (1 to 5)  
               - `Compa Ratio` (compensation ratio)
             """)
             st.download_button(
@@ -675,290 +830,136 @@ else:
             if st.button("Train Model"):
                 train_model(train_df, target_column, selected_train_industry)
                 
-    else:  # Test Mode
-        st.header("Test Mode")
+    else:
+        # -------------- TEST MODE (Bulk Only) --------------
+        st.header("Bulk Employee Attrition Prediction & What-If Analysis")
         st.markdown("""
-        **Instructions for Testing:**
+        **Instructions:**
         
         - Ensure that you have trained a model in Train Mode.
-        - In Single Employee mode, enter the employee details (without the `Attrition` column).
-        - In Bulk Employees mode, upload a CSV or Excel file with the following columns:
-             - **Name**
-             - **Employee Age**
-             - **Gender**
-             - **Tenure (Months)**
-             - **Pulse**
-             - **Hasn't been promoted**
-             - **Minimum Promotion Cycle**
-             - **College Tier** *(e.g., "Tier 1", "Tier 2", "Tier 3")*
-             - **Industry** *(e.g., "Tech", "Finance", etc.)*
-             - **Company Type** *(e.g., "Startup", "Small Size", "Mid Size", "MNC/Giant Company")*
-             - **Last Performance Rating**
-             - **Compa Ratio**
-             
-             *Note: The test data does not require an `Attrition` column.*
+        - Upload a CSV or Excel file with these columns:
+            **Name, Employee Age, Gender, Tenure (Months), Pulse,
+            Hasn't been promoted, Minimum Promotion Cycle, College Tier,
+            Industry, Company Type, Last Performance Rating, Compa Ratio.**
         """)
+
+        # Retrieve global settings from session
+        global_params = {
+            "global_avg_age": st.session_state.get("global_avg_age", 35),
+            "global_female_ratio": st.session_state.get("global_female_ratio", 40),
+            "tier_retention_dict": {
+                "Tier 1": st.session_state.get("bulk_tier1", 60),
+                "Tier 2": st.session_state.get("bulk_tier2", 50),
+                "Tier 3": st.session_state.get("bulk_tier3", 40),
+            },
+            "industry_retention_dict": {
+                ind: st.session_state.get(f"bulk_ind_{ind}", 60 if ind=="Tech" else 50)
+                for ind in industry_options
+            },
+            "company_retention_dict": {
+                "Startup": st.session_state.get("bulk_startup", 60),
+                "Small Size": st.session_state.get("bulk_small", 55),
+                "Mid Size": st.session_state.get("bulk_mid", 50),
+                "MNC/Giant Company": st.session_state.get("bulk_mnc", 45),
+                "Enterprise": 60,  # in case your data has "Enterprise"
+                "SME": 50          # fallback if not in session
+            }
+        }
+
         default_test_industry = st.session_state.get("train_industry", industry_options[0])
-        selected_test_industry = st.selectbox("Select Your Industry", industry_options,
-                                                index=industry_options.index(default_test_industry) if default_test_industry in industry_options else 0,
-                                                key="test_industry")
+        selected_test_industry = st.selectbox(
+            "Select Your Industry", 
+            industry_options,
+            index=industry_options.index(default_test_industry) if default_test_industry in industry_options else 0,
+            key="test_industry"
+        )
+
+        uploaded_file = st.file_uploader("Upload Bulk Data (CSV or Excel)", type=["csv", "xlsx"], key="bulk_file")
         
-        test_mode_option = st.selectbox("Select Test Mode", ["Single Employee", "Bulk Employees"])
-        
-        if test_mode_option == "Single Employee":
-            if "prediction_made" not in st.session_state:
-                st.session_state.prediction_made = False
-            if "score" not in st.session_state:
-                st.session_state.score = None
-            if "triggers" not in st.session_state:
-                st.session_state.triggers = []
-            if "employee_data" not in st.session_state:
-                st.session_state.employee_data = {}
-        
-            st.write("### Enter Employee / Company Details")
-            with st.form("attrition_form"):
-                input_data = {
-                    "Employee Age": st.slider("Employee Age", 18, 65, 30),
-                    "Average Employee Age": st.slider("Average Employee Age", 18, 65, 35),
-                    "Gender": st.radio("Gender", ["Male", "Female"], horizontal=True),
-                    "Female Employee Ratio": st.slider("Female Employee Ratio (%)", 0, 100, 40),
-                    "Tenure (Months)": st.slider("Tenure (Months)", 0, 240, 36),
-                    "Pulse": st.radio("Employee dissatisfaction (Pulse)", ["High", "Medium", "Low"], horizontal=True),
-                    "Hasn't been promoted": st.slider("Months Since Last Promotion", 0, 60, 12),
-                    "Minimum Promotion Cycle": st.slider("Min Promotion Cycle (Months)", 12, 60, 24),
-                    "College Tier Retention": st.slider("College Tier Retention (%)", 10, 100, 60),
-                    "Industry Retention": st.slider("Industry Retention (%)", 10, 100, 60),
-                    "Company Type Retention": st.slider("Company Type Retention (%)", 10, 100, 60),
-                    "Last Performance Rating": st.slider("Last Performance Rating", 1, 5, 3),
-                    "Compa Ratio": st.slider("Compa Ratio (%)", 50, 150, 100)
-                }
-                submit_single = st.form_submit_button("🚀 Predict")
-                if submit_single:
-                    final_score, triggers, ml_confidence = predict_attrition(input_data, selected_test_industry)
-                    st.session_state.score = final_score
-                    st.session_state.triggers = triggers
-                    st.session_state.prediction_made = True
-                    st.session_state.employee_data = input_data
-                    save_user_event(st.session_state.user["email"], "test_single", {"input_data": input_data, "result": final_score})
-        
-            if st.session_state.prediction_made:
-                score = st.session_state.score
-                triggers = st.session_state.triggers
-                with st.container():
-                    if score >= 75:
-                        bg_color = "#ff4d4d"
-                        msg_html = f"⚠️ HIGH Attrition Risk <br> {score:.2f}% 🚨"
-                    elif score >= 60:
-                        bg_color = "#ff9933"
-                        msg_html = f"⚠️ Moderate to High Risk <br> {score:.2f}% ⚡"
-                    elif score >= 35:
-                        bg_color = "#ffd700"
-                        msg_html = f"⚖️ Moderate Attrition Risk <br> {score:.2f}% 📉"
-                    else:
-                        bg_color = "#28a745"
-                        msg_html = f"✅ SAFE! Low Attrition Risk <br> {score:.2f}% 🌱"
-                    st.markdown(
-                        f"""
-                        <div style="background-color:{bg_color}; color:white; padding:15px; border-radius:10px; 
-                                    text-align:center; font-size:24px; font-weight:bold;">
-                            {msg_html}
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
-                    st.markdown(f"**Model Confidence:** {ml_confidence:.2f}%")
-        
-                col_left, col_right = st.columns(2)
-                with col_left:
-                    st.write("### Key Contributing Factors")
-                    negative_triggers = []
-                    for t in triggers:
-                        if t in TRIGGER_DETAILS:
-                            negative_triggers.append(t)
-                            st.markdown(f"- **{t}**")
-                    if not negative_triggers:
-                        st.markdown("*No major negative triggers identified.*")
-        
-                    st.write("### Sub-Problems Selection")
-                    sub_problem_selections = {}
-                    for trig in negative_triggers:
-                        st.write(f"**{trig}**")
-                        subprobs = TRIGGER_DETAILS[trig]["subproblems"]
-                        chosen_list = []
-                        for sub_key, sub_label in subprobs.items():
-                            chk_id = f"{trig}-{sub_key}"
-                            if chk_id not in st.session_state:
-                                st.session_state[chk_id] = False
-                            new_val = st.checkbox(sub_label, key=chk_id)
-                            if new_val:
-                                chosen_list.append(sub_key)
-                        sub_problem_selections[trig] = chosen_list
-        
-                    if st.button("💡 Show Solutions"):
-                        st.write("### Recommended Solutions")
-                        any_chosen = False
-                        for trig in negative_triggers:
-                            chosen_subs = sub_problem_selections[trig]
-                            if chosen_subs:
-                                any_chosen = True
-                                st.write(f"**Trigger:** {trig}")
-                                for sub_key in chosen_subs:
-                                    solution_text = TRIGGER_DETAILS[trig]["solutions"].get(sub_key, "")
-                                    st.markdown(f"**Sub-Problem: {sub_key}**")
-                                    st.markdown(f"{solution_text}")
-                        if not any_chosen:
-                            st.info("No sub-problems selected, so no solutions to display.")
-        
-                with col_right:
-                    st.write("### What-If Scenario Planning")
-                    scenario_data = dict(st.session_state.employee_data)
-                    scenario_data["Compa Ratio"] = st.slider(
-                        "Compa Ratio (%) [Scenario]",
-                        50, 150, scenario_data["Compa Ratio"],
-                        help="Adjust to see how risk changes if compensation changes."
-                    )
-                    scenario_data["Last Performance Rating"] = st.slider(
-                        "Last Performance Rating [Scenario]",
-                        1, 5, scenario_data["Last Performance Rating"],
-                        help="What if performance improves (higher rating) or worsens?"
-                    )
-                    scenario_data["Pulse"] = st.radio(
-                        "Pulse (Employee dissatisfaction) [Scenario]",
-                        ["High", "Medium", "Low"],
-                        index=["High", "Medium", "Low"].index(scenario_data["Pulse"]),
-                        horizontal=True
-                    )
-                    scenario_score, scenario_triggers, _ = predict_attrition(scenario_data, selected_test_industry)
-                    st.write(f"**Scenario Attrition Risk:** {scenario_score:.2f}%")
-                    diff = scenario_score - score
-                    if diff > 0:
-                        st.markdown(f"<span style='color:red;'>Risk +{diff:.2f}% higher than original.</span>", unsafe_allow_html=True)
-                    elif diff < 0:
-                        st.markdown(f"<span style='color:green;'>Risk {diff:.2f}% lower than original.</span>", unsafe_allow_html=True)
-                    else:
-                        st.write("No change from original risk.")
-                    neg_scenario_triggers = [t for t in scenario_triggers if t in TRIGGER_DETAILS]
-                    if neg_scenario_triggers:
-                        st.write("### Scenario Negative Triggers")
-                        for t in neg_scenario_triggers:
-                            st.markdown(f"- **{t}**")
-                    else:
-                        st.markdown("*No negative triggers in this scenario.*")
-        
-        elif test_mode_option == "Bulk Employees":
-            st.header("Bulk Employee Attrition Prediction")
-            st.markdown("""
-            **Instructions:**
-            
-            Upload a CSV or Excel file with the following columns:
-             - **Name**
-             - **Employee Age**
-             - **Gender**
-             - **Tenure (Months)**
-             - **Pulse**
-             - **Hasn't been promoted**
-             - **Minimum Promotion Cycle**
-             - **College Tier** *(e.g., "Tier 1", "Tier 2", "Tier 3")*
-             - **Industry** *(e.g., "Tech", "Finance", etc.)*
-             - **Company Type** *(e.g., "Startup", "Small Size", "Mid Size", "MNC/Giant Company")*
-             - **Last Performance Rating**
-             - **Compa Ratio**
-             
-             *Note: The test data does not require an `Attrition` column.*
-            """)
-            global_avg_age = st.session_state.get("global_avg_age", 35)
-            global_female_ratio = st.session_state.get("global_female_ratio", 40)
-            bulk_tier1 = st.session_state.get("bulk_tier1", 60)
-            bulk_tier2 = st.session_state.get("bulk_tier2", 50)
-            bulk_tier3 = st.session_state.get("bulk_tier3", 40)
-            bulk_industry_retention = {}
-            for ind in industry_options:
-                bulk_industry_retention[ind] = st.session_state.get(f"bulk_ind_{ind}", 60 if ind=="Tech" else 50)
-            default_company_retention = st.session_state.get("retention_company", 60)
-        
-            uploaded_file = st.file_uploader("Upload Bulk Data (CSV or Excel)", type=["csv", "xlsx"], key="bulk_file")
-            if uploaded_file is not None:
-                try:
-                    df_bulk = pd.read_csv(uploaded_file) if uploaded_file.name.endswith(".csv") else pd.read_excel(uploaded_file)
-                except Exception as e:
-                    st.error(f"❌ Error reading the file: {e}")
-                    st.stop()
-                st.write("### Uploaded Data Preview:")
-                st.dataframe(df_bulk.head())
-                # For test data, we do not expect an Attrition column.
-                required_cols = [
-                    "Name", "Employee Age", "Gender", "Tenure (Months)", "Pulse",
-                    "Hasn't been promoted", "Minimum Promotion Cycle", "College Tier",
-                    "Industry", "Company Type", "Last Performance Rating", "Compa Ratio"
-                ]
-                missing = [c for c in required_cols if c not in df_bulk.columns]
-                if missing:
-                    st.error(f"❌ Missing columns: {missing}")
+        if uploaded_file is not None:
+            try:
+                if uploaded_file.name.endswith(".csv"):
+                    df_bulk = pd.read_csv(uploaded_file)
                 else:
-                    if st.button("🚀 Run Bulk Prediction"):
-                        scores = []
-                        triggers_list = []
-                        names = []
-                        for idx, row in df_bulk.iterrows():
-                            row_dict = row.to_dict()
-                            names.append(row_dict.get("Name"))
-                            row_dict["Average Employee Age"] = global_avg_age
-                            row_dict["Female Employee Ratio"] = global_female_ratio
-                            college_tier = row_dict.get("College Tier")
-                            if college_tier == "Tier 1":
-                                row_dict["College Tier Retention"] = bulk_tier1
-                            elif college_tier == "Tier 2":
-                                row_dict["College Tier Retention"] = bulk_tier2
-                            elif college_tier == "Tier 3":
-                                row_dict["College Tier Retention"] = bulk_tier3
-                            else:
-                                st.warning(f"Row {idx}: Unknown College Tier '{college_tier}'. Using default 40%.")
-                                row_dict["College Tier Retention"] = 40
-                            ind_val = row_dict.get("Industry")
-                            row_dict["Industry Retention"] = bulk_industry_retention.get(ind_val, 50)
-                            row_dict["Company Type Retention"] = default_company_retention
-                            try:
-                                bulk_score, bulk_trigs, _ = predict_attrition(row_dict, selected_test_industry)
-                            except Exception as e:
-                                st.error(f"Row {idx}: Prediction failed due to {e}. Skipping this row.")
-                                scores.append(None)
-                                triggers_list.append("Prediction Failed")
-                                continue
-                            scores.append(bulk_score)
-                            neg_trigs = [t for t in bulk_trigs if t in TRIGGER_DETAILS]
-                            triggers_str = ", ".join(neg_trigs) if neg_trigs else "None"
-                            triggers_list.append(triggers_str)
-                        df_bulk["Attrition Score"] = scores
-                        df_bulk["Negative Triggers"] = triggers_list
-                        df_bulk["Name"] = names
-                        st.success("✅ Bulk Prediction Completed!")
-                        st.dataframe(df_bulk)
-                        high_risk = (df_bulk["Attrition Score"] >= 75).sum()
-                        mod_high = ((df_bulk["Attrition Score"] >= 60) & (df_bulk["Attrition Score"] < 75)).sum()
-                        moderate = ((df_bulk["Attrition Score"] >= 35) & (df_bulk["Attrition Score"] < 60)).sum()
-                        low = (df_bulk["Attrition Score"] < 35).sum()
-                        risk_df = pd.DataFrame({
-                            "Risk Category": ["High (>=75)", "Mod-High (60-74)", "Moderate (35-59)", "Low (<35)"],
-                            "Count": [high_risk, mod_high, moderate, low]
-                        })
-                        st.write("### Risk Distribution")
-                        st.bar_chart(risk_df.set_index("Risk Category"))
-                        all_trigs = []
-                        for val in df_bulk["Negative Triggers"]:
-                            if pd.notna(val) and val.strip() != "" and val != "None":
-                                splitted = [x.strip() for x in val.split(",")]
-                                all_trigs.extend(splitted)
-                        if all_trigs:
-                            trig_series = pd.Series(all_trigs).value_counts()
-                            st.write("### Top Negative Triggers")
-                            st.bar_chart(trig_series)
-                        else:
-                            st.info("No negative triggers found across the batch.")
-                        st.write("### Drill Down into Individual Rows")
-                        df_bulk_reset = df_bulk.reset_index(drop=True)
-                        row_options = list(range(len(df_bulk_reset)))
-                        sel_row = st.selectbox("Select an Employee (Row Index)", row_options)
-                        if sel_row is not None:
-                            row_info = df_bulk_reset.loc[sel_row].to_dict()
-                            st.write("### Row Data:")
-                            st.json(row_info)
+                    df_bulk = pd.read_excel(uploaded_file)
+            except Exception as e:
+                st.error(f"❌ Error reading the file: {e}")
+                st.stop()
+            
+            st.write("### Uploaded Data Preview:")
+            st.dataframe(df_bulk.head())
+
+            # For test data, we do not expect an Attrition column.
+            required_cols = [
+                "Name", "Employee Age", "Gender", "Tenure (Months)", "Pulse",
+                "Hasn't been promoted", "Minimum Promotion Cycle", "College Tier",
+                "Industry", "Company Type", "Last Performance Rating", "Compa Ratio"
+            ]
+            missing = [c for c in required_cols if c not in df_bulk.columns]
+            if missing:
+                st.error(f"❌ Missing columns: {missing}")
+                st.stop()
+
+            if st.button("🚀 Run Bulk Prediction"):
+                # Save user event
+                save_user_event(
+                    st.session_state.user["email"], 
+                    "bulk_test", 
+                    {"filename": uploaded_file.name, "industry": selected_test_industry}
+                )
+
+                df_result = run_bulk_prediction(
+                    df_bulk, 
+                    selected_test_industry, 
+                    global_params,
+                    apply_adjustments=False
+                )
+
+                st.success("✅ Bulk Prediction Completed!")
+                st.dataframe(df_result)
+                
+                # Risk Distribution
+                st.write("### Risk Distribution")
+                show_risk_distribution(df_result)
+
+                # Trigger Distribution
+                show_triggers_distribution(df_result)
+
+                # --------------------- WHAT-IF MODE ---------------------
+                what_if_mode = st.checkbox("Activate What-If Analysis")
+
+                if what_if_mode:
+                    st.markdown("## What-If Scenario Analysis")
+                    col_left, col_right = st.columns([3, 1])
+                    
+                    with col_right:
+                        st.markdown("### Adjust Scenario")
+                        # Example sliders to globally adjust numeric columns
+                        compa_adjust = st.slider("Adjust Compa Ratio by (%)", -50, 50, 0)
+                        promo_reduction = st.slider("Reduce 'Hasn't been promoted' by", 0, 12, 0)
+                        st.write("Modify these sliders to see changes in overall risk distribution.")
+
+                        # Build an adjustments dict to pass
+                        scenario_adjustments = {
+                            "compa_adjust": compa_adjust,
+                            "promo_reduction": promo_reduction,
+                        }
+
+                    with col_left:
+                        st.markdown("### Scenario-Based Results")
+
+                        # Re-run predictions with the adjustments
+                        df_what_if = run_bulk_prediction(
+                            df_bulk, 
+                            selected_test_industry, 
+                            global_params,
+                            apply_adjustments=True,
+                            adjustments=scenario_adjustments
+                        )
+                        
+                        st.dataframe(df_what_if)
+                        st.write("### Scenario Risk Distribution")
+                        show_risk_distribution(df_what_if)
+                        show_triggers_distribution(df_what_if)
+
+                    st.info("Uncheck 'Activate What-If Analysis' to revert to original results.")
