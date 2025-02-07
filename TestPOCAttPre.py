@@ -1051,5 +1051,179 @@ else:
                             if st.button("Clear Saved Scenarios", key="clear_scenarios"):
                                 st.session_state.saved_scenarios = []
                                 st.success("Saved scenarios cleared!")
+                    
+                    # ---------------------------
+                    # NEW: Additional Graph Options & Custom Graph Builder
+                    # ---------------------------
+                    with st.expander("Additional Graph Options"):
+                        st.markdown("## Recommended Graphs")
+                        # 1. Histogram of Attrition Score Distribution
+                        fig1, ax1 = plt.subplots()
+                        ax1.hist(df_bulk['Attrition Score'].dropna(), bins=20, color='skyblue')
+                        ax1.set_title("Attrition Score Distribution")
+                        ax1.set_xlabel("Attrition Score")
+                        ax1.set_ylabel("Frequency")
+                        st.pyplot(fig1)
+                        
+                        # 2. Scatter Plot: Employee Age vs Attrition Score
+                        scatter_chart_age = alt.Chart(df_bulk).mark_circle(size=60).encode(
+                            x="Employee Age",
+                            y="Attrition Score",
+                            color="Industry",
+                            tooltip=["Name", "Employee Age", "Attrition Score", "Industry"]
+                        ).interactive()
+                        st.altair_chart(scatter_chart_age, use_container_width=True)
+                        
+                        # 3. Box Plot: Employee Age by Gender
+                        box_chart_age_gender = alt.Chart(df_bulk).mark_boxplot().encode(
+                            x="Gender:N",
+                            y="Employee Age:Q",
+                            tooltip=["Gender", "Employee Age"]
+                        )
+                        st.altair_chart(box_chart_age_gender, use_container_width=True)
+                        
+                        # 4. Scatter Plot: Compa Ratio vs Attrition Score
+                        scatter_chart_compa = alt.Chart(df_bulk).mark_circle(size=60).encode(
+                            x="Compa Ratio:Q",
+                            y="Attrition Score:Q",
+                            tooltip=["Name", "Compa Ratio", "Attrition Score"]
+                        ).interactive()
+                        st.altair_chart(scatter_chart_compa, use_container_width=True)
+                        
+                        # 5. Box Plot: Tenure (Months) by Industry
+                        box_chart_tenure_ind = alt.Chart(df_bulk).mark_boxplot().encode(
+                            x="Industry:N",
+                            y="Tenure (Months):Q",
+                            tooltip=["Industry", "Tenure (Months)"]
+                        )
+                        st.altair_chart(box_chart_tenure_ind, use_container_width=True)
+                        
+                        # 6. Pie Chart: Industry Distribution
+                        industry_counts = df_bulk['Industry'].value_counts().reset_index()
+                        industry_counts.columns = ['Industry', 'Count']
+                        pie_chart = alt.Chart(industry_counts).mark_arc().encode(
+                            theta=alt.Theta(field="Count", type="quantitative"),
+                            color=alt.Color(field="Industry", type="nominal"),
+                            tooltip=["Industry", "Count"]
+                        )
+                        st.altair_chart(pie_chart, use_container_width=True)
+                        
+                        # 7. Bar Chart: Negative Triggers Count
+                        trigger_counts = compute_trigger_counts(df_bulk, "Negative Triggers").reset_index()
+                        trigger_counts.columns = ["Trigger", "Count"]
+                        bar_chart_triggers = alt.Chart(trigger_counts).mark_bar().encode(
+                            x=alt.X("Trigger:N", sort='-y'),
+                            y="Count:Q",
+                            tooltip=["Trigger", "Count"]
+                        )
+                        st.altair_chart(bar_chart_triggers, use_container_width=True)
+                        
+                        # 8. Bar Chart: Average Attrition Score by Industry
+                        avg_attrition_ind = df_bulk.groupby("Industry")["Attrition Score"].mean().reset_index()
+                        bar_chart_avg_attr = alt.Chart(avg_attrition_ind).mark_bar().encode(
+                            x=alt.X("Industry:N", sort='-y'),
+                            y=alt.Y("Attrition Score:Q", title="Average Attrition Score"),
+                            tooltip=["Industry", "Attrition Score"]
+                        )
+                        st.altair_chart(bar_chart_avg_attr, use_container_width=True)
+                        
+                        st.markdown("### Custom Graph Selection")
+                        additional_graphs = {
+                            "Box Plot: Employee Age by Industry": lambda: st.altair_chart(
+                                alt.Chart(df_bulk).mark_boxplot().encode(
+                                    x="Industry:N",
+                                    y="Employee Age:Q",
+                                    tooltip=["Industry", "Employee Age"]
+                                ), use_container_width=True),
+                            "Box Plot: Tenure by Gender": lambda: st.altair_chart(
+                                alt.Chart(df_bulk).mark_boxplot().encode(
+                                    x="Gender:N",
+                                    y="Tenure (Months):Q",
+                                    tooltip=["Gender", "Tenure (Months)"]
+                                ), use_container_width=True),
+                            "Violin Plot: Tenure by Pulse": lambda: st.altair_chart(
+                                alt.Chart(df_bulk).transform_density(
+                                    "Tenure (Months)", as_=["Tenure (Months)", "density"], groupby=["Pulse"]
+                                ).mark_area(orient='horizontal').encode(
+                                    y="Tenure (Months):Q",
+                                    x=alt.X("density:Q", stack="zero"),
+                                    color="Pulse:N",
+                                    tooltip=["Tenure (Months)", "density", "Pulse"]
+                                ), use_container_width=True),
+                            "Scatter Plot: Employee Age vs Tenure": lambda: st.altair_chart(
+                                alt.Chart(df_bulk).mark_circle(size=60).encode(
+                                    x="Employee Age:Q",
+                                    y="Tenure (Months):Q",
+                                    color="Attrition Score:Q",
+                                    tooltip=["Name", "Employee Age", "Tenure (Months)", "Attrition Score"]
+                                ).interactive(), use_container_width=True),
+                            "Box Plot: Compa Ratio by Company Type": lambda: st.altair_chart(
+                                alt.Chart(df_bulk).mark_boxplot().encode(
+                                    x="Company Type:N",
+                                    y="Compa Ratio:Q",
+                                    tooltip=["Company Type", "Compa Ratio"]
+                                ), use_container_width=True),
+                            "Scatter Plot: Hasn't been Promoted vs Attrition Score": lambda: st.altair_chart(
+                                alt.Chart(df_bulk).mark_circle(size=60).encode(
+                                    x="Hasn't been promoted:Q",
+                                    y="Attrition Score:Q",
+                                    tooltip=["Name", "Hasn't been promoted", "Attrition Score"]
+                                ).interactive(), use_container_width=True),
+                            "Heatmap: Correlation Matrix": lambda: st.altair_chart(
+                                alt.Chart(df_bulk.select_dtypes(include=[np.number]).corr().reset_index().melt(id_vars="index")).mark_rect().encode(
+                                    x=alt.X("index:N", title=""),
+                                    y=alt.Y("variable:N", title=""),
+                                    color=alt.Color("value:Q", scale=alt.Scale(scheme='redblue')),
+                                    tooltip=["index", "variable", "value"]
+                                ).properties(width=300, height=300), use_container_width=True)
+                        }
+                        selected_additional_graphs = st.multiselect(
+                            "Select additional graphs to display",
+                            options=list(additional_graphs.keys()),
+                            default=[]
+                        )
+                        for graph_name in selected_additional_graphs:
+                            st.markdown(f"#### {graph_name}")
+                            additional_graphs[graph_name]()
+                    
+                    with st.expander("Custom Graph Builder"):
+                        st.markdown("## Build Your Own Graph")
+                        x_axis_custom = st.selectbox("Select X Axis", options=df_bulk.columns, key="custom_x")
+                        y_axis_custom = st.selectbox("Select Y Axis", options=df_bulk.columns, key="custom_y")
+                        
+                        # Determine data types
+                        is_x_numeric = pd.api.types.is_numeric_dtype(df_bulk[x_axis_custom])
+                        is_y_numeric = pd.api.types.is_numeric_dtype(df_bulk[y_axis_custom])
+                        
+                        st.markdown("**Recommended Graph Type:**")
+                        if is_x_numeric and is_y_numeric:
+                            st.write("Scatter Plot or Line Chart")
+                            chart_custom = alt.Chart(df_bulk).mark_circle(size=60).encode(
+                                x=f"{x_axis_custom}:Q",
+                                y=f"{y_axis_custom}:Q",
+                                tooltip=[x_axis_custom, y_axis_custom]
+                            ).interactive()
+                        elif is_x_numeric and not is_y_numeric:
+                            st.write("Box Plot (Numeric vs Categorical)")
+                            chart_custom = alt.Chart(df_bulk).mark_boxplot().encode(
+                                x=f"{y_axis_custom}:N",
+                                y=f"{x_axis_custom}:Q",
+                                tooltip=[x_axis_custom, y_axis_custom]
+                            )
+                        elif not is_x_numeric and is_y_numeric:
+                            st.write("Box Plot (Categorical vs Numeric)")
+                            chart_custom = alt.Chart(df_bulk).mark_boxplot().encode(
+                                x=f"{x_axis_custom}:N",
+                                y=f"{y_axis_custom}:Q",
+                                tooltip=[x_axis_custom, y_axis_custom]
+                            )
+                        else:
+                            st.write("Bar Chart (Categorical vs Categorical)")
+                            chart_custom = alt.Chart(df_bulk).mark_bar().encode(
+                                x=f"{x_axis_custom}:N",
+                                y="count()",
+                                tooltip=[x_axis_custom]
+                            )
+                        st.altair_chart(chart_custom, use_container_width=True)
         else:
             st.info("Please upload a bulk data file to begin analysis.")
