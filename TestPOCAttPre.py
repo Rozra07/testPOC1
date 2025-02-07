@@ -36,7 +36,7 @@ if "bulk_prediction_complete" not in st.session_state:
 if "bulk_result" not in st.session_state:
     st.session_state.bulk_result = None
 if "enable_what_if" not in st.session_state:
-    st.session_state.enable_what_if = False  # Boolean for the custom toggle
+    st.session_state.enable_what_if = False  # We revert to a plain checkbox controlling this
 
 # ----------------------------------------------------
 # Helper functions for user storage
@@ -845,9 +845,14 @@ else:
                         )
 
                 with btn_cols[1]:
-                    # We don't place the old st.checkbox here. Instead, we rely on the hidden checkbox + toggle below
-                    pass
-
+                    # Normal checkbox (no toggle)
+                    if st.session_state.bulk_prediction_complete:
+                        st.session_state.enable_what_if = st.checkbox(
+                            "Enable What-If Analysis",
+                            value=st.session_state.enable_what_if,
+                            key="enable_what_if"
+                        )
+                
                 if st.session_state.bulk_prediction_complete:
                     df_bulk = st.session_state.bulk_result
                     left_col, right_col = st.columns(2)
@@ -902,96 +907,7 @@ else:
                             selected_trigger = None
                     
                     with right_col:
-                        # ----------------------------
-                        # 1) Place a hidden real checkbox for session_state
-                        # ----------------------------
-                        toggled = st.checkbox(
-                            "",  # no label
-                            value=st.session_state.enable_what_if,
-                            key="enable_what_if",
-                            label_visibility="collapsed"
-                        )
-
-                        # 2) Hide the real checkbox from UI globally
-                        st.markdown(
-                            """
-                            <style>
-                            /* Hide all st.checkbox in the entire page */
-                            [data-testid="stCheckbox"] {
-                                display: none;
-                            }
-                            </style>
-                            """,
-                            unsafe_allow_html=True
-                        )
-
-                        # 3) Render a custom HTML toggle
-                        st.markdown(
-                            f"""
-                            <style>
-                            .switch {{
-                                position: relative;
-                                display: inline-block;
-                                width: 46px;
-                                height: 24px;
-                                vertical-align: middle;
-                                margin-right: 8px;
-                            }}
-                            .switch input {{
-                                opacity: 0;
-                                width: 0;
-                                height: 0;
-                            }}
-                            .slider {{
-                                position: absolute;
-                                cursor: pointer;
-                                top: 0; 
-                                left: 0; 
-                                right: 0; 
-                                bottom: 0;
-                                background-color: #ccc;
-                                transition: .4s;
-                                border-radius: 24px;
-                            }}
-                            .slider:before {{
-                                position: absolute;
-                                content: "";
-                                height: 18px; 
-                                width: 18px;
-                                left: 3px; 
-                                bottom: 3px;
-                                background-color: white;
-                                transition: .4s;
-                                border-radius: 50%;
-                            }}
-                            input:checked + .slider {{
-                                background-color: #2196F3;
-                            }}
-                            input:focus + .slider {{
-                                box-shadow: 0 0 1px #2196F3;
-                            }}
-                            input:checked + .slider:before {{
-                                transform: translateX(22px);
-                            }}
-                            </style>
-
-                            <label class="switch">
-                                <input type="checkbox" {"checked" if toggled else ""} onclick="
-                                    // Find the hidden real Streamlit checkbox:
-                                    var hiddenChecks = window.parent.document.querySelectorAll('[data-testid=\"stCheckbox\"] input[type=checkbox]');
-                                    // We expect the first one to be our 'enable_what_if' checkbox.
-                                    if(hiddenChecks.length > 0) {{
-                                        hiddenChecks[0].click();
-                                    }}
-                                ">
-                                <span class="slider"></span>
-                            </label>
-                            <span style="vertical-align: middle;">Enable What-If Analysis</span>
-                            """,
-                            unsafe_allow_html=True
-                        )
-
-                        # 4) If toggled on, show the What-If block
+                        # Show the entire What-If block only if the checkbox is checked
                         if st.session_state.enable_what_if:
                             st.markdown(
                                 """
@@ -1004,10 +920,8 @@ else:
                             )
 
                             st.markdown("## What-If Analysis")
-
-                            # For triggers:
-                            trig_series = compute_trigger_counts(df_bulk, "Negative Triggers")
                             whatif_params = {}
+                            trig_series = compute_trigger_counts(df_bulk, "Negative Triggers")
                             
                             if "Low gender diversity" in trig_series.index:
                                 whatif_params["female_ratio"] = st.slider(
