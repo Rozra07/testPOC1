@@ -75,7 +75,7 @@ def load_user_history(email):
 # Global: Expanded Industry Options
 # ----------------------------------------------------
 industry_options = [
-    "Tech", "Finance", "Healthcare", "Education", "Manufacturing", 
+    "Tech", "Finance", "Healthcare", "Education", "Manufacturing",
     "Retail", "Energy", "Telecommunications", "Government", "Nonprofit", "Other"
 ]
 
@@ -86,33 +86,41 @@ def train_model(training_df, target_column, industry):
     st.write("Training on data shape:", training_df.shape)
     X = training_df.drop(columns=[target_column])
     y = training_df[target_column]
+
+    # One-hot encoding of categorical variables
     X_encoded = pd.get_dummies(X)
     feature_columns = list(X_encoded.columns)
-    
+
+    # Scale
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X_encoded)
-    
+
+    # Model training
     model = LogisticRegression(solver="liblinear", random_state=42)
     model.fit(X_scaled, y)
-    
+
     st.write("Model coefficients:", model.coef_)
-    
+
+    # Save model, scaler, features
     model_filename = f"{industry}_model.pkl"
     scaler_filename = f"{industry}_scaler.pkl"
     features_filename = f"{industry}_feature_columns.pkl"
+
     with open(model_filename, "wb") as f:
         pickle.dump(model, f)
     with open(scaler_filename, "wb") as f:
         pickle.dump(scaler, f)
     with open(features_filename, "wb") as f:
         pickle.dump(feature_columns, f)
+
     st.success("Model trained and saved successfully!")
     training_accuracy = model.score(X_scaled, y) * 100
     st.info(f"Training Accuracy (Confidence): {training_accuracy:.2f}%")
-    
+
+    # Record industry model details
     update_industry_record(industry, model_filename, scaler_filename, features_filename)
-    
-    # Save global settings to user record
+
+    # Save current global settings to user's profile
     user = st.session_state.user
     user_settings = user.get("settings", {})
     user_settings["global_avg_age"] = st.session_state.global_avg_age
@@ -130,11 +138,11 @@ def train_model(training_df, target_column, industry):
         "Mid Size": st.session_state.bulk_mid,
         "MNC/Giant Company": st.session_state.bulk_mnc
     }
+
     user["settings"] = user_settings
     users = load_users()
     users[user["email"]] = user
     save_users(users)
-    
     save_user_event(user["email"], "training", {"action": "Model retrained", "industry": industry})
 
 def update_industry_record(industry, model_file, scaler_file, feature_file):
@@ -376,7 +384,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
     extreme_factors = 0
     triggers = []
     
-    # Example Weighted Heuristics
+    # Weighted heuristics
     if employee["Gender"] == "Female" and employee["Female Employee Ratio"] <= 15:
         score += 30
         extreme_factors += 1
@@ -397,7 +405,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
         score -= 15
         extreme_factors -= 0.5
         triggers.append("Excellent performance rating")
-    
+
     if employee["Compa Ratio"] < 70:
         score += 25
         extreme_factors += 1
@@ -410,7 +418,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
         score -= 15
         extreme_factors -= 0.5
         triggers.append("High compensation ratio")
-    
+
     if employee["College Tier Retention"] < 15:
         score += 15
         extreme_factors += 0.5
@@ -423,7 +431,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
         score += 15
         extreme_factors += 0.5
         triggers.append("Low company type retention")
-    
+
     if employee["Pulse"] == "High":
         score += 20
         extreme_factors += 0.5
@@ -432,7 +440,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
         score -= 20
         extreme_factors -= 0.5
         triggers.append("Low dissatisfaction (Pulse)")
-    
+
     # Amplify if multiple extremes
     if extreme_factors == 2:
         score = min(100, score * 1.3)
@@ -450,44 +458,26 @@ def compute_weighted_attrition(employee, return_triggers=False):
 # ----------------------------------------------------
 # ML + Weighted Hybrid Prediction
 # ----------------------------------------------------
-def predict_attrition(employee_data, industry):
-    # Load the relevant model
+def predict_attrition(row_data, industry):
     model, scaler, feature_columns = load_model(industry)
     if model is None:
         return None, None, None
-    
-    df_input = pd.DataFrame([employee_data])
+
+    # One row
+    df_input = pd.DataFrame([row_data])
     df_input = pd.get_dummies(df_input)
     df_input = df_input.reindex(columns=feature_columns, fill_value=0)
     X_scaled = scaler.transform(df_input)
-    
+
     ml_probability = model.predict_proba(X_scaled)[:, 1][0] * 100
-    rule_probability, triggers = compute_weighted_attrition(employee_data, return_triggers=True)
-    
+    rule_probability, triggers = compute_weighted_attrition(row_data, return_triggers=True)
+
     combined_score = 0.75 * rule_probability + 0.25 * ml_probability
     return combined_score, triggers, ml_probability
 
 # ----------------------------------------------------
 # Sample CSV Generators
 # ----------------------------------------------------
-def generate_sample_csv():
-    sample_csv = pd.DataFrame({
-        "Employee Age": [30, 45],
-        "Gender": ["Male", "Female"],
-        "Tenure (Months)": [36, 48],
-        "Pulse": ["Medium", "High"],
-        "Hasn't been promoted": [12, 36],
-        "Minimum Promotion Cycle": [24, 24],
-        "College Tier": ["Tier 1", "Tier 2"],
-        "Industry": ["Tech", "Finance"],
-        "Company Type": ["Startup", "Enterprise"],
-        "Last Performance Rating": [3, 1],
-        "Compa Ratio": [90, 65]
-    })
-    csv_buffer = io.StringIO()
-    sample_csv.to_csv(csv_buffer, index=False)
-    return csv_buffer.getvalue()
-
 def generate_dummy_training_file():
     dummy_df = pd.DataFrame({
         "Name": ["Example 1", "Example 2", "Example 3"],
@@ -512,35 +502,34 @@ def generate_dummy_training_file():
 # Bulk Prediction Helper
 # ----------------------------------------------------
 def run_bulk_prediction(df, industry, global_params, apply_adjustments=False, adjustments=None):
-    # Make a copy so we don't mutate the original
     df_result = df.copy()
-    
+
     scores = []
     triggers_list = []
     ml_probs = []
-    
-    for idx, row in df_result.iterrows():
+
+    for _, row in df_result.iterrows():
         row_data = row.to_dict()
-        
+
         # Insert global references
         row_data["Average Employee Age"] = global_params["global_avg_age"]
         row_data["Female Employee Ratio"] = global_params["global_female_ratio"]
-        
+
         # College Tier Retention
         c_tier = str(row_data.get("College Tier", "Tier 3"))
         tier_ret = global_params["tier_retention_dict"].get(c_tier, 40)
         row_data["College Tier Retention"] = tier_ret
-        
+
         # Industry Retention
         ind_val = str(row_data.get("Industry", "Other"))
         ind_ret = global_params["industry_retention_dict"].get(ind_val, 50)
         row_data["Industry Retention"] = ind_ret
-        
+
         # Company Type Retention
         comp_type = str(row_data.get("Company Type", "Small Size"))
         comp_ret = global_params["company_retention_dict"].get(comp_type, 50)
         row_data["Company Type Retention"] = comp_ret
-        
+
         # What-If adjustments
         if apply_adjustments and adjustments is not None:
             if "compa_adjust" in adjustments:
@@ -548,13 +537,12 @@ def run_bulk_prediction(df, industry, global_params, apply_adjustments=False, ad
             if "promo_reduction" in adjustments:
                 new_val = row_data["Hasn't been promoted"] - adjustments["promo_reduction"]
                 row_data["Hasn't been promoted"] = max(0, new_val)
-            # Potentially add more if you want to adjust Pulse, Min Promotion, etc.
         
         bulk_score, bulk_trigs, ml_prob = predict_attrition(row_data, industry)
-        
+
         scores.append(bulk_score)
-        ml_probs.append(ml_prob if ml_prob else 0)
-        
+        ml_probs.append(ml_prob if ml_prob is not None else 0)
+
         neg_trigs = [t for t in bulk_trigs if t in TRIGGER_DETAILS]
         triggers_str = ", ".join(neg_trigs) if neg_trigs else "None"
         triggers_list.append(triggers_str)
@@ -562,15 +550,14 @@ def run_bulk_prediction(df, industry, global_params, apply_adjustments=False, ad
     df_result["Attrition Score"] = scores
     df_result["ML Probability"] = ml_probs
     df_result["Negative Triggers"] = triggers_list
-    
+
     return df_result
 
-# Show risk distribution
 def show_risk_distribution(df_result):
     high_risk = (df_result["Attrition Score"] >= 75).sum()
-    mod_high  = ((df_result["Attrition Score"] >= 60) & (df_result["Attrition Score"] < 75)).sum()
-    moderate  = ((df_result["Attrition Score"] >= 35) & (df_result["Attrition Score"] < 60)).sum()
-    low       = (df_result["Attrition Score"] < 35).sum()
+    mod_high = ((df_result["Attrition Score"] >= 60) & (df_result["Attrition Score"] < 75)).sum()
+    moderate = ((df_result["Attrition Score"] >= 35) & (df_result["Attrition Score"] < 60)).sum()
+    low = (df_result["Attrition Score"] < 35).sum()
 
     risk_df = pd.DataFrame({
         "Risk Category": ["High (>=75)", "Mod-High (60-74)", "Moderate (35-59)", "Low (<35)"],
@@ -591,12 +578,13 @@ def show_triggers_distribution(df_result):
     else:
         st.info("No negative triggers found.")
 
-# ---------------------------------------
-# Login/Sign Up System
-# ---------------------------------------
+# ----------------------------------------------------
+# Login / Sign Up
+# ----------------------------------------------------
 if not st.session_state.logged_in:
     st.title("Employee Attrition Prediction Tool - Login / Sign Up")
     auth_mode = st.radio("Select Mode", ["Login", "Sign Up"], index=0)
+    
     if auth_mode == "Login":
         with st.form("login_form"):
             email = st.text_input("Email")
@@ -642,11 +630,12 @@ if not st.session_state.logged_in:
                         st.session_state.user = user
                         st.session_state.logged_in = True
                         safe_rerun()
+    
     if not st.session_state.logged_in:
         st.stop()
 
 # ---------------------------------------
-# Top Header with Title, My Account Icon, and Logout
+# Top Header with Title, My Account, Logout
 # ---------------------------------------
 def logout():
     for key in list(st.session_state.keys()):
@@ -665,7 +654,7 @@ with header_container:
             logout()
 
 # ---------------------------------------
-# Sidebar: Global Settings and Mode Selection
+# Sidebar: Global Settings & Mode Selection
 # ---------------------------------------
 if st.session_state.nav != "My Account":
     with st.sidebar:
@@ -673,8 +662,8 @@ if st.session_state.nav != "My Account":
         
         # Disable global settings if in Test Mode
         disabled_flag = (mode == "Test Mode")
-        
         st.markdown("### Global Settings for Bulk Analysis")
+        
         global_avg_age = st.slider(
             "Average Employee Age in Company", 18, 100,
             st.session_state.user.get("settings", {}).get("global_avg_age", 35),
@@ -704,7 +693,7 @@ if st.session_state.nav != "My Account":
         with st.expander("Industry Retention Settings", expanded=False):
             bulk_industry_retention = {}
             for ind in industry_options:
-                default_val = st.session_state.user.get("settings", {}).get("bulk_industry_retention", {}).get(ind, 60 if ind=="Tech" else 50)
+                default_val = st.session_state.user.get("settings", {}).get("bulk_industry_retention", {}).get(ind, 60 if ind == "Tech" else 50)
                 bulk_industry_retention[ind] = st.slider(
                     f"{ind} Retention (%)", 10, 100, default_val,
                     key=f"bulk_ind_{ind}", disabled=disabled_flag
@@ -735,6 +724,7 @@ if st.session_state.nav != "My Account":
 # Main Navigation
 # ---------------------------------------
 if st.session_state.nav == "My Account":
+    # Account / History
     st.markdown("<div style='text-align: center;'><h2>My Account</h2></div>", unsafe_allow_html=True)
     user = st.session_state.user
     
@@ -743,43 +733,44 @@ if st.session_state.nav == "My Account":
     st.write(f"**Designation:** {user.get('designation', '')}")
     st.write(f"**Company:** {user.get('company', '')}")
     st.write(f"**Email:** {user.get('email', '')}")
-    
+
     st.write("### Saved Global Settings")
     user_settings = user.get("settings", {})
     if user_settings:
         st.json(user_settings)
     else:
         st.info("No global settings saved. Please train your model to save settings.")
-    
+
     st.write("### Analysis History")
     history = load_user_history(user["email"])
     if history:
         st.dataframe(pd.DataFrame(history))
     else:
         st.info("No history available yet.")
-    
+
     if st.button("Back to Main"):
         st.session_state.nav = "Tabs"
 
 else:
-    # -------------- MAIN MODES --------------
+    # ------------ MAIN MODES ------------
     if st.session_state.main_mode == "Train Mode":
+        # TRAIN MODE
         st.header("Train Mode")
         selected_train_industry = st.selectbox("Select Your Industry", industry_options, key="train_industry")
-        
+
         col1, col2 = st.columns([1, 1])
         with col1:
             uploaded_train = st.file_uploader("Upload Training Data (CSV or Excel)", type=["csv", "xlsx"], key="train_file")
         with col2:
-            st.markdown("### Detailed Guide for Training File")
+            st.markdown("### Training File Requirements")
             st.markdown("""
-            **Training file must include:**
-            - A binary target column (e.g., `Attrition` with 0 = Active, 1 = Churned)
-            - Features such as:
+            **Your training file must include:**
+            - A binary target column (e.g. `Attrition`, 0/1)
+            - Feature columns, for example:
               - `Employee Age`
               - `Gender`
               - `Tenure (Months)`
-              - `Pulse`
+              - `Pulse` ("High", "Medium", or "Low")
               - `Hasn't been promoted`
               - `Minimum Promotion Cycle`
               - `College Tier`
@@ -794,8 +785,9 @@ else:
                 file_name="dummy_training_file.csv",
                 mime="text/csv"
             )
-        target_column = st.text_input("Enter the name of the target column (e.g., 'Attrition')", value="Attrition")
-        
+
+        target_column = st.text_input("Name of Target Column", value="Attrition")
+
         if uploaded_train is not None:
             try:
                 if uploaded_train.name.endswith(".csv"):
@@ -806,17 +798,17 @@ else:
                 st.dataframe(train_df.head())
             except Exception as e:
                 st.error(f"Error reading file: {e}")
-            
+
             if st.button("Train Model"):
                 train_model(train_df, target_column, selected_train_industry)
-    
+
     else:
-        # -------------- TEST MODE (Bulk Only) --------------
+        # TEST MODE (Bulk Only)
         st.header("Bulk Employee Attrition Prediction")
         st.markdown("""
         **Instructions:**
         - Ensure you have trained a model in Train Mode.
-        - Upload a CSV or Excel file with the following columns (no 'Attrition' needed):
+        - Upload a CSV or Excel file with columns:
           - `Name`
           - `Employee Age`
           - `Gender`
@@ -831,14 +823,14 @@ else:
           - `Compa Ratio`
         """)
 
-        # Global params for all rows
+        # Gather global parameters
         global_params = {
             "global_avg_age": st.session_state.get("global_avg_age", 35),
             "global_female_ratio": st.session_state.get("global_female_ratio", 40),
             "tier_retention_dict": {
                 "Tier 1": st.session_state.get("bulk_tier1", 60),
                 "Tier 2": st.session_state.get("bulk_tier2", 50),
-                "Tier 3": st.session_state.get("bulk_tier3", 40)
+                "Tier 3": st.session_state.get("bulk_tier3", 40),
             },
             "industry_retention_dict": {
                 ind: st.session_state.get(f"bulk_ind_{ind}", 60 if ind == "Tech" else 50)
@@ -849,21 +841,21 @@ else:
                 "Small Size": st.session_state.get("bulk_small", 55),
                 "Mid Size": st.session_state.get("bulk_mid", 50),
                 "MNC/Giant Company": st.session_state.get("bulk_mnc", 45),
-                "Enterprise": 60, # fallback
-                "SME": 50         # fallback
+                "Enterprise": 60,  # fallback
+                "SME": 50          # fallback
             }
         }
 
         default_test_industry = st.session_state.get("train_industry", industry_options[0])
         selected_test_industry = st.selectbox(
-            "Select Your Industry for Prediction",
+            "Select Your Industry (for prediction)",
             industry_options,
             index=industry_options.index(default_test_industry) if default_test_industry in industry_options else 0,
             key="test_industry"
         )
 
         uploaded_file = st.file_uploader("Upload Bulk Data (CSV or Excel)", type=["csv", "xlsx"], key="bulk_file")
-        
+
         if uploaded_file is not None:
             try:
                 if uploaded_file.name.endswith(".csv"):
@@ -873,8 +865,8 @@ else:
             except Exception as e:
                 st.error(f"❌ Error reading the file: {e}")
                 st.stop()
-            
-            st.write("### Uploaded Data Preview:")
+
+            st.write("### Preview of Uploaded Data")
             st.dataframe(df_bulk.head())
 
             required_cols = [
@@ -888,6 +880,7 @@ else:
                 st.stop()
 
             if st.button("Run Bulk Prediction"):
+                # Save event
                 save_user_event(
                     st.session_state.user["email"],
                     "bulk_test",
@@ -895,7 +888,7 @@ else:
                 )
 
                 df_result = run_bulk_prediction(
-                    df_bulk, 
+                    df_bulk,
                     selected_test_industry,
                     global_params,
                     apply_adjustments=False
@@ -903,32 +896,30 @@ else:
 
                 st.success("✅ Bulk Prediction Completed!")
                 st.dataframe(df_result)
-                
+
                 st.write("### Risk Distribution")
                 show_risk_distribution(df_result)
 
                 show_triggers_distribution(df_result)
 
-                # --------------------- WHAT-IF MODE ---------------------
+                # What-If Analysis
                 what_if_mode = st.checkbox("Activate What-If Analysis (Bulk Scenario)")
                 if what_if_mode:
                     st.markdown("## What-If Scenario Analysis")
                     col_left, col_right = st.columns([3, 1])
-                    
+
                     with col_right:
                         st.markdown("### Adjust Global Factors")
                         compa_adjust = st.slider("Adjust All Employees' Compa Ratio by (%)", -50, 50, 0)
                         promo_reduction = st.slider("Reduce 'Hasn't been promoted' by (months)", 0, 12, 0)
-                        
-                        st.write("Adjust sliders to see how overall risk distribution changes.")
-                        
+
                         scenario_adjustments = {
                             "compa_adjust": compa_adjust,
                             "promo_reduction": promo_reduction
                         }
 
                     with col_left:
-                        st.markdown("### Scenario Results")
+                        st.markdown("### Scenario-Based Results")
                         df_what_if = run_bulk_prediction(
                             df_bulk,
                             selected_test_industry,
@@ -936,7 +927,7 @@ else:
                             apply_adjustments=True,
                             adjustments=scenario_adjustments
                         )
-                        
+
                         st.dataframe(df_what_if)
                         st.write("#### Scenario Risk Distribution")
                         show_risk_distribution(df_what_if)
