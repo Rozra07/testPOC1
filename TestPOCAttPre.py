@@ -10,7 +10,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 import altair as alt
 
-# Set page configuration to wide (full screen)
+# Set page configuration to wide
 st.set_page_config(layout="wide")
 
 # -------------------------------
@@ -32,9 +32,9 @@ def safe_int(val, default):
     except Exception:
         return int(default)
 
-# ---------------------------------------
+# -------------------------------
 # Helper function for safe rerun
-# ---------------------------------------
+# -------------------------------
 def safe_rerun():
     if hasattr(st, "experimental_rerun"):
         st.experimental_rerun()
@@ -47,7 +47,7 @@ def safe_rerun():
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "nav" not in st.session_state:
-    st.session_state.nav = "Tabs"  # "Tabs" indicates main UI (i.e. not "My Account")
+    st.session_state.nav = "Tabs"  # "Tabs" indicates main UI (not "My Account")
 if "user" not in st.session_state:
     st.session_state.user = {}
 if "bulk_prediction_complete" not in st.session_state:
@@ -104,7 +104,7 @@ def load_user_history(email):
 # Global: Expanded Industry Options
 # ----------------------------------------------------
 industry_options = [
-    "Tech", "Finance", "Healthcare", "Education", "Manufacturing", 
+    "Tech", "Finance", "Healthcare", "Education", "Manufacturing",
     "Retail", "Energy", "Telecommunications", "Government", "Nonprofit", "Other"
 ]
 
@@ -136,10 +136,8 @@ def train_model(training_df, target_column, industry):
     training_accuracy = model.score(X_scaled, y) * 100
     st.info(f"Training Accuracy (Confidence): {training_accuracy:.2f}%")
     
-    # Save industry record
     update_industry_record(industry, model_filename, scaler_filename, features_filename)
     
-    # Save global settings to user record.
     user = st.session_state.user
     user_settings = user.get("settings") or {}
     user_settings["global_avg_age"] = st.session_state.global_avg_age
@@ -396,7 +394,7 @@ TRIGGER_DETAILS = {
 
 # ----------------------------------------------------
 # Rule-based attrition computation
-# Reintroducing the "Hasn't been promoted" and "Minimum Promotion Cycle" factors.
+# (Reintroducing the "Hasn't been promoted" and "Minimum Promotion Cycle" factors)
 # ----------------------------------------------------
 def compute_weighted_attrition(employee, return_triggers=False):
     score = 0
@@ -835,12 +833,15 @@ else:
                         save_user_event(st.session_state.user["email"], "bulk_prediction", {"rows": len(df_bulk)})
                 with btn_cols[1]:
                     if st.session_state.bulk_prediction_complete:
-                        st.session_state.enable_what_if = st.checkbox("Enable What-If Analysis", key="whatif_toggle", value=False)
+                        st.session_state.enable_what_if = st.checkbox("Enable What-If Analysis", key="whatif_toggle")
                 
                 if st.session_state.bulk_prediction_complete:
                     df_bulk = st.session_state.bulk_result
-                    # Divide screen into two columns: Left (Original Results) and Right (What-If Analysis) only if What-If is enabled.
-                    left_col, right_col = st.columns(2)
+                    # Divide the screen into two columns only if What-If is enabled; otherwise, show original results
+                    if st.session_state.enable_what_if:
+                        left_col, right_col = st.columns(2)
+                    else:
+                        left_col = st.container()
                     
                     with left_col:
                         st.success("✅ Bulk Prediction Completed!")
@@ -869,7 +870,7 @@ else:
                             st.write("### Overall Negative Triggers (Pie Chart)")
                             st.altair_chart(pie_chart, use_container_width=True)
                             
-                            # Display legend as a table with colored boxes
+                            # Display legend as an HTML table with colored boxes
                             legend_html = "<table><tr><th>Trigger</th><th>Percentage</th><th>Color</th></tr>"
                             color_scale = ["#AEC6CF", "#FFD1DC", "#C3B1E1", "#FDFD96", "#77DD77", "#B19CD9", "#FFB347"]
                             for i, row in pie_data.iterrows():
@@ -916,22 +917,22 @@ else:
                                 if "Low gender diversity" in trig_series.index:
                                     whatif_params["female_ratio"] = st.slider("Women % in Organization", 0, 100, global_female_ratio, key="whatif_female")
                                 if "Stagnant promotions" in trig_series.index:
-                                    default_not_promoted = int(df_bulk["Hasn't been promoted"].mean() or 0)
-                                    default_min_cycle = int(df_bulk["Minimum Promotion Cycle"].mean() or 24)
+                                    default_not_promoted = safe_int(df_bulk["Hasn't been promoted"].mean(), 0)
+                                    default_min_cycle = safe_int(df_bulk["Minimum Promotion Cycle"].mean(), 24)
                                     whatif_params["not_promoted"] = st.slider("Months Since Last Promotion", 0, 60, default_not_promoted, key="whatif_not_promoted")
                                     whatif_params["min_cycle"] = st.slider("Minimum Promotion Cycle", 12, 60, default_min_cycle, key="whatif_min_cycle")
                                 if any(x in trig_series.index for x in ["Very low performance rating", "Low performance rating"]):
-                                    default_rating = int(df_bulk["Last Performance Rating"].mean() or 3)
+                                    default_rating = safe_int(df_bulk["Last Performance Rating"].mean(), 3)
                                     whatif_params["rating"] = st.selectbox("Last Performance Rating", [1, 2, 3, 4, 5], index=max(0, default_rating-1), key="whatif_rating")
                                 if any(x in trig_series.index for x in ["Low compensation competitiveness", "High compensation ratio"]):
-                                    default_compa = int(df_bulk["Compa Ratio"].mean() or 90)
+                                    default_compa = safe_int(df_bulk["Compa Ratio"].mean(), 90)
                                     whatif_params["compa_ratio"] = st.slider("Compa Ratio (%)", 50, 150, default_compa, key="whatif_compa")
                                 if "Low college tier retention" in trig_series.index:
                                     whatif_params["tier1"] = st.slider("Tier 1 Retention (%)", 10, 100, bulk_tier1, key="whatif_tier1")
                                     whatif_params["tier2"] = st.slider("Tier 2 Retention (%)", 10, 100, bulk_tier2, key="whatif_tier2")
                                     whatif_params["tier3"] = st.slider("Tier 3 Retention (%)", 10, 100, bulk_tier3, key="whatif_tier3")
                                 if "Low industry retention" in trig_series.index:
-                                    avg_ind = int(np.mean(list(bulk_industry_retention.values())))
+                                    avg_ind = safe_int(np.mean(list(bulk_industry_retention.values())), 60)
                                     whatif_params["industry_retention"] = st.slider("Industry Retention (%)", 10, 100, avg_ind, key="whatif_industry")
                                 if "Low company type retention" in trig_series.index:
                                     default_company = st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Startup", 60)
