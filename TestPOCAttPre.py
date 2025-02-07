@@ -9,7 +9,6 @@ from datetime import datetime
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 import altair as alt
-from fpdf import FPDF
 
 # ---------------------------------------
 # Helper function for safe rerun
@@ -489,38 +488,6 @@ def compute_trigger_counts(df, column_name):
     else:
         return pd.Series(dtype=int)
 
-# ----------------------------------------------------
-# Function to generate a PDF report of the analysis using FPDF
-# ----------------------------------------------------
-def generate_pdf_report(df, risk_df, trig_series, selected_trigger):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, "Employee Attrition Analysis Report", ln=True, align="C")
-    pdf.set_font("Arial", size=12)
-    pdf.ln(10)
-    pdf.cell(0, 10, f"Total Employees: {len(df)}", ln=True)
-    # Extract risk numbers from risk_df
-    high = risk_df[risk_df["Risk Category"]=="High (>=75)"]["Count"].values[0] if not risk_df[risk_df["Risk Category"]=="High (>=75)"].empty else 0
-    mod_high = risk_df[risk_df["Risk Category"]=="Mod-High (60-74)"]["Count"].values[0] if not risk_df[risk_df["Risk Category"]=="Mod-High (60-74)"].empty else 0
-    moderate = risk_df[risk_df["Risk Category"]=="Moderate (35-59)"]["Count"].values[0] if not risk_df[risk_df["Risk Category"]=="Moderate (35-59)"].empty else 0
-    low = risk_df[risk_df["Risk Category"]=="Low (<35)"]["Count"].values[0] if not risk_df[risk_df["Risk Category"]=="Low (<35)"].empty else 0
-    pdf.cell(0, 10, f"High Risk: {high}", ln=True)
-    pdf.cell(0, 10, f"Moderate-High Risk: {mod_high}", ln=True)
-    pdf.cell(0, 10, f"Moderate Risk: {moderate}", ln=True)
-    pdf.cell(0, 10, f"Low Risk: {low}", ln=True)
-    pdf.ln(10)
-    pdf.cell(0, 10, "Top Negative Triggers:", ln=True)
-    for trigger, count in trig_series.items():
-         pdf.cell(0, 10, f"{trigger}: {count}", ln=True)
-    pdf.ln(10)
-    if selected_trigger:
-         pdf.cell(0, 10, f"Recommended Solutions for {selected_trigger}:", ln=True)
-         if selected_trigger in TRIGGER_DETAILS:
-             for key, sol in TRIGGER_DETAILS[selected_trigger]["solutions"].items():
-                 pdf.multi_cell(0, 10, sol)
-    return pdf.output(dest="S").encode("latin-1")
-
 # ---------------------------------------
 # Login/Sign Up System
 # ---------------------------------------
@@ -599,9 +566,7 @@ with header_container:
 # ---------------------------------------
 if st.session_state.nav != "My Account":
     with st.sidebar:
-        # Radio button to choose between Train and Test mode.
         mode = st.radio("Select Mode", ["Train Mode", "Test Mode"], index=0, key="main_mode")
-        # Disable global settings when in Test Mode.
         disabled_flag = (mode == "Test Mode")
         st.markdown("### Global Settings for Bulk Analysis\n*These settings MUST be filled for bulk analysis*")
         global_avg_age = st.slider(
@@ -671,28 +636,24 @@ if st.session_state.nav == "My Account":
     st.write(f"**Designation:** {user.get('designation', '')}")
     st.write(f"**Company:** {user.get('company', '')}")
     st.write(f"**Email:** {user.get('email', '')}")
-    
     st.write("### Saved Global Settings")
     user_settings = user.get("settings") or {}
     if user_settings:
         st.json(user_settings)
     else:
         st.info("No global settings saved. Please train your model to save settings.")
-    
     st.write("### Analysis History")
     history = load_user_history(user["email"])
     if history:
         st.dataframe(pd.DataFrame(history))
     else:
         st.info("No history available yet.")
-    
     if st.button("Back to Main"):
         st.session_state.nav = "Tabs"
 else:
     if st.session_state.main_mode == "Train Mode":
         st.header("Train Mode")
         selected_train_industry = st.selectbox("Select Your Industry", industry_options, key="train_industry")
-        
         col1, col2 = st.columns([1, 1])
         with col1:
             uploaded_train = st.file_uploader("Upload Training Data (CSV or Excel)", type=["csv", "xlsx"], key="train_file")
@@ -721,7 +682,6 @@ else:
                 mime="text/csv"
             )
         target_column = st.text_input("Enter the name of the target column", value="Attrition")
-        
         if uploaded_train is not None:
             try:
                 if uploaded_train.name.endswith(".csv"):
@@ -732,10 +692,8 @@ else:
                 st.dataframe(train_df.head())
             except Exception as e:
                 st.error(f"Error reading file: {e}")
-            
             if st.button("Train Model"):
                 train_model(train_df, target_column, selected_train_industry)
-                
     else:  # Test Mode - Bulk Analysis Only
         st.header("Bulk Employee Attrition Prediction")
         st.markdown("""
@@ -758,10 +716,7 @@ else:
              
              *Note: The test data does not require an Attrition column.*
         """)
-        selected_test_industry = st.selectbox("Select Your Industry", industry_options,
-                                                index=0,
-                                                key="test_industry")
-        
+        selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=0, key="test_industry")
         uploaded_file = st.file_uploader("Upload Bulk Data (CSV or Excel)", type=["csv", "xlsx"], key="bulk_file")
         if uploaded_file is not None:
             try:
@@ -780,7 +735,6 @@ else:
             if missing:
                 st.error(f"❌ Missing columns: {missing}")
             else:
-                # Place the Run Bulk Prediction button and What-If toggle side by side.
                 btn_cols = st.columns([1,1])
                 with btn_cols[0]:
                     if st.button("🚀 Run Bulk Prediction"):
@@ -826,7 +780,6 @@ else:
                     if st.session_state.bulk_prediction_complete:
                         st.session_state.enable_what_if = st.checkbox("Enable What-If Analysis", key="whatif_toggle")
                 
-                # If bulk prediction is completed, show the results, additional charts, drill-down and What-If Analysis.
                 if st.session_state.bulk_prediction_complete:
                     df_bulk = st.session_state.bulk_result
                     st.success("✅ Bulk Prediction Completed!")
@@ -843,46 +796,134 @@ else:
                     st.write("### Risk Distribution")
                     st.bar_chart(risk_df.set_index("Risk Category"))
                     
-                    # Compute overall negative triggers and display a pie chart.
+                    # Overall negative triggers pie chart (light palette, no legend, bold data labels)
                     trig_series = compute_trigger_counts(df_bulk, "Negative Triggers")
                     if not trig_series.empty:
                         pie_data = pd.DataFrame({"Trigger": trig_series.index, "Count": trig_series.values})
-                        pie_chart = alt.Chart(pie_data).mark_arc().encode(
+                        pie_data["percentage"] = (pie_data["Count"] / pie_data["Count"].sum() * 100).round(1)
+                        pie_data["label"] = pie_data.apply(lambda row: f"{row['Trigger']}: {row['percentage']}%", axis=1)
+                        pie_chart = alt.Chart(pie_data).mark_arc(innerRadius=50).encode(
                             theta=alt.Theta(field="Count", type="quantitative"),
-                            color=alt.Color(field="Trigger", type="nominal"),
-                            tooltip=["Trigger", "Count"]
+                            color=alt.Color(field="Trigger", type="nominal",
+                                            scale=alt.Scale(range=["#AEC6CF", "#FFD1DC", "#C3B1E1", "#FDFD96", "#77DD77", "#B19CD9", "#FFB347"]),
+                                            legend=None)
+                        ).properties(width=300, height=300)
+                        text = alt.Chart(pie_data).mark_text(radiusOffset=10, fontWeight="bold", color="black").encode(
+                            text=alt.Text("label:N")
                         )
+                        layered = pie_chart + text
                         st.write("### Overall Negative Triggers (Pie Chart)")
-                        st.altair_chart(pie_chart, use_container_width=True)
+                        st.altair_chart(layered, use_container_width=True)
                     
-                    # Compute negative triggers for employees with Attrition Score >= 60.
-                    df_high_mod = df_bulk[df_bulk["Attrition Score"] >= 60]
-                    trig_series_hm = compute_trigger_counts(df_high_mod, "Negative Triggers")
+                    # Negative triggers pie chart for High/Moderate-High cases
+                    df_hm = df_bulk[df_bulk["Attrition Score"] >= 60]
+                    trig_series_hm = compute_trigger_counts(df_hm, "Negative Triggers")
                     if not trig_series_hm.empty:
                         pie_data_hm = pd.DataFrame({"Trigger": trig_series_hm.index, "Count": trig_series_hm.values})
-                        pie_chart_hm = alt.Chart(pie_data_hm).mark_arc().encode(
+                        pie_data_hm["percentage"] = (pie_data_hm["Count"] / pie_data_hm["Count"].sum() * 100).round(1)
+                        pie_data_hm["label"] = pie_data_hm.apply(lambda row: f"{row['Trigger']}: {row['percentage']}%", axis=1)
+                        pie_chart_hm = alt.Chart(pie_data_hm).mark_arc(innerRadius=50).encode(
                             theta=alt.Theta(field="Count", type="quantitative"),
-                            color=alt.Color(field="Trigger", type="nominal"),
-                            tooltip=["Trigger", "Count"]
+                            color=alt.Color(field="Trigger", type="nominal",
+                                            scale=alt.Scale(range=["#AEC6CF", "#FFD1DC", "#C3B1E1", "#FDFD96", "#77DD77", "#B19CD9", "#FFB347"]),
+                                            legend=None)
+                        ).properties(width=300, height=300)
+                        text_hm = alt.Chart(pie_data_hm).mark_text(radiusOffset=10, fontWeight="bold", color="black").encode(
+                            text=alt.Text("label:N")
                         )
+                        layered_hm = pie_chart_hm + text_hm
                         st.write("### Negative Triggers in High/Moderate-High Cases (Pie Chart)")
-                        st.altair_chart(pie_chart_hm, use_container_width=True)
+                        st.altair_chart(layered_hm, use_container_width=True)
                     
-                    # Dropdown for recommended solutions based on negative triggers present.
-                    if not trig_series.empty:
-                        selected_trigger = st.selectbox("Select a Negative Trigger for Solutions", options=trig_series.index.tolist())
-                        if selected_trigger in TRIGGER_DETAILS:
-                            st.markdown(f"### Recommended Solutions for {selected_trigger}")
-                            for key, sol in TRIGGER_DETAILS[selected_trigger]["solutions"].items():
-                                st.markdown(sol)
-                        else:
-                            st.info("No solutions available for the selected trigger.")
-                    else:
-                        selected_trigger = None
+                    # Dynamic What-If Controls (generated based on major negative triggers)
+                    st.write("### Dynamic What-If Controls")
+                    whatif_params = {}
+                    # For each major trigger in the overall trigger counts, generate corresponding control
+                    for trig in trig_series.index:
+                        if trig == "Low gender diversity":
+                            whatif_params["female_ratio"] = st.slider("Women % in Organization", 0, 100, global_female_ratio, key="whatif_female")
+                        elif trig == "Stagnant promotions":
+                            # Use average values from bulk data if available; otherwise default values.
+                            default_not_promoted = int(df_bulk["Hasn't been promoted"].mean()) if "Hasn't been promoted" in df_bulk.columns else 24
+                            default_min_cycle = int(df_bulk["Minimum Promotion Cycle"].mean()) if "Minimum Promotion Cycle" in df_bulk.columns else 24
+                            whatif_params["not_promoted"] = st.slider("Months Since Last Promotion", 0, 60, default_not_promoted, key="whatif_not_promoted")
+                            whatif_params["min_cycle"] = st.slider("Minimum Promotion Cycle", 12, 60, default_min_cycle, key="whatif_min_cycle")
+                        elif trig in ["Very low performance rating", "Low performance rating"]:
+                            if "rating" not in whatif_params:
+                                default_rating = 1 if trig=="Very low performance rating" else 2
+                                whatif_params["rating"] = st.selectbox("Last Performance Rating", [1,2,3,4,5], index=default_rating-1, key="whatif_rating")
+                        elif trig in ["Low compensation competitiveness", "High compensation ratio"]:
+                            default_compa = int(df_bulk["Compa Ratio"].mean()) if "Compa Ratio" in df_bulk.columns else 90
+                            whatif_params["compa_ratio"] = st.slider("Compa Ratio (%)", 50, 150, default_compa, key="whatif_compa")
+                        elif trig == "Low college tier retention":
+                            whatif_params["tier1"] = st.slider("Tier 1 Retention (%)", 10, 100, bulk_tier1, key="whatif_tier1")
+                            whatif_params["tier2"] = st.slider("Tier 2 Retention (%)", 10, 100, bulk_tier2, key="whatif_tier2")
+                            whatif_params["tier3"] = st.slider("Tier 3 Retention (%)", 10, 100, bulk_tier3, key="whatif_tier3")
+                        elif trig == "Low industry retention":
+                            avg_ind = int(np.mean(list(bulk_industry_retention.values()))) if bulk_industry_retention else 60
+                            whatif_params["industry_retention"] = st.slider("Industry Retention (%)", 10, 100, avg_ind, key="whatif_industry")
+                        elif trig == "Low company type retention":
+                            default_company = st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Startup", 60)
+                            whatif_params["company_retention"] = st.slider("Company Type Retention (%)", 10, 100, default_company, key="whatif_company")
+                        elif trig == "High dissatisfaction (Pulse)":
+                            whatif_params["pulse"] = st.selectbox("Pulse", ["High", "Medium", "Low"], index=0, key="whatif_pulse")
                     
-                    # Employee Drill Down:
+                    # Dynamic recalculation using what-if parameters:
+                    st.write("### Recalculated Predictions with What-If Adjustments")
+                    new_scores = []
+                    new_triggers_list = []
+                    df_bulk_whatif = df_bulk.copy()
+                    for idx, row in df_bulk_whatif.iterrows():
+                        row_dict = row.to_dict()
+                        row_dict["Average Employee Age"] = global_avg_age
+                        # Override with dynamic what-if parameters if provided:
+                        if "female_ratio" in whatif_params:
+                            row_dict["Female Employee Ratio"] = whatif_params["female_ratio"]
+                        if "not_promoted" in whatif_params:
+                            row_dict["Hasn't been promoted"] = whatif_params["not_promoted"]
+                        if "min_cycle" in whatif_params:
+                            row_dict["Minimum Promotion Cycle"] = whatif_params["min_cycle"]
+                        if "rating" in whatif_params:
+                            row_dict["Last Performance Rating"] = whatif_params["rating"]
+                        if "compa_ratio" in whatif_params:
+                            row_dict["Compa Ratio"] = whatif_params["compa_ratio"]
+                        if "tier1" in whatif_params and row_dict.get("College Tier") == "Tier 1":
+                            row_dict["College Tier Retention"] = whatif_params["tier1"]
+                        if "tier2" in whatif_params and row_dict.get("College Tier") == "Tier 2":
+                            row_dict["College Tier Retention"] = whatif_params["tier2"]
+                        if "tier3" in whatif_params and row_dict.get("College Tier") == "Tier 3":
+                            row_dict["College Tier Retention"] = whatif_params["tier3"]
+                        if "industry_retention" in whatif_params:
+                            row_dict["Industry Retention"] = whatif_params["industry_retention"]
+                        if "company_retention" in whatif_params:
+                            row_dict["Company Type Retention"] = whatif_params["company_retention"]
+                        if "pulse" in whatif_params:
+                            row_dict["Pulse"] = whatif_params["pulse"]
+                        try:
+                            new_score, new_trigs, _ = predict_attrition(row_dict, selected_test_industry)
+                        except Exception as e:
+                            new_score = None
+                            new_trigs = ["Prediction Failed"]
+                        new_scores.append(new_score)
+                        neg_trigs = [t for t in new_trigs if t in TRIGGER_DETAILS]
+                        triggers_str = ", ".join(neg_trigs) if neg_trigs else "None"
+                        new_triggers_list.append(triggers_str)
+                    df_bulk_whatif["What-If Attrition Score"] = new_scores
+                    df_bulk_whatif["What-If Negative Triggers"] = new_triggers_list
+                    st.dataframe(df_bulk_whatif)
+                    high_risk_w = (df_bulk_whatif["What-If Attrition Score"] >= 75).sum()
+                    mod_high_w = ((df_bulk_whatif["What-If Attrition Score"] >= 60) & (df_bulk_whatif["What-If Attrition Score"] < 75)).sum()
+                    moderate_w = ((df_bulk_whatif["What-If Attrition Score"] >= 35) & (df_bulk_whatif["What-If Attrition Score"] < 60)).sum()
+                    low_w = (df_bulk_whatif["What-If Attrition Score"] < 35).sum()
+                    risk_df_w = pd.DataFrame({
+                        "Risk Category": ["High (>=75)", "Mod-High (60-74)", "Moderate (35-59)", "Low (<35)"],
+                        "Count": [high_risk_w, mod_high_w, moderate_w, low_w]
+                    })
+                    st.write("### What-If Risk Distribution")
+                    st.bar_chart(risk_df_w.set_index("Risk Category"))
+                    
+                    # Employee Drill Down with custom CSS for increased cell width and horizontal scrolling.
                     st.write("### Drill Down into Individual Employee Details")
-                    # Custom CSS to increase cell width and allow horizontal scrolling:
                     st.markdown("""
                     <style>
                     div[data-baseweb="table"] {
@@ -897,62 +938,16 @@ else:
                         selected_row = df_bulk[df_bulk["Name"] == sel_employee]
                         st.dataframe(selected_row)
                     
-                    # What-If Analysis:
-                    if st.session_state.enable_what_if:
-                        main_cols = st.columns([3, 1])
-                        with main_cols[1]:
-                            st.markdown("### What-If Controls")
-                            new_female_ratio = st.slider("Women % in Organization", 0, 100, global_female_ratio, key="whatif_female")
-                            default_compa = int(df_bulk["Compa Ratio"].mean()) if "Compa Ratio" in df_bulk.columns else 100
-                            new_compa_ratio = st.slider("Compa Ratio (%)", 50, 150, default_compa, key="whatif_compa")
-                            new_pulse = st.selectbox("Pulse", ["High", "Medium", "Low"], key="whatif_pulse")
-                        with main_cols[0]:
-                            st.markdown("### Recalculated Predictions with What-If Adjustments")
-                            new_scores = []
-                            new_triggers_list = []
-                            df_bulk_whatif = df_bulk.copy()
-                            for idx, row in df_bulk_whatif.iterrows():
-                                row_dict = row.to_dict()
-                                row_dict["Average Employee Age"] = global_avg_age
-                                row_dict["Female Employee Ratio"] = new_female_ratio
-                                college_tier = row_dict.get("College Tier")
-                                if college_tier == "Tier 1":
-                                    row_dict["College Tier Retention"] = bulk_tier1
-                                elif college_tier == "Tier 2":
-                                    row_dict["College Tier Retention"] = bulk_tier2
-                                elif college_tier == "Tier 3":
-                                    row_dict["College Tier Retention"] = bulk_tier3
-                                else:
-                                    row_dict["College Tier Retention"] = 40
-                                ind_val = row_dict.get("Industry")
-                                row_dict["Industry Retention"] = bulk_industry_retention.get(ind_val, 50)
-                                row_dict["Company Type Retention"] = st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Startup", 60)
-                                # Do NOT update "Hasn't been promoted" or "Minimum Promotion Cycle"
-                                try:
-                                    new_score, new_trigs, _ = predict_attrition(row_dict, selected_test_industry)
-                                except Exception as e:
-                                    new_score = None
-                                    new_trigs = ["Prediction Failed"]
-                                new_scores.append(new_score)
-                                neg_trigs = [t for t in new_trigs if t in TRIGGER_DETAILS]
-                                triggers_str = ", ".join(neg_trigs) if neg_trigs else "None"
-                                new_triggers_list.append(triggers_str)
-                            df_bulk_whatif["What-If Attrition Score"] = new_scores
-                            df_bulk_whatif["What-If Negative Triggers"] = new_triggers_list
-                            st.dataframe(df_bulk_whatif)
-                            high_risk_w = (df_bulk_whatif["What-If Attrition Score"] >= 75).sum()
-                            mod_high_w = ((df_bulk_whatif["What-If Attrition Score"] >= 60) & (df_bulk_whatif["What-If Attrition Score"] < 75)).sum()
-                            moderate_w = ((df_bulk_whatif["What-If Attrition Score"] >= 35) & (df_bulk_whatif["What-If Attrition Score"] < 60)).sum()
-                            low_w = (df_bulk_whatif["What-If Attrition Score"] < 35).sum()
-                            risk_df_w = pd.DataFrame({
-                                "Risk Category": ["High (>=75)", "Mod-High (60-74)", "Moderate (35-59)", "Low (<35)"],
-                                "Count": [high_risk_w, mod_high_w, moderate_w, low_w]
-                            })
-                            st.write("### What-If Risk Distribution")
-                            st.bar_chart(risk_df_w.set_index("Risk Category"))
-                    
-                    # PDF Report Download:
-                    pdf_data = generate_pdf_report(df_bulk, risk_df, trig_series, selected_trigger)
-                    st.download_button("Download PDF Report", data=pdf_data, file_name="analysis_report.pdf", mime="application/pdf")
+                    # Dropdown for recommended solutions based on negative triggers present.
+                    if not trig_series.empty:
+                        selected_trigger = st.selectbox("Select a Negative Trigger for Solutions", options=trig_series.index.tolist())
+                        if selected_trigger in TRIGGER_DETAILS:
+                            st.markdown(f"### Recommended Solutions for {selected_trigger}")
+                            for key, sol in TRIGGER_DETAILS[selected_trigger]["solutions"].items():
+                                st.markdown(sol)
+                        else:
+                            st.info("No solutions available for the selected trigger.")
+                    else:
+                        selected_trigger = None
         else:
             st.info("Please upload a bulk data file to begin analysis.")
