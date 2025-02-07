@@ -372,8 +372,8 @@ TRIGGER_DETAILS = {
 }
 
 # ----------------------------------------------------
-# Rule-based attrition computation (modified)
-# Note: Removed the "Hasn't been promoted" factor.
+# Rule-based attrition computation
+# Now reintroducing the "Hasn't been promoted" and "Minimum Promotion Cycle" factors.
 # ----------------------------------------------------
 def compute_weighted_attrition(employee, return_triggers=False):
     score = 0
@@ -382,7 +382,9 @@ def compute_weighted_attrition(employee, return_triggers=False):
     
     if employee["Gender"] == "Female" and employee["Female Employee Ratio"] <= 15:
         score += 30; extreme_factors += 1; triggers.append("Low gender diversity")
-    # Removed the "Hasn't been promoted" factor.
+    # Reintroduce the stagnant promotions factor:
+    if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
+        score += 30; extreme_factors += 1; triggers.append("Stagnant promotions")
     if employee["Last Performance Rating"] == 1:
         score += 25; extreme_factors += 1; triggers.append("Very low performance rating")
     elif employee["Last Performance Rating"] == 2:
@@ -814,7 +816,7 @@ else:
                         st.write("### Employee Details")
                         st.table(selected_row)
                     
-                    # What-If Analysis: (without updating "Hasn't been promoted" or "Minimum Promotion Cycle")
+                    # What-If Analysis: In the What-If recalculation, we leave the "Hasn't been promoted" and "Minimum Promotion Cycle" as-is.
                     if st.session_state.enable_what_if:
                         main_cols = st.columns([3, 1])
                         with main_cols[1]:
