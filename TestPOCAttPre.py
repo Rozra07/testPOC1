@@ -983,5 +983,5 @@ else:
                                 })
                                 st.write("### What-If Risk Distribution")
                                 st.bar_chart(risk_df_w.set_index("Risk Category"))
-            else:
+    else:
                 st.info("Please upload a bulk data file to begin analysis.")
