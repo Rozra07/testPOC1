@@ -175,7 +175,6 @@ def train_model(training_df, target_column, industry):
     save_user_event(user["email"], "training", {"action": "Model retrained", "industry": industry})
 
 def update_industry_record(industry, model_file, scaler_file, feature_file):
-    from datetime import datetime
     record = {
         "Industry": industry,
         "Model_File": model_file,
@@ -690,7 +689,7 @@ else:
     if st.session_state.main_mode == "Test Mode":
         selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=0, key="test_industry")
         
-        # Display a hover button with instructions
+        # Display instructions with a tooltip
         st.markdown("""
         <div class="tooltip">Read Instructions
           <span class="tooltiptext">
@@ -808,64 +807,66 @@ else:
             if missing:
                 st.error(f"❌ Missing columns: {missing}")
             else:
-                btn_cols = st.columns([1,1])
-                with btn_cols[0]:
-                    if st.button("🚀 Run Bulk Prediction"):
-                        scores = []
-                        triggers_list = []
-                        names = []
-                        for idx, row in df_bulk.iterrows():
-                            row_dict = row.to_dict()
-                            names.append(row_dict.get("Name"))
-                            row_dict["Average Employee Age"] = global_avg_age
-                            row_dict["Female Employee Ratio"] = global_female_ratio
-                            college_tier = row_dict.get("College Tier")
-                            if college_tier == "Tier 1":
-                                row_dict["College Tier Retention"] = bulk_tier1
-                            elif college_tier == "Tier 2":
-                                row_dict["College Tier Retention"] = bulk_tier2
-                            elif college_tier == "Tier 3":
-                                row_dict["College Tier Retention"] = bulk_tier3
-                            else:
-                                st.warning(f"Row {idx}: Unknown College Tier '{college_tier}'. Using default 40%.")
-                                row_dict["College Tier Retention"] = 40
-                            ind_val = row_dict.get("Industry")
-                            row_dict["Industry Retention"] = bulk_industry_retention.get(ind_val, 50)
-                            
-                            # Map company type retention
-                            ctype_val = row_dict.get("Company Type", "Startup")
-                            if ctype_val.lower() == "startup":
-                                row_dict["Company Type Retention"] = bulk_startup
-                            elif "small" in ctype_val.lower():
-                                row_dict["Company Type Retention"] = bulk_small
-                            elif "mid" in ctype_val.lower():
-                                row_dict["Company Type Retention"] = bulk_mid
-                            elif "mnc" in ctype_val.lower() or "giant" in ctype_val.lower():
-                                row_dict["Company Type Retention"] = bulk_mnc
-                            else:
-                                row_dict["Company Type Retention"] = 50
-                            
-                            try:
-                                bulk_score, bulk_trigs, _ = predict_attrition(row_dict, selected_test_industry)
-                            except Exception as e:
-                                st.error(f"Row {idx}: Prediction failed due to {e}. Skipping this row.")
-                                scores.append(None)
-                                triggers_list.append("Prediction Failed")
-                                continue
-                            scores.append(bulk_score)
-                            neg_trigs = [t for t in bulk_trigs if t in TRIGGER_DETAILS]
-                            triggers_str = ", ".join(neg_trigs) if neg_trigs else "None"
-                            triggers_list.append(triggers_str)
-                        df_bulk["Attrition Score"] = scores
-                        df_bulk["Negative Triggers"] = triggers_list
-                        df_bulk["Name"] = names
-                        # Optionally, add a timestamp column for trend analysis:
-                        df_bulk["Prediction Time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        st.session_state.bulk_result = df_bulk.copy()
-                        st.session_state.bulk_prediction_complete = True
-                        save_user_event(st.session_state.user["email"], "bulk_prediction", {"rows": len(df_bulk)})
+                if st.button("🚀 Run Bulk Prediction"):
+                    scores = []
+                    triggers_list = []
+                    names = []
+                    for idx, row in df_bulk.iterrows():
+                        row_dict = row.to_dict()
+                        names.append(row_dict.get("Name"))
+                        row_dict["Average Employee Age"] = global_avg_age
+                        row_dict["Female Employee Ratio"] = global_female_ratio
+                        college_tier = row_dict.get("College Tier")
+                        if college_tier == "Tier 1":
+                            row_dict["College Tier Retention"] = bulk_tier1
+                        elif college_tier == "Tier 2":
+                            row_dict["College Tier Retention"] = bulk_tier2
+                        elif college_tier == "Tier 3":
+                            row_dict["College Tier Retention"] = bulk_tier3
+                        else:
+                            st.warning(f"Row {idx}: Unknown College Tier '{college_tier}'. Using default 40%.")
+                            row_dict["College Tier Retention"] = 40
+                        ind_val = row_dict.get("Industry")
+                        row_dict["Industry Retention"] = bulk_industry_retention.get(ind_val, 50)
+                        
+                        # Map company type retention
+                        ctype_val = row_dict.get("Company Type", "Startup")
+                        if ctype_val.lower() == "startup":
+                            row_dict["Company Type Retention"] = bulk_startup
+                        elif "small" in ctype_val.lower():
+                            row_dict["Company Type Retention"] = bulk_small
+                        elif "mid" in ctype_val.lower():
+                            row_dict["Company Type Retention"] = bulk_mid
+                        elif "mnc" in ctype_val.lower() or "giant" in ctype_val.lower():
+                            row_dict["Company Type Retention"] = bulk_mnc
+                        else:
+                            row_dict["Company Type Retention"] = 50
+                        
+                        try:
+                            bulk_score, bulk_trigs, _ = predict_attrition(row_dict, selected_test_industry)
+                        except Exception as e:
+                            st.error(f"Row {idx}: Prediction failed due to {e}. Skipping this row.")
+                            scores.append(None)
+                            triggers_list.append("Prediction Failed")
+                            continue
+                        scores.append(bulk_score)
+                        neg_trigs = [t for t in bulk_trigs if t in TRIGGER_DETAILS]
+                        triggers_str = ", ".join(neg_trigs) if neg_trigs else "None"
+                        triggers_list.append(triggers_str)
+                    df_bulk["Attrition Score"] = scores
+                    df_bulk["Negative Triggers"] = triggers_list
+                    df_bulk["Name"] = names
+                    # Add a timestamp column for trend analysis:
+                    df_bulk["Prediction Time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    st.session_state.bulk_result = df_bulk.copy()
+                    st.session_state.bulk_prediction_complete = True
+                    save_user_event(st.session_state.user["email"], "bulk_prediction", {"rows": len(df_bulk)})
                 
-                # Layout: If What-If Analysis is activated, split into left and right halves.
+                # Show the "Enable What-If Analysis" checkbox once bulk prediction is complete
+                if st.session_state.bulk_prediction_complete:
+                    st.session_state.enable_what_if = st.checkbox("Enable What-If Analysis", key="whatif_toggle")
+                
+                # Layout: If What-If is enabled, split the screen into two columns.
                 if st.session_state.bulk_prediction_complete:
                     if st.session_state.enable_what_if:
                         left_col, right_col = st.columns(2)
@@ -905,8 +906,9 @@ else:
                             st.altair_chart(chart2, use_container_width=True)
                             
                             st.subheader("3. Box Plot of Attrition Score by Age Group")
+                            # Corrected: Bin the "Employee Age" field directly.
                             chart3 = alt.Chart(df_bulk).mark_boxplot().encode(
-                                x=alt.X("bin:Q", title="Employee Age (Binned)", bin=alt.Bin(maxbins=10), field="Employee Age"),
+                                x=alt.X("Employee Age:Q", bin=alt.Bin(maxbins=10), title="Employee Age (Binned)"),
                                 y="Attrition Score:Q"
                             )
                             st.altair_chart(chart3, use_container_width=True)
@@ -1002,7 +1004,7 @@ else:
                             st.altair_chart(chart15, use_container_width=True)
                             
                             st.subheader("16. Line Chart: Trend of Attrition Score Over Prediction Time")
-                            # Convert Prediction Time to temporal type if possible
+                            # Convert Prediction Time to datetime if not already
                             df_bulk["Prediction Time"] = pd.to_datetime(df_bulk["Prediction Time"])
                             chart16 = alt.Chart(df_bulk).mark_line().encode(
                                 x="Prediction Time:T",
@@ -1043,14 +1045,15 @@ else:
                             ).interactive()
                             st.altair_chart(chart20, use_container_width=True)
                     
-                    # What-If Analysis block goes in right column if activated.
+                    # ---------------------------
+                    # What-If Analysis (if enabled)
                     if st.session_state.enable_what_if:
                         with right_col:
                             st.markdown("## What-If Analysis")
                             whatif_params = {}
                             trig_series = compute_trigger_counts(df_bulk, "Negative Triggers")
                             
-                            # Show only sliders/selectors for triggers that exist:
+                            # Only show sliders/selectors for triggers present:
                             if "Low gender diversity" in trig_series.index:
                                 whatif_params["female_ratio"] = st.slider("Women % in Organization", 0, 100, global_female_ratio, key="whatif_female")
                             if "Stagnant promotions" in trig_series.index:
@@ -1184,8 +1187,5 @@ else:
                             if st.button("Clear Saved Scenarios", key="clear_scenarios"):
                                 st.session_state.saved_scenarios = []
                                 st.success("Saved scenarios cleared!")
-                    else:
-                        # If What-If Analysis is not activated, display dashboard and filters only.
-                        pass
         else:
             st.info("Please upload a bulk data file to begin analysis.")
