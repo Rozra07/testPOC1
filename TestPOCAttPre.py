@@ -9,6 +9,7 @@ from datetime import datetime
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 import altair as alt
+import matplotlib.pyplot as plt
 
 # Set page configuration to wide (full screen)
 st.set_page_config(layout="wide")
@@ -103,6 +104,36 @@ def train_model(training_df, target_column, industry):
     model = LogisticRegression(solver="liblinear", random_state=42)
     model.fit(X_scaled, y)
     st.write("Model coefficients:", model.coef_)
+    
+    # -------------------------------
+    # Model Evaluation Metrics
+    # -------------------------------
+    from sklearn.metrics import roc_curve, auc, confusion_matrix, classification_report
+    preds = model.predict_proba(X_scaled)[:, 1]
+    fpr, tpr, thresholds = roc_curve(y, preds)
+    roc_auc = auc(fpr, tpr)
+    cm = confusion_matrix(y, model.predict(X_scaled))
+    report = classification_report(y, model.predict(X_scaled), output_dict=True)
+    
+    st.subheader("Model Evaluation Metrics")
+    st.write(f"**ROC AUC:** {roc_auc:.2f}")
+    
+    # Plot ROC curve using matplotlib:
+    fig, ax = plt.subplots()
+    ax.plot(fpr, tpr, label=f"ROC curve (area = {roc_auc:.2f})")
+    ax.plot([0, 1], [0, 1], 'k--')
+    ax.set_xlabel("False Positive Rate")
+    ax.set_ylabel("True Positive Rate")
+    ax.set_title("ROC Curve")
+    ax.legend(loc="best")
+    st.pyplot(fig)
+    
+    st.write("**Confusion Matrix:**")
+    st.dataframe(pd.DataFrame(cm, index=["Actual 0", "Actual 1"], columns=["Predicted 0", "Predicted 1"]))
+    
+    st.write("**Classification Report:**")
+    st.json(report)
+    # -------------------------------
     
     model_filename = f"{industry}_model.pkl"
     scaler_filename = f"{industry}_scaler.pkl"
@@ -830,6 +861,8 @@ else:
                         df_bulk["Name"] = names
                         st.session_state.bulk_result = df_bulk.copy()
                         st.session_state.bulk_prediction_complete = True
+                        # Optionally, add a timestamp column for trend analysis:
+                        st.session_state.bulk_result["Prediction Time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         save_user_event(st.session_state.user["email"], "bulk_prediction", {"rows": len(df_bulk)})
                 with btn_cols[1]:
                     if st.session_state.bulk_prediction_complete:
@@ -837,64 +870,54 @@ else:
                 
                 if st.session_state.bulk_prediction_complete:
                     df_bulk = st.session_state.bulk_result
-                    left_col, right_col = st.columns(2)
                     
-                    with left_col:
-                        st.success("✅ Bulk Prediction Completed!")
-                        st.dataframe(df_bulk)
-                        high_risk = (df_bulk["Attrition Score"] >= 75).sum()
-                        mod_high = ((df_bulk["Attrition Score"] >= 60) & (df_bulk["Attrition Score"] < 75)).sum()
-                        moderate = ((df_bulk["Attrition Score"] >= 35) & (df_bulk["Attrition Score"] < 60)).sum()
-                        low = (df_bulk["Attrition Score"] < 35).sum()
-                        risk_df = pd.DataFrame({
-                            "Risk Category": ["High (>=75)", "Mod-High (60-74)", "Moderate (35-59)", "Low (<35)"],
-                            "Count": [high_risk, mod_high, moderate, low]
-                        })
-                        st.write("### Risk Distribution")
-                        st.bar_chart(risk_df.set_index("Risk Category"))
-                        
-                        # Compute triggers for the pie
-                        trig_series = compute_trigger_counts(df_bulk, "Negative Triggers")
-                        if not trig_series.empty:
-                            pie_data = pd.DataFrame({"Trigger": trig_series.index, "Count": trig_series.values})
-                            pie_data["Percentage"] = (pie_data["Count"] / pie_data["Count"].sum() * 100).round(1)
-                            
-                            # Pie chart with hover details
-                            pie_chart = alt.Chart(pie_data).mark_arc(innerRadius=50).encode(
-                                theta=alt.Theta(field="Count", type="quantitative"),
-                                color=alt.Color(field="Trigger", type="nominal"),
-                                tooltip=[alt.Tooltip("Trigger"), alt.Tooltip("Count"), alt.Tooltip("Percentage")]
-                            ).properties(width=300, height=300)
-                            
-                            st.write("### Overall Negative Triggers (Hover for details)")
-                            st.altair_chart(pie_chart, use_container_width=True)
-
-                        st.write("### Drill Down into Individual Employee Details")
-                        employee_names = df_bulk["Name"].tolist()
-                        sel_employee = st.selectbox("Select an Employee (by Name)", employee_names, key="drilldown")
-                        if sel_employee:
-                            selected_row = df_bulk[df_bulk["Name"] == sel_employee]
-                            st.dataframe(selected_row)
-                        
-                        # Solutions
-                        if not trig_series.empty:
-                            selected_trigger = st.selectbox("Select a Negative Trigger for Solutions", options=trig_series.index.tolist())
-                            if selected_trigger in TRIGGER_DETAILS:
-                                st.markdown(f"### Recommended Solutions for {selected_trigger}")
-                                for key, sol in TRIGGER_DETAILS[selected_trigger]["solutions"].items():
-                                    st.markdown(sol)
-                            else:
-                                st.info("No solutions available for the selected trigger.")
-                        else:
-                            selected_trigger = None
+                    # ---------------------------
+                    # Additional Filtering Options
+                    # ---------------------------
+                    with st.expander("Filters"):
+                        filter_score_min, filter_score_max = st.slider("Attrition Score Range", 0, 100, (0, 100), key="filter_score")
+                        selected_industries = st.multiselect("Filter by Industry", options=df_bulk["Industry"].unique().tolist(), default=df_bulk["Industry"].unique().tolist(), key="filter_ind")
+                        selected_company = st.multiselect("Filter by Company Type", options=df_bulk["Company Type"].unique().tolist(), default=df_bulk["Company Type"].unique().tolist(), key="filter_company")
+                        filtered_df = df_bulk[(df_bulk["Attrition Score"] >= filter_score_min) & (df_bulk["Attrition Score"] <= filter_score_max) & 
+                                                 (df_bulk["Industry"].isin(selected_industries)) & 
+                                                 (df_bulk["Company Type"].isin(selected_company))]
+                        st.write("### Filtered Bulk Predictions")
+                        st.dataframe(filtered_df)
                     
-                    with right_col:
+                    # ---------------------------
+                    # Dashboard Visualizations
+                    # ---------------------------
+                    with st.expander("Dashboard - Additional Visualizations"):
+                        st.subheader("Scatter Plot: Employee Age vs Attrition Score")
+                        scatter_chart = alt.Chart(df_bulk).mark_circle(size=60).encode(
+                            x="Employee Age",
+                            y="Attrition Score",
+                            color="Industry",
+                            tooltip=["Name", "Employee Age", "Attrition Score", "Industry"]
+                        ).interactive()
+                        st.altair_chart(scatter_chart, use_container_width=True)
+                        
+                        st.subheader("Correlation Heatmap (Numeric Features)")
+                        numeric_df = df_bulk.select_dtypes(include=[np.number])
+                        corr = numeric_df.corr().reset_index().melt(id_vars="index")
+                        corr_chart = alt.Chart(corr).mark_rect().encode(
+                            x=alt.X("index:N", title=""),
+                            y=alt.Y("variable:N", title=""),
+                            color=alt.Color("value:Q", scale=alt.Scale(scheme='redblue')),
+                            tooltip=["index", "variable", "value"]
+                        ).properties(width=300, height=300)
+                        st.altair_chart(corr_chart, use_container_width=False)
+                    
+                    # ---------------------------
+                    # What-If Analysis with Advanced Scenario Saving
+                    # ---------------------------
+                    with st.columns(2)[1]:
                         if st.session_state.enable_what_if:
                             st.markdown("## What-If Analysis")
                             whatif_params = {}
                             trig_series = compute_trigger_counts(df_bulk, "Negative Triggers")
                             
-                            # Show only sliders relevant to triggers found
+                            # Show only sliders/selectors for triggers that exist:
                             if "Low gender diversity" in trig_series.index:
                                 whatif_params["female_ratio"] = st.slider("Women % in Organization", 0, 100, global_female_ratio, key="whatif_female")
                             if "Stagnant promotions" in trig_series.index:
@@ -984,7 +1007,7 @@ else:
                             df_bulk_whatif["What-If Negative Triggers"] = new_triggers_list
                             st.dataframe(df_bulk_whatif)
                             
-                            # Summaries
+                            # Summaries for What-If results
                             high_risk_w = (df_bulk_whatif["What-If Attrition Score"] >= 75).sum()
                             mod_high_w = ((df_bulk_whatif["What-If Attrition Score"] >= 60) & (df_bulk_whatif["What-If Attrition Score"] < 75)).sum()
                             moderate_w = ((df_bulk_whatif["What-If Attrition Score"] >= 35) & (df_bulk_whatif["What-If Attrition Score"] < 60)).sum()
@@ -995,5 +1018,38 @@ else:
                             })
                             st.write("### What-If Risk Distribution")
                             st.bar_chart(risk_df_w.set_index("Risk Category"))
+                            
+                            # ---------------------------
+                            # Scenario Saving and Management
+                            # ---------------------------
+                            st.markdown("### Scenario Management")
+                            if "saved_scenarios" not in st.session_state:
+                                st.session_state.saved_scenarios = []
+                            if st.button("Save Current Scenario", key="save_scenario"):
+                                scenario = {
+                                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                    "parameters": whatif_params,
+                                    "summary": {
+                                        "Average What-If Attrition Score": df_bulk_whatif["What-If Attrition Score"].mean(),
+                                        "Risk Distribution": {
+                                            "High": int(high_risk_w),
+                                            "Mod-High": int(mod_high_w),
+                                            "Moderate": int(moderate_w),
+                                            "Low": int(low_w)
+                                        }
+                                    }
+                                }
+                                st.session_state.saved_scenarios.append(scenario)
+                                st.success("Scenario saved successfully!")
+                            
+                            if st.session_state.saved_scenarios:
+                                st.markdown("#### Saved Scenarios")
+                                for i, sc in enumerate(st.session_state.saved_scenarios):
+                                    st.markdown(f"**Scenario {i+1} - {sc['timestamp']}**")
+                                    st.json(sc)
+                            
+                            if st.button("Clear Saved Scenarios", key="clear_scenarios"):
+                                st.session_state.saved_scenarios = []
+                                st.success("Saved scenarios cleared!")
         else:
             st.info("Please upload a bulk data file to begin analysis.")
