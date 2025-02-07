@@ -709,10 +709,10 @@ else:
             st.write("### Uploaded Data Preview:")
             st.dataframe(df_bulk.head())
             required_cols = [
-                    "Name", "Employee Age", "Gender", "Tenure (Months)", "Pulse",
-                    "Hasn't been promoted", "Minimum Promotion Cycle", "College Tier",
-                    "Industry", "Company Type", "Last Performance Rating", "Compa Ratio"
-                ]
+                "Name", "Employee Age", "Gender", "Tenure (Months)", "Pulse",
+                "Hasn't been promoted", "Minimum Promotion Cycle", "College Tier",
+                "Industry", "Company Type", "Last Performance Rating", "Compa Ratio"
+            ]
             missing = [c for c in required_cols if c not in df_bulk.columns]
             if missing:
                 st.error(f"❌ Missing columns: {missing}")
