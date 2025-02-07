@@ -437,7 +437,8 @@ def predict_attrition(employee_data, industry):
     X_scaled = scaler.transform(df_input)
     ml_probability = model.predict_proba(X_scaled)[:, 1][0] * 100
     rule_probability, triggers = compute_weighted_attrition(employee_data, return_triggers=True)
-    combined_score = 0.75 * rule_probability + 0.25 * ml_probability
+    # Combine using 50-50 weighting
+    combined_score = 0.5 * rule_probability + 0.5 * ml_probability
     return combined_score, triggers, ml_probability
 
 def generate_sample_csv():
@@ -865,7 +866,6 @@ else:
                                 tooltip=[alt.Tooltip("Trigger"), alt.Tooltip("Count"), alt.Tooltip("Percentage")]
                             ).properties(width=300, height=300)
                             
-                            # Changed header text
                             st.write("### Overall Negative Triggers (Hover for details)")
                             st.altair_chart(pie_chart, use_container_width=True)
 
@@ -917,8 +917,7 @@ else:
                                 avg_ind = int(np.mean(list(bulk_industry_retention.values())))
                                 whatif_params["industry_retention"] = st.slider("Industry Retention (%)", 10, 100, avg_ind, key="whatif_industry")
                             if "Low company type retention" in trig_series.index:
-                                default_company = int(df_bulk["Company Type Retention"].mean()) if "Company Type Retention" in df_bulk.columns else 60
-                                whatif_params["company_retention"] = st.slider("Company Type Retention (%)", 10, 100, default_company, key="whatif_company")
+                                whatif_params["company_retention"] = st.slider("Company Type Retention (%)", 10, 100, 60, key="whatif_company")
                             if "High dissatisfaction (Pulse)" in trig_series.index:
                                 whatif_params["pulse"] = st.selectbox("Pulse", ["High", "Medium", "Low"], index=0, key="whatif_pulse")
                             
@@ -936,16 +935,39 @@ else:
                                 new_row["Last Performance Rating"] = whatif_params.get("rating", row.get("Last Performance Rating"))
                                 new_row["Compa Ratio"] = whatif_params.get("compa_ratio", row.get("Compa Ratio"))
                                 
+                                # For College Tier Retention:
                                 college_tier = row.get("College Tier")
                                 if college_tier == "Tier 1":
-                                    new_row["College Tier Retention"] = whatif_params.get("tier1", row.get("College Tier Retention", bulk_tier1))
+                                    default_college_retention = bulk_tier1
+                                    new_row["College Tier Retention"] = whatif_params.get("tier1", row.get("College Tier Retention", default_college_retention))
                                 elif college_tier == "Tier 2":
-                                    new_row["College Tier Retention"] = whatif_params.get("tier2", row.get("College Tier Retention", bulk_tier2))
+                                    default_college_retention = bulk_tier2
+                                    new_row["College Tier Retention"] = whatif_params.get("tier2", row.get("College Tier Retention", default_college_retention))
                                 elif college_tier == "Tier 3":
-                                    new_row["College Tier Retention"] = whatif_params.get("tier3", row.get("College Tier Retention", bulk_tier3))
+                                    default_college_retention = bulk_tier3
+                                    new_row["College Tier Retention"] = whatif_params.get("tier3", row.get("College Tier Retention", default_college_retention))
+                                else:
+                                    new_row["College Tier Retention"] = row.get("College Tier Retention", 40)
                                 
-                                new_row["Industry Retention"] = whatif_params.get("industry_retention", row.get("Industry Retention"))
-                                new_row["Company Type Retention"] = whatif_params.get("company_retention", row.get("Company Type Retention"))
+                                # For Industry Retention:
+                                industry_val = row.get("Industry")
+                                default_industry_retention = bulk_industry_retention.get(industry_val, 50) if industry_val else 50
+                                new_row["Industry Retention"] = whatif_params.get("industry_retention", row.get("Industry Retention", default_industry_retention))
+                                
+                                # For Company Type Retention:
+                                ctype_val = row.get("Company Type", "Startup")
+                                if ctype_val.lower() == "startup":
+                                    default_company_retention = bulk_startup
+                                elif "small" in ctype_val.lower():
+                                    default_company_retention = bulk_small
+                                elif "mid" in ctype_val.lower():
+                                    default_company_retention = bulk_mid
+                                elif "mnc" in ctype_val.lower() or "giant" in ctype_val.lower():
+                                    default_company_retention = bulk_mnc
+                                else:
+                                    default_company_retention = 50
+                                new_row["Company Type Retention"] = whatif_params.get("company_retention", row.get("Company Type Retention", default_company_retention))
+                                
                                 new_row["Pulse"] = whatif_params.get("pulse", row.get("Pulse"))
                                 
                                 try:
