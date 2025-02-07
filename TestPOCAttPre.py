@@ -10,7 +10,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 import altair as alt
 
-# Set page configuration to wide
+# Set page configuration to wide (full screen)
 st.set_page_config(layout="wide")
 
 # -------------------------------
@@ -104,7 +104,7 @@ def load_user_history(email):
 # Global: Expanded Industry Options
 # ----------------------------------------------------
 industry_options = [
-    "Tech", "Finance", "Healthcare", "Education", "Manufacturing",
+    "Tech", "Finance", "Healthcare", "Education", "Manufacturing", 
     "Retail", "Energy", "Telecommunications", "Government", "Nonprofit", "Other"
 ]
 
@@ -173,8 +173,7 @@ def update_industry_record(industry, model_file, scaler_file, feature_file):
     if os.path.exists(csv_filename):
         df = pd.read_csv(csv_filename)
         if industry in df["Industry"].values:
-            df.loc[df["Industry"] == industry, ["Model_File", "Scaler_File", "Feature_File", "Training_Date"]] = \
-                [model_file, scaler_file, feature_file, record["Training_Date"]]
+            df.loc[df["Industry"] == industry, ["Model_File", "Scaler_File", "Feature_File", "Training_Date"]] = [model_file, scaler_file, feature_file, record["Training_Date"]]
         else:
             df = df.append(record, ignore_index=True)
     else:
@@ -208,18 +207,9 @@ TRIGGER_DETAILS = {
             "rigid_policies": "We do not offer flexible policies (e.g., maternity, remote, etc.)"
         },
         "solutions": {
-            "lack_female_applicants": (
-                "- **Partner with Women’s Universities** or female‑oriented professional groups.\n"
-                "- **Highlight DEI** in your recruitment materials."
-            ),
-            "lack_female_mentors": (
-                "- **Implement formal mentorship** programs.\n"
-                "- **Sponsor leadership development** for existing female employees."
-            ),
-            "rigid_policies": (
-                "- Introduce **flexible working hours** and remote/hybrid options.\n"
-                "- Improve **maternity/paternity benefits** and family‑friendly leave."
-            )
+            "lack_female_applicants": "- **Partner with Women’s Universities** or female‑oriented professional groups.\n- **Highlight DEI** in your recruitment materials.",
+            "lack_female_mentors": "- **Implement formal mentorship** programs.\n- **Sponsor leadership development** for existing female employees.",
+            "rigid_policies": "- Introduce **flexible working hours** and remote/hybrid options.\n- Improve **maternity/paternity benefits** and family‑friendly leave."
         }
     },
     "Stagnant promotions": {
@@ -229,18 +219,9 @@ TRIGGER_DETAILS = {
             "bureaucratic_structure": "The organization structure is too bureaucratic"
         },
         "solutions": {
-            "unclear_criteria": (
-                "- **Publish transparent promotion guidelines** linked to clear KPIs.\n"
-                "- Provide employees with **regular promotion readiness feedback**."
-            ),
-            "no_mentorship": (
-                "- Launch **formal mentoring** or buddy programs.\n"
-                "- Offer **upskilling opportunities** and learning stipends."
-            ),
-            "bureaucratic_structure": (
-                "- **Streamline decision‑making** or reduce hierarchical layers.\n"
-                "- Consider more **agile or cross‑functional** teams to encourage skill growth."
-            )
+            "unclear_criteria": "- **Publish transparent promotion guidelines** linked to clear KPIs.\n- Provide employees with **regular promotion readiness feedback**.",
+            "no_mentorship": "- Launch **formal mentoring** or buddy programs.\n- Offer **upskilling opportunities** and learning stipends.",
+            "bureaucratic_structure": "- **Streamline decision‑making** or reduce hierarchical layers.\n- Consider more **agile or cross‑functional** teams to encourage skill growth."
         }
     },
     "Very low performance rating": {
@@ -250,18 +231,9 @@ TRIGGER_DETAILS = {
             "skill_gaps": "Skill gaps or training needs not addressed"
         },
         "solutions": {
-            "misaligned_role": (
-                "- **Clarify job responsibilities** and set SMART goals.\n"
-                "- Ensure roles align with employees’ **strengths** and career aspirations."
-            ),
-            "no_feedback": (
-                "- Implement **frequent 1‑on‑1 check‑ins** and agile feedback loops.\n"
-                "- Use **performance dashboards** for real‑time updates."
-            ),
-            "skill_gaps": (
-                "- Provide **targeted training** and eLearning modules.\n"
-                "- Offer **certification reimbursements** and skill‑building workshops."
-            )
+            "misaligned_role": "- **Clarify job responsibilities** and set SMART goals.\n- Ensure roles align with employees’ **strengths** and career aspirations.",
+            "no_feedback": "- Implement **frequent 1‑on‑1 check‑ins** and agile feedback loops.\n- Use **performance dashboards** for real‑time updates.",
+            "skill_gaps": "- Provide **targeted training** and eLearning modules.\n- Offer **certification reimbursements** and skill‑building workshops."
         }
     },
     "Low performance rating": {
@@ -271,18 +243,9 @@ TRIGGER_DETAILS = {
             "skill_gaps": "Skill gaps or training needs not addressed"
         },
         "solutions": {
-            "misaligned_role": (
-                "- **Clarify job responsibilities** and set SMART goals.\n"
-                "- Align roles with employees’ **strengths** and preferences."
-            ),
-            "no_feedback": (
-                "- Implement **regular 1‑on‑1 check‑ins**.\n"
-                "- Provide ongoing **coaching and feedback** rather than annual appraisals."
-            ),
-            "skill_gaps": (
-                "- Offer **targeted training** in needed skill areas.\n"
-                "- Encourage **peer‑to‑peer learning** or cross‑functional rotations."
-            )
+            "misaligned_role": "- **Clarify job responsibilities** and set SMART goals.\n- Align roles with employees’ **strengths** and preferences.",
+            "no_feedback": "- Implement **regular 1‑on‑1 check‑ins**.\n- Provide ongoing **coaching and feedback** rather than annual appraisals.",
+            "skill_gaps": "- Offer **targeted training** in needed skill areas.\n- Encourage **peer‑to‑peer learning** or cross‑functional rotations."
         }
     },
     "Low compensation competitiveness": {
@@ -292,18 +255,9 @@ TRIGGER_DETAILS = {
             "poor_benefits": "Benefits package is lacking (insurance, retirement, etc.)"
         },
         "solutions": {
-            "below_market": (
-                "- **Conduct market benchmarking** to adjust salaries to median or above.\n"
-                "- Consider **geographic pay differentials** if applicable."
-            ),
-            "minimal_bonus": (
-                "- Introduce **performance‑based incentives** or profit‑sharing.\n"
-                "- Evaluate **RSUs (Restricted Stock Units)** or equity grants for retention."
-            ),
-            "poor_benefits": (
-                "- Offer **competitive health insurance**, retirement contributions.\n"
-                "- Provide **flexible schedules**, wellness programs, and other perks."
-            )
+            "below_market": "- **Conduct market benchmarking** to adjust salaries to median or above.\n- Consider **geographic pay differentials** if applicable.",
+            "minimal_bonus": "- Introduce **performance‑based incentives** or profit‑sharing.\n- Evaluate **RSUs (Restricted Stock Units)** or equity grants for retention.",
+            "poor_benefits": "- Offer **competitive health insurance**, retirement contributions.\n- Provide **flexible schedules**, wellness programs, and other perks."
         }
     },
     "Low college tier retention": {
@@ -313,18 +267,9 @@ TRIGGER_DETAILS = {
             "poor_onboarding": "Insufficient onboarding or assimilation for these hires"
         },
         "solutions": {
-            "high_turnover_talent_pools": (
-                "- Investigate root causes via **exit interviews**.\n"
-                "- Build **campus ambassador** programs to attract the right fit."
-            ),
-            "mismatch_culture": (
-                "- Provide better **orientation** on company culture.\n"
-                "- Pair new hires with **mentors** from similar backgrounds."
-            ),
-            "poor_onboarding": (
-                "- Enhance **onboarding programs** with structured check‑ins (30/60/90 days).\n"
-                "- Offer a **buddy system** for new graduates."
-            )
+            "high_turnover_talent_pools": "- Investigate root causes via **exit interviews**.\n- Build **campus ambassador** programs to attract the right fit.",
+            "mismatch_culture": "- Provide better **orientation** on company culture.\n- Pair new hires with **mentors** from similar backgrounds.",
+            "poor_onboarding": "- Enhance **onboarding programs** with structured check‑ins (30/60/90 days).\n- Offer a **buddy system** for new graduates."
         }
     },
     "Low industry retention": {
@@ -334,18 +279,9 @@ TRIGGER_DETAILS = {
             "poor_onboarding": "Insufficient onboarding for these lateral hires"
         },
         "solutions": {
-            "high_turnover_talent_pools": (
-                "- Conduct **benchmarking** to see if salaries and roles align with industry standards.\n"
-                "- Explore **targeted retention strategies** (mentorship, training)."
-            ),
-            "mismatch_culture": (
-                "- Emphasize **company values** and create inclusive teams.\n"
-                "- Have **town halls** or Q&A sessions for lateral hires to assimilate."
-            ),
-            "poor_onboarding": (
-                "- Develop **structured assimilation** for mid‑career folks.\n"
-                "- Provide a **transition buddy** who understands both industries."
-            )
+            "high_turnover_talent_pools": "- Conduct **benchmarking** to see if salaries and roles align with industry standards.\n- Explore **targeted retention strategies** (mentorship, training).",
+            "mismatch_culture": "- Emphasize **company values** and create inclusive teams.\n- Have **town halls** or Q&A sessions for lateral hires to assimilate.",
+            "poor_onboarding": "- Develop **structured assimilation** for mid‑career folks.\n- Provide a **transition buddy** who understands both industries."
         }
     },
     "Low company type retention": {
@@ -355,18 +291,9 @@ TRIGGER_DETAILS = {
             "poor_onboarding": "Onboarding doesn’t address differences in processes, tools, or structures"
         },
         "solutions": {
-            "high_turnover_talent_pools": (
-                "- Identify if certain **company backgrounds** always churn quickly.\n"
-                "- Adapt your onboarding or project assignments accordingly."
-            ),
-            "mismatch_culture": (
-                "- Provide **culture assimilation** sessions or manager training.\n"
-                "- Encourage **peer networking** to help them adapt faster."
-            ),
-            "poor_onboarding": (
-                "- Have a **comprehensive onboarding** covering your processes & tools.\n"
-                "- Assign **buddies** who previously transitioned from similar backgrounds."
-            )
+            "high_turnover_talent_pools": "- Identify if certain **company backgrounds** always churn quickly.\n- Adapt your onboarding or project assignments accordingly.",
+            "mismatch_culture": "- Provide **culture assimilation** sessions or manager training.\n- Encourage **peer networking** to help them adapt faster.",
+            "poor_onboarding": "- Have a **comprehensive onboarding** covering your processes & tools.\n- Assign **buddies** who previously transitioned from similar backgrounds."
         }
     },
     "High dissatisfaction (Pulse)": {
@@ -376,18 +303,9 @@ TRIGGER_DETAILS = {
             "limited_growth": "Limited growth or recognition opportunities"
         },
         "solutions": {
-            "work_life_imbalance": (
-                "- Offer **flexible scheduling** and **mental health** resources.\n"
-                "- Encourage **healthy boundaries** around work hours."
-            ),
-            "poor_manager_relationships": (
-                "- Train managers on **emotional intelligence** and communication.\n"
-                "- Collect **360‑degree feedback** to identify manager blind spots."
-            ),
-            "limited_growth": (
-                "- Implement **career development** paths and internal mobility.\n"
-                "- Recognize achievements publicly and **reward** top performers."
-            )
+            "work_life_imbalance": "- Offer **flexible scheduling** and **mental health** resources.\n- Encourage **healthy boundaries** around work hours.",
+            "poor_manager_relationships": "- Train managers on **emotional intelligence** and communication.\n- Collect **360‑degree feedback** to identify manager blind spots.",
+            "limited_growth": "- Implement **career development** paths and internal mobility.\n- Recognize achievements publicly and **reward** top performers."
         }
     }
 }
@@ -589,61 +507,41 @@ if st.session_state.nav != "My Account":
         mode = st.radio("Select Mode", ["Train Mode", "Test Mode"], index=0, key="main_mode")
         disabled_flag = (mode == "Test Mode")
         st.markdown("### Global Settings for Bulk Analysis\n*These settings MUST be filled for bulk analysis*")
-        global_avg_age = st.slider(
-            "Average Employee Age in Company", 18, 100,
-            st.session_state.user.get("settings", {}).get("global_avg_age", 35),
-            key="global_avg_age", disabled=disabled_flag
-        )
-        global_female_ratio = st.slider(
-            "Women % in Organization", 0, 100,
-            st.session_state.user.get("settings", {}).get("global_female_ratio", 40),
-            key="global_female_ratio", disabled=disabled_flag
-        )
+        global_avg_age = st.slider("Average Employee Age in Company", 18, 100,
+                                     st.session_state.user.get("settings", {}).get("global_avg_age", 35),
+                                     key="global_avg_age", disabled=disabled_flag)
+        global_female_ratio = st.slider("Women % in Organization", 0, 100,
+                                        st.session_state.user.get("settings", {}).get("global_female_ratio", 40),
+                                        key="global_female_ratio", disabled=disabled_flag)
         with st.expander("College Tier Retention Settings", expanded=False):
-            bulk_tier1 = st.slider(
-                "Tier 1 Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_tier1", 60),
-                key="bulk_tier1", disabled=disabled_flag
-            )
-            bulk_tier2 = st.slider(
-                "Tier 2 Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_tier2", 50),
-                key="bulk_tier2", disabled=disabled_flag
-            )
-            bulk_tier3 = st.slider(
-                "Tier 3 Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_tier3", 40),
-                key="bulk_tier3", disabled=disabled_flag
-            )
+            bulk_tier1 = st.slider("Tier 1 Retention (%)", 10, 100,
+                                   st.session_state.user.get("settings", {}).get("bulk_tier1", 60),
+                                   key="bulk_tier1", disabled=disabled_flag)
+            bulk_tier2 = st.slider("Tier 2 Retention (%)", 10, 100,
+                                   st.session_state.user.get("settings", {}).get("bulk_tier2", 50),
+                                   key="bulk_tier2", disabled=disabled_flag)
+            bulk_tier3 = st.slider("Tier 3 Retention (%)", 10, 100,
+                                   st.session_state.user.get("settings", {}).get("bulk_tier3", 40),
+                                   key="bulk_tier3", disabled=disabled_flag)
         with st.expander("Industry Retention Settings", expanded=False):
             bulk_industry_retention = {}
             for ind in industry_options:
                 default_val = st.session_state.user.get("settings", {}).get("bulk_industry_retention", {}).get(ind, 60 if ind=="Tech" else 50)
-                bulk_industry_retention[ind] = st.slider(
-                    f"{ind} Retention (%)", 10, 100, default_val,
-                    key=f"bulk_ind_{ind}", disabled=disabled_flag
-                )
+                bulk_industry_retention[ind] = st.slider(f"{ind} Retention (%)", 10, 100, default_val,
+                                                         key=f"bulk_ind_{ind}", disabled=disabled_flag)
         with st.expander("Company Type Retention Settings", expanded=False):
-            bulk_startup = st.slider(
-                "Startup Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Startup", 60),
-                key="bulk_startup", disabled=disabled_flag
-            )
-            bulk_small = st.slider(
-                "Small Size Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Small Size", 55),
-                key="bulk_small", disabled=disabled_flag
-            )
-            bulk_mid = st.slider(
-                "Mid Size Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Mid Size", 50),
-                key="bulk_mid", disabled=disabled_flag
-            )
-            bulk_mnc = st.slider(
-                "MNC/Giant Company Retention (%)", 10, 100,
-                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("MNC/Giant Company", 45),
-                key="bulk_mnc", disabled=disabled_flag
-            )
+            bulk_startup = st.slider("Startup Retention (%)", 10, 100,
+                                     st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Startup", 60),
+                                     key="bulk_startup", disabled=disabled_flag)
+            bulk_small = st.slider("Small Size Retention (%)", 10, 100,
+                                   st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Small Size", 55),
+                                   key="bulk_small", disabled=disabled_flag)
+            bulk_mid = st.slider("Mid Size Retention (%)", 10, 100,
+                                 st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Mid Size", 50),
+                                 key="bulk_mid", disabled=disabled_flag)
+            bulk_mnc = st.slider("MNC/Giant Company Retention (%)", 10, 100,
+                                 st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("MNC/Giant Company", 45),
+                                 key="bulk_mnc", disabled=disabled_flag)
 
 # ---------------------------------------
 # Main Navigation
@@ -671,7 +569,7 @@ if st.session_state.nav == "My Account":
     if st.button("Back to Main"):
         st.session_state.nav = "Tabs"
 else:
-    # In Test Mode, start immediately with industry selection after header.
+    # Test Mode
     if st.session_state.main_mode == "Test Mode":
         selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=0, key="test_industry")
         st.markdown("""
@@ -740,23 +638,21 @@ else:
             - A **target column** (e.g., Attrition – use binary values 0/1, where **0: Active Employee** and **1: Non‑Active Employee**).
             - **Feature columns:**  
               - Employee Age  
-              - Gender (e.g., "Male", "Female")  
+              - Gender  
               - Tenure (Months)  
-              - Pulse (e.g., "High", "Medium", "Low")  
+              - Pulse  
               - Hasn't been promoted  
               - Minimum Promotion Cycle  
-              - College Tier (e.g., "Tier 1", "Tier 2", "Tier 3")  
-              - Industry (e.g., "Tech", "Finance", etc.)  
-              - Company Type (e.g., "Startup", "Enterprise", etc.)  
-              - Last Performance Rating (e.g., 1 to 5)  
-              - Compa Ratio (compensation ratio)
+              - College Tier  
+              - Industry  
+              - Company Type  
+              - Last Performance Rating  
+              - Compa Ratio
             """)
-            st.download_button(
-                label="Download Dummy Training File",
-                data=generate_dummy_training_file(),
-                file_name="dummy_training_file.csv",
-                mime="text/csv"
-            )
+            st.download_button(label="Download Dummy Training File",
+                               data=generate_dummy_training_file(),
+                               file_name="dummy_training_file.csv",
+                               mime="text/csv")
         target_column = st.text_input("Enter the name of the target column", value="Attrition")
         if uploaded_train is not None:
             try:
@@ -770,7 +666,7 @@ else:
                 st.error(f"Error reading file: {e}")
             if st.button("Train Model"):
                 train_model(train_df, target_column, selected_train_industry)
-    else:  # Test Mode - Bulk Analysis Only
+    else:
         st.header("Bulk Employee Attrition Prediction")
         uploaded_file = st.file_uploader("Upload Bulk Data (CSV or Excel)", type=["csv", "xlsx"], key="bulk_file")
         if uploaded_file is not None:
@@ -781,11 +677,9 @@ else:
                 st.stop()
             st.write("### Uploaded Data Preview:")
             st.dataframe(df_bulk.head())
-            required_cols = [
-                "Name", "Employee Age", "Gender", "Tenure (Months)", "Pulse",
-                "Hasn't been promoted", "Minimum Promotion Cycle", "College Tier",
-                "Industry", "Company Type", "Last Performance Rating", "Compa Ratio"
-            ]
+            required_cols = ["Name", "Employee Age", "Gender", "Tenure (Months)", "Pulse",
+                             "Hasn't been promoted", "Minimum Promotion Cycle", "College Tier",
+                             "Industry", "Company Type", "Last Performance Rating", "Compa Ratio"]
             missing = [c for c in required_cols if c not in df_bulk.columns]
             if missing:
                 st.error(f"❌ Missing columns: {missing}")
@@ -837,7 +731,6 @@ else:
                 
                 if st.session_state.bulk_prediction_complete:
                     df_bulk = st.session_state.bulk_result
-                    # Divide the screen into two columns only if What-If is enabled; otherwise, show original results
                     if st.session_state.enable_what_if:
                         left_col, right_col = st.columns(2)
                     else:
@@ -870,7 +763,6 @@ else:
                             st.write("### Overall Negative Triggers (Pie Chart)")
                             st.altair_chart(pie_chart, use_container_width=True)
                             
-                            # Display legend as an HTML table with colored boxes
                             legend_html = "<table><tr><th>Trigger</th><th>Percentage</th><th>Color</th></tr>"
                             color_scale = ["#AEC6CF", "#FFD1DC", "#C3B1E1", "#FDFD96", "#77DD77", "#B19CD9", "#FFB347"]
                             for i, row in pie_data.iterrows():
