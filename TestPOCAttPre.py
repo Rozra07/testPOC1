@@ -27,6 +27,12 @@ if "nav" not in st.session_state:
     st.session_state.nav = "Tabs"  # "Tabs" indicates main UI (i.e. not "My Account")
 if "user" not in st.session_state:
     st.session_state.user = {}
+if "bulk_prediction_complete" not in st.session_state:
+    st.session_state.bulk_prediction_complete = False
+if "bulk_result" not in st.session_state:
+    st.session_state.bulk_result = None
+if "enable_what_if" not in st.session_state:
+    st.session_state.enable_what_if = False
 
 # ----------------------------------------------------
 # Helper functions for user storage
@@ -717,42 +723,55 @@ else:
             if missing:
                 st.error(f"❌ Missing columns: {missing}")
             else:
-                if st.button("🚀 Run Bulk Prediction"):
-                    scores = []
-                    triggers_list = []
-                    names = []
-                    for idx, row in df_bulk.iterrows():
-                        row_dict = row.to_dict()
-                        names.append(row_dict.get("Name"))
-                        row_dict["Average Employee Age"] = global_avg_age
-                        row_dict["Female Employee Ratio"] = global_female_ratio
-                        college_tier = row_dict.get("College Tier")
-                        if college_tier == "Tier 1":
-                            row_dict["College Tier Retention"] = bulk_tier1
-                        elif college_tier == "Tier 2":
-                            row_dict["College Tier Retention"] = bulk_tier2
-                        elif college_tier == "Tier 3":
-                            row_dict["College Tier Retention"] = bulk_tier3
-                        else:
-                            st.warning(f"Row {idx}: Unknown College Tier '{college_tier}'. Using default 40%.")
-                            row_dict["College Tier Retention"] = 40
-                        ind_val = row_dict.get("Industry")
-                        row_dict["Industry Retention"] = bulk_industry_retention.get(ind_val, 50)
-                        row_dict["Company Type Retention"] = st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Startup", 60)
-                        try:
-                            bulk_score, bulk_trigs, _ = predict_attrition(row_dict, selected_test_industry)
-                        except Exception as e:
-                            st.error(f"Row {idx}: Prediction failed due to {e}. Skipping this row.")
-                            scores.append(None)
-                            triggers_list.append("Prediction Failed")
-                            continue
-                        scores.append(bulk_score)
-                        neg_trigs = [t for t in bulk_trigs if t in TRIGGER_DETAILS]
-                        triggers_str = ", ".join(neg_trigs) if neg_trigs else "None"
-                        triggers_list.append(triggers_str)
-                    df_bulk["Attrition Score"] = scores
-                    df_bulk["Negative Triggers"] = triggers_list
-                    df_bulk["Name"] = names
+                # Place the Run Bulk Prediction button and What-If toggle side by side.
+                btn_cols = st.columns([1,1])
+                with btn_cols[0]:
+                    if st.button("🚀 Run Bulk Prediction"):
+                        scores = []
+                        triggers_list = []
+                        names = []
+                        for idx, row in df_bulk.iterrows():
+                            row_dict = row.to_dict()
+                            names.append(row_dict.get("Name"))
+                            row_dict["Average Employee Age"] = global_avg_age
+                            row_dict["Female Employee Ratio"] = global_female_ratio
+                            college_tier = row_dict.get("College Tier")
+                            if college_tier == "Tier 1":
+                                row_dict["College Tier Retention"] = bulk_tier1
+                            elif college_tier == "Tier 2":
+                                row_dict["College Tier Retention"] = bulk_tier2
+                            elif college_tier == "Tier 3":
+                                row_dict["College Tier Retention"] = bulk_tier3
+                            else:
+                                st.warning(f"Row {idx}: Unknown College Tier '{college_tier}'. Using default 40%.")
+                                row_dict["College Tier Retention"] = 40
+                            ind_val = row_dict.get("Industry")
+                            row_dict["Industry Retention"] = bulk_industry_retention.get(ind_val, 50)
+                            row_dict["Company Type Retention"] = st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Startup", 60)
+                            try:
+                                bulk_score, bulk_trigs, _ = predict_attrition(row_dict, selected_test_industry)
+                            except Exception as e:
+                                st.error(f"Row {idx}: Prediction failed due to {e}. Skipping this row.")
+                                scores.append(None)
+                                triggers_list.append("Prediction Failed")
+                                continue
+                            scores.append(bulk_score)
+                            neg_trigs = [t for t in bulk_trigs if t in TRIGGER_DETAILS]
+                            triggers_str = ", ".join(neg_trigs) if neg_trigs else "None"
+                            triggers_list.append(triggers_str)
+                        df_bulk["Attrition Score"] = scores
+                        df_bulk["Negative Triggers"] = triggers_list
+                        df_bulk["Name"] = names
+                        st.session_state.bulk_result = df_bulk.copy()
+                        st.session_state.bulk_prediction_complete = True
+                        save_user_event(st.session_state.user["email"], "bulk_prediction", {"rows": len(df_bulk)})
+                with btn_cols[1]:
+                    if st.session_state.bulk_prediction_complete:
+                        st.session_state.enable_what_if = st.checkbox("Enable What-If Analysis", key="whatif_toggle")
+                
+                # If bulk prediction is completed, show the results, drill-down and (if enabled) What-If Analysis.
+                if st.session_state.bulk_prediction_complete:
+                    df_bulk = st.session_state.bulk_result
                     st.success("✅ Bulk Prediction Completed!")
                     st.dataframe(df_bulk)
                     high_risk = (df_bulk["Attrition Score"] >= 75).sum()
@@ -776,23 +795,19 @@ else:
                         st.bar_chart(trig_series)
                     else:
                         st.info("No negative triggers found across the batch.")
+                    
                     st.write("### Drill Down into Individual Rows")
-                    df_bulk_reset = df_bulk.reset_index(drop=True)
-                    row_options = list(range(len(df_bulk_reset)))
-                    sel_row = st.selectbox("Select an Employee (Row Index)", row_options)
+                    row_options = list(range(len(df_bulk)))
+                    sel_row = st.selectbox("Select an Employee (Row Index)", row_options, key="drilldown")
                     if sel_row is not None:
-                        row_info = df_bulk_reset.loc[sel_row].to_dict()
+                        row_info = df_bulk.loc[sel_row].to_dict()
                         st.write("### Row Data:")
                         st.json(row_info)
                     
-                    # ---------------------------------------
-                    # What-If Analysis Integration for Bulk Mode
-                    # ---------------------------------------
-                    st.markdown("## What-If Analysis")
-                    enable_what_if = st.checkbox("Enable What-If Analysis")
-                    if enable_what_if:
-                        col_left, col_right = st.columns([3,1])
-                        with col_right:
+                    # If What-If Analysis is enabled, display the what-if sliders on the right.
+                    if st.session_state.enable_what_if:
+                        main_cols = st.columns([3, 1])
+                        with main_cols[1]:
                             st.markdown("### What-If Controls")
                             new_female_ratio = st.slider("Women % in Organization", 0, 100, global_female_ratio, key="whatif_female")
                             default_compa = int(df_bulk["Compa Ratio"].mean()) if "Compa Ratio" in df_bulk.columns else 100
@@ -800,7 +815,7 @@ else:
                             new_pulse = st.selectbox("Pulse", ["High", "Medium", "Low"], key="whatif_pulse")
                             new_hasnt_promoted = st.slider("Months Since Last Promotion", 0, 60, 12, key="whatif_promoted")
                             new_min_promotion_cycle = st.slider("Minimum Promotion Cycle (Months)", 12, 60, 24, key="whatif_min_cycle")
-                        with col_left:
+                        with main_cols[0]:
                             st.markdown("### Recalculated Predictions with What-If Adjustments")
                             new_scores = []
                             new_triggers_list = []
