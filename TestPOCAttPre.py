@@ -23,6 +23,32 @@ def safe_rerun():
     else:
         st.warning("Refresh functionality is not available. Please update Streamlit (>=0.65.0).")
 
+# ---------------------------------------
+# Helper function to normalize dictionary keys
+# ---------------------------------------
+def normalize_keys(d):
+    mapping = {
+        "name": "Name",
+        "employee age": "Employee Age",
+        "gender": "Gender",
+        "tenure (months)": "Tenure (Months)",
+        "pulse": "Pulse",
+        "hasn't been promoted": "Hasn't been promoted",
+        "minimum promotion cycle": "Minimum Promotion Cycle",
+        "college tier": "College Tier",
+        "industry": "Industry",
+        "company type": "Company Type",
+        "last performance rating": "Last Performance Rating",
+        "compa ratio": "Compa Ratio",
+        "attrition": "Attrition",
+        "attrition score": "Attrition Score",
+        "female employee ratio": "Female Employee Ratio",
+        "college tier retention": "College Tier Retention",
+        "industry retention": "Industry Retention",
+        "company type retention": "Company Type Retention"
+    }
+    return { mapping.get(k.lower().strip(), k): v for k, v in d.items() }
+
 # ----------------------------------------------------
 # Initialize st.session_state keys if not already set
 # ----------------------------------------------------
@@ -409,6 +435,7 @@ TRIGGER_DETAILS = {
 # Rule-based attrition computation
 # ----------------------------------------------------
 def compute_weighted_attrition(employee, return_triggers=False):
+    # Assumes keys have already been normalized.
     score = 0
     extreme_factors = 0
     triggers = []
@@ -458,6 +485,8 @@ def compute_weighted_attrition(employee, return_triggers=False):
 # Predict attrition using both ML and rule-based approaches
 # ----------------------------------------------------
 def predict_attrition(employee_data, industry):
+    # Normalize the keys so that we have the expected names.
+    employee_data = normalize_keys(employee_data)
     model, scaler, feature_columns = load_model(industry)
     if model is None:
         return None, None, None
@@ -685,11 +714,10 @@ if st.session_state.nav == "My Account":
     if st.button("Back to Main"):
         st.session_state.nav = "Tabs"
 else:
-    # In Test Mode, start immediately with industry selection
+    # In Test Mode
     if st.session_state.main_mode == "Test Mode":
         selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=0, key="test_industry")
         
-        # Display instructions with a tooltip
         st.markdown("""
         <div class="tooltip">Read Instructions
           <span class="tooltiptext">
@@ -793,15 +821,19 @@ else:
         if uploaded_file is not None:
             try:
                 df_bulk = pd.read_csv(uploaded_file) if uploaded_file.name.endswith(".csv") else pd.read_excel(uploaded_file)
+                # Normalize column names
+                df_bulk = df_bulk.rename(columns=lambda x: x.strip())
+                df_bulk = df_bulk.apply(lambda col: col.rename(col.lower()) if col.name else col)
+                # (Alternatively, you can call normalize_keys on each row later.)
             except Exception as e:
                 st.error(f"❌ Error reading the file: {e}")
                 st.stop()
             st.write("### Uploaded Data Preview:")
             st.dataframe(df_bulk.head())
             required_cols = [
-                "Name", "Employee Age", "Gender", "Tenure (Months)", "Pulse",
-                "Hasn't been promoted", "Minimum Promotion Cycle", "College Tier",
-                "Industry", "Company Type", "Last Performance Rating", "Compa Ratio"
+                "name", "employee age", "gender", "tenure (months)", "pulse",
+                "hasn't been promoted", "minimum promotion cycle", "college tier",
+                "industry", "company type", "last performance rating", "compa ratio"
             ]
             missing = [c for c in required_cols if c not in df_bulk.columns]
             if missing:
@@ -811,39 +843,40 @@ else:
                     scores = []
                     triggers_list = []
                     names = []
+                    # Normalize keys for each row using our helper function
                     for idx, row in df_bulk.iterrows():
-                        row_dict = row.to_dict()
-                        names.append(row_dict.get("Name"))
-                        row_dict["Average Employee Age"] = global_avg_age
-                        row_dict["Female Employee Ratio"] = global_female_ratio
-                        college_tier = row_dict.get("College Tier")
+                        row_norm = normalize_keys(row.to_dict())
+                        names.append(row_norm.get("Name"))
+                        row_norm["Average Employee Age"] = global_avg_age
+                        row_norm["Female Employee Ratio"] = global_female_ratio
+                        college_tier = row_norm.get("College Tier")
                         if college_tier == "Tier 1":
-                            row_dict["College Tier Retention"] = bulk_tier1
+                            row_norm["College Tier Retention"] = bulk_tier1
                         elif college_tier == "Tier 2":
-                            row_dict["College Tier Retention"] = bulk_tier2
+                            row_norm["College Tier Retention"] = bulk_tier2
                         elif college_tier == "Tier 3":
-                            row_dict["College Tier Retention"] = bulk_tier3
+                            row_norm["College Tier Retention"] = bulk_tier3
                         else:
                             st.warning(f"Row {idx}: Unknown College Tier '{college_tier}'. Using default 40%.")
-                            row_dict["College Tier Retention"] = 40
-                        ind_val = row_dict.get("Industry")
-                        row_dict["Industry Retention"] = bulk_industry_retention.get(ind_val, 50)
+                            row_norm["College Tier Retention"] = 40
+                        ind_val = row_norm.get("Industry")
+                        row_norm["Industry Retention"] = bulk_industry_retention.get(ind_val, 50)
                         
                         # Map company type retention
-                        ctype_val = row_dict.get("Company Type", "Startup")
+                        ctype_val = row_norm.get("Company Type", "Startup")
                         if ctype_val.lower() == "startup":
-                            row_dict["Company Type Retention"] = bulk_startup
+                            row_norm["Company Type Retention"] = bulk_startup
                         elif "small" in ctype_val.lower():
-                            row_dict["Company Type Retention"] = bulk_small
+                            row_norm["Company Type Retention"] = bulk_small
                         elif "mid" in ctype_val.lower():
-                            row_dict["Company Type Retention"] = bulk_mid
+                            row_norm["Company Type Retention"] = bulk_mid
                         elif "mnc" in ctype_val.lower() or "giant" in ctype_val.lower():
-                            row_dict["Company Type Retention"] = bulk_mnc
+                            row_norm["Company Type Retention"] = bulk_mnc
                         else:
-                            row_dict["Company Type Retention"] = 50
+                            row_norm["Company Type Retention"] = 50
                         
                         try:
-                            bulk_score, bulk_trigs, _ = predict_attrition(row_dict, selected_test_industry)
+                            bulk_score, bulk_trigs, _ = predict_attrition(row_norm, selected_test_industry)
                         except Exception as e:
                             st.error(f"Row {idx}: Prediction failed due to {e}. Skipping this row.")
                             scores.append(None)
@@ -879,11 +912,11 @@ else:
                         # ---------------------------
                         with st.expander("Filters"):
                             filter_score_min, filter_score_max = st.slider("Attrition Score Range", 0, 100, (0, 100), key="filter_score")
-                            selected_industries = st.multiselect("Filter by Industry", options=df_bulk["Industry"].unique().tolist(), default=df_bulk["Industry"].unique().tolist(), key="filter_ind")
-                            selected_company = st.multiselect("Filter by Company Type", options=df_bulk["Company Type"].unique().tolist(), default=df_bulk["Company Type"].unique().tolist(), key="filter_company")
+                            selected_industries = st.multiselect("Filter by Industry", options=df_bulk["industry"].unique().tolist(), default=df_bulk["industry"].unique().tolist(), key="filter_ind")
+                            selected_company = st.multiselect("Filter by Company Type", options=df_bulk["company type"].unique().tolist(), default=df_bulk["company type"].unique().tolist(), key="filter_company")
                             filtered_df = df_bulk[(df_bulk["Attrition Score"] >= filter_score_min) & (df_bulk["Attrition Score"] <= filter_score_max) & 
-                                                   (df_bulk["Industry"].isin(selected_industries)) & 
-                                                   (df_bulk["Company Type"].isin(selected_company))]
+                                                   (df_bulk["industry"].isin(selected_industries)) & 
+                                                   (df_bulk["company type"].isin(selected_company))]
                             st.write("### Filtered Bulk Predictions")
                             st.dataframe(filtered_df)
                         
@@ -900,13 +933,12 @@ else:
                             
                             st.subheader("2. Box Plot of Attrition Score by Gender")
                             chart2 = alt.Chart(df_bulk).mark_boxplot().encode(
-                                x="Gender:N",
+                                x="gender:N",
                                 y="Attrition Score:Q"
                             )
                             st.altair_chart(chart2, use_container_width=True)
                             
                             st.subheader("3. Box Plot of Attrition Score by Age Group")
-                            # Corrected: Bin the "Employee Age" field directly.
                             chart3 = alt.Chart(df_bulk).mark_boxplot().encode(
                                 x=alt.X("Employee Age:Q", bin=alt.Bin(maxbins=10), title="Employee Age (Binned)"),
                                 y="Attrition Score:Q"
@@ -915,14 +947,14 @@ else:
                             
                             st.subheader("4. Bar Chart of Average Attrition Score by Industry")
                             chart4 = alt.Chart(df_bulk).mark_bar().encode(
-                                x="Industry:N",
+                                x="industry:N",
                                 y=alt.Y("mean(Attrition Score):Q", title="Average Attrition Score")
                             )
                             st.altair_chart(chart4, use_container_width=True)
                             
                             st.subheader("5. Bar Chart of Average Attrition Score by College Tier")
                             chart5 = alt.Chart(df_bulk).mark_bar().encode(
-                                x="College Tier:N",
+                                x="college tier:N",
                                 y=alt.Y("mean(Attrition Score):Q", title="Average Attrition Score")
                             )
                             st.altair_chart(chart5, use_container_width=True)
@@ -931,8 +963,8 @@ else:
                             chart6 = alt.Chart(df_bulk).mark_circle(size=60).encode(
                                 x="Employee Age:Q",
                                 y="Attrition Score:Q",
-                                color="Industry:N",
-                                tooltip=["Name", "Employee Age", "Attrition Score", "Industry"]
+                                color="industry:N",
+                                tooltip=["Name", "Employee Age", "Attrition Score", "industry"]
                             ).interactive()
                             st.altair_chart(chart6, use_container_width=True)
                             
@@ -959,52 +991,51 @@ else:
                             st.altair_chart(chart9, use_container_width=True)
                             
                             st.subheader("10. Pie Chart of Gender Distribution")
-                            gender_df = df_bulk.groupby("Gender").size().reset_index(name="Count")
+                            gender_df = df_bulk.groupby("gender").size().reset_index(name="Count")
                             chart10 = alt.Chart(gender_df).mark_arc(innerRadius=50).encode(
                                 theta=alt.Theta(field="Count", type="quantitative"),
-                                color=alt.Color(field="Gender", type="nominal"),
-                                tooltip=["Gender", "Count"]
+                                color=alt.Color(field="gender", type="nominal"),
+                                tooltip=["gender", "Count"]
                             ).properties(width=300, height=300)
                             st.altair_chart(chart10, use_container_width=True)
                             
                             st.subheader("11. Bar Chart: Count of Employees by Industry")
                             chart11 = alt.Chart(df_bulk).mark_bar().encode(
-                                x="Industry:N",
+                                x="industry:N",
                                 y="count()"
                             )
                             st.altair_chart(chart11, use_container_width=True)
                             
                             st.subheader("12. Bar Chart: Count of Employees by College Tier")
                             chart12 = alt.Chart(df_bulk).mark_bar().encode(
-                                x="College Tier:N",
+                                x="college tier:N",
                                 y="count()"
                             )
                             st.altair_chart(chart12, use_container_width=True)
                             
                             st.subheader("13. Bar Chart: Count of Employees by Gender")
                             chart13 = alt.Chart(df_bulk).mark_bar().encode(
-                                x="Gender:N",
+                                x="gender:N",
                                 y="count()"
                             )
                             st.altair_chart(chart13, use_container_width=True)
                             
                             st.subheader("14. Scatter Plot: Compa Ratio vs. Attrition Score")
                             chart14 = alt.Chart(df_bulk).mark_circle(size=60).encode(
-                                x="Compa Ratio:Q",
+                                x="compa ratio:Q",
                                 y="Attrition Score:Q",
-                                tooltip=["Name", "Compa Ratio", "Attrition Score"]
+                                tooltip=["Name", "compa ratio", "Attrition Score"]
                             ).interactive()
                             st.altair_chart(chart14, use_container_width=True)
                             
                             st.subheader("15. Box Plot: Compa Ratio by Gender")
                             chart15 = alt.Chart(df_bulk).mark_boxplot().encode(
-                                x="Gender:N",
-                                y="Compa Ratio:Q"
+                                x="gender:N",
+                                y="compa ratio:Q"
                             )
                             st.altair_chart(chart15, use_container_width=True)
                             
                             st.subheader("16. Line Chart: Trend of Attrition Score Over Prediction Time")
-                            # Convert Prediction Time to datetime if not already
                             df_bulk["Prediction Time"] = pd.to_datetime(df_bulk["Prediction Time"])
                             chart16 = alt.Chart(df_bulk).mark_line().encode(
                                 x="Prediction Time:T",
@@ -1025,14 +1056,14 @@ else:
                             
                             st.subheader("18. Bar Chart: Count of Employees by Pulse Rating")
                             chart18 = alt.Chart(df_bulk).mark_bar().encode(
-                                x="Pulse:N",
+                                x="pulse:N",
                                 y="count()"
                             )
                             st.altair_chart(chart18, use_container_width=True)
                             
                             st.subheader("19. Box Plot: Attrition Score by Pulse Rating")
                             chart19 = alt.Chart(df_bulk).mark_boxplot().encode(
-                                x="Pulse:N",
+                                x="pulse:N",
                                 y="Attrition Score:Q"
                             )
                             st.altair_chart(chart19, use_container_width=True)
@@ -1046,14 +1077,13 @@ else:
                             st.altair_chart(chart20, use_container_width=True)
                     
                     # ---------------------------
-                    # What-If Analysis (if enabled)
+                    # What-If Analysis Block
                     if st.session_state.enable_what_if:
                         with right_col:
                             st.markdown("## What-If Analysis")
                             whatif_params = {}
                             trig_series = compute_trigger_counts(df_bulk, "Negative Triggers")
                             
-                            # Only show sliders/selectors for triggers present:
                             if "Low gender diversity" in trig_series.index:
                                 whatif_params["female_ratio"] = st.slider("Women % in Organization", 0, 100, global_female_ratio, key="whatif_female")
                             if "Stagnant promotions" in trig_series.index:
@@ -1066,7 +1096,7 @@ else:
                                 default_rating = min(max(default_rating, 1), 5)
                                 whatif_params["rating"] = st.selectbox("Last Performance Rating", [1, 2, 3, 4, 5], index=default_rating-1, key="whatif_rating")
                             if any(x in trig_series.index for x in ["Low compensation competitiveness", "High compensation ratio"]):
-                                default_compa = int(df_bulk["Compa Ratio"].mean())
+                                default_compa = int(df_bulk["compa ratio"].mean())
                                 whatif_params["compa_ratio"] = st.slider("Compa Ratio (%)", 50, 150, default_compa, key="whatif_compa")
                             if "Low college tier retention" in trig_series.index:
                                 whatif_params["tier1"] = st.slider("Tier 1 Retention (%)", 10, 100, bulk_tier1, key="whatif_tier1")
@@ -1086,35 +1116,33 @@ else:
                             df_bulk_whatif = df_bulk.copy()
                             
                             for idx, row in df_bulk_whatif.iterrows():
-                                new_row = dict(row)
+                                # Normalize the row's keys
+                                new_row = normalize_keys(row.to_dict())
                                 new_row["Average Employee Age"] = global_avg_age
-                                new_row["Female Employee Ratio"] = whatif_params.get("female_ratio", row.get("Female Employee Ratio", global_female_ratio))
-                                new_row["Hasn't been promoted"] = whatif_params.get("not_promoted", row.get("Hasn't been promoted"))
-                                new_row["Minimum Promotion Cycle"] = whatif_params.get("min_cycle", row.get("Minimum Promotion Cycle"))
-                                new_row["Last Performance Rating"] = whatif_params.get("rating", row.get("Last Performance Rating"))
-                                new_row["Compa Ratio"] = whatif_params.get("compa_ratio", row.get("Compa Ratio"))
+                                new_row["Female Employee Ratio"] = whatif_params.get("female_ratio", new_row.get("Female Employee Ratio", global_female_ratio))
+                                new_row["Hasn't been promoted"] = whatif_params.get("not_promoted", new_row.get("Hasn't been promoted"))
+                                new_row["Minimum Promotion Cycle"] = whatif_params.get("min_cycle", new_row.get("Minimum Promotion Cycle"))
+                                new_row["Last Performance Rating"] = whatif_params.get("rating", new_row.get("Last Performance Rating"))
+                                new_row["Compa Ratio"] = whatif_params.get("compa_ratio", new_row.get("Compa Ratio"))
                                 
-                                # For College Tier Retention:
-                                college_tier = row.get("College Tier")
+                                college_tier = new_row.get("College Tier")
                                 if college_tier == "Tier 1":
                                     default_college_retention = bulk_tier1
-                                    new_row["College Tier Retention"] = whatif_params.get("tier1", row.get("College Tier Retention", default_college_retention))
+                                    new_row["College Tier Retention"] = whatif_params.get("tier1", new_row.get("College Tier Retention", default_college_retention))
                                 elif college_tier == "Tier 2":
                                     default_college_retention = bulk_tier2
-                                    new_row["College Tier Retention"] = whatif_params.get("tier2", row.get("College Tier Retention", default_college_retention))
+                                    new_row["College Tier Retention"] = whatif_params.get("tier2", new_row.get("College Tier Retention", default_college_retention))
                                 elif college_tier == "Tier 3":
                                     default_college_retention = bulk_tier3
-                                    new_row["College Tier Retention"] = whatif_params.get("tier3", row.get("College Tier Retention", default_college_retention))
+                                    new_row["College Tier Retention"] = whatif_params.get("tier3", new_row.get("College Tier Retention", default_college_retention))
                                 else:
-                                    new_row["College Tier Retention"] = row.get("College Tier Retention", 40)
+                                    new_row["College Tier Retention"] = new_row.get("College Tier Retention", 40)
                                 
-                                # For Industry Retention:
-                                industry_val = row.get("Industry")
+                                industry_val = new_row.get("Industry")
                                 default_industry_retention = bulk_industry_retention.get(industry_val, 50) if industry_val else 50
-                                new_row["Industry Retention"] = whatif_params.get("industry_retention", row.get("Industry Retention", default_industry_retention))
+                                new_row["Industry Retention"] = whatif_params.get("industry_retention", new_row.get("Industry Retention", default_industry_retention))
                                 
-                                # For Company Type Retention:
-                                ctype_val = row.get("Company Type", "Startup")
+                                ctype_val = new_row.get("Company Type", "Startup")
                                 if ctype_val.lower() == "startup":
                                     default_company_retention = bulk_startup
                                 elif "small" in ctype_val.lower():
@@ -1125,9 +1153,9 @@ else:
                                     default_company_retention = bulk_mnc
                                 else:
                                     default_company_retention = 50
-                                new_row["Company Type Retention"] = whatif_params.get("company_retention", row.get("Company Type Retention", default_company_retention))
+                                new_row["Company Type Retention"] = whatif_params.get("company_retention", new_row.get("Company Type Retention", default_company_retention))
                                 
-                                new_row["Pulse"] = whatif_params.get("pulse", row.get("Pulse"))
+                                new_row["Pulse"] = whatif_params.get("pulse", new_row.get("Pulse"))
                                 
                                 try:
                                     new_score, new_trigs, _ = predict_attrition(new_row, selected_test_industry)
@@ -1143,7 +1171,6 @@ else:
                             df_bulk_whatif["What-If Negative Triggers"] = new_triggers_list
                             st.dataframe(df_bulk_whatif)
                             
-                            # Summaries for What-If results
                             high_risk_w = (df_bulk_whatif["What-If Attrition Score"] >= 75).sum()
                             mod_high_w = ((df_bulk_whatif["What-If Attrition Score"] >= 60) & (df_bulk_whatif["What-If Attrition Score"] < 75)).sum()
                             moderate_w = ((df_bulk_whatif["What-If Attrition Score"] >= 35) & (df_bulk_whatif["What-If Attrition Score"] < 60)).sum()
@@ -1155,9 +1182,6 @@ else:
                             st.write("### What-If Risk Distribution")
                             st.bar_chart(risk_df_w.set_index("Risk Category"))
                             
-                            # ---------------------------
-                            # Scenario Saving and Management
-                            # ---------------------------
                             st.markdown("### Scenario Management")
                             if "saved_scenarios" not in st.session_state:
                                 st.session_state.saved_scenarios = []
