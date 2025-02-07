@@ -859,60 +859,193 @@ else:
                         df_bulk["Attrition Score"] = scores
                         df_bulk["Negative Triggers"] = triggers_list
                         df_bulk["Name"] = names
+                        # Optionally, add a timestamp column for trend analysis:
+                        df_bulk["Prediction Time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         st.session_state.bulk_result = df_bulk.copy()
                         st.session_state.bulk_prediction_complete = True
-                        # Optionally, add a timestamp column for trend analysis:
-                        st.session_state.bulk_result["Prediction Time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         save_user_event(st.session_state.user["email"], "bulk_prediction", {"rows": len(df_bulk)})
-                with btn_cols[1]:
-                    if st.session_state.bulk_prediction_complete:
-                        st.session_state.enable_what_if = st.checkbox("Enable What-If Analysis", key="whatif_toggle")
                 
+                # Layout: If What-If Analysis is activated, split into left and right halves.
                 if st.session_state.bulk_prediction_complete:
-                    df_bulk = st.session_state.bulk_result
+                    if st.session_state.enable_what_if:
+                        left_col, right_col = st.columns(2)
+                    else:
+                        left_col = st.container()
                     
-                    # ---------------------------
-                    # Additional Filtering Options
-                    # ---------------------------
-                    with st.expander("Filters"):
-                        filter_score_min, filter_score_max = st.slider("Attrition Score Range", 0, 100, (0, 100), key="filter_score")
-                        selected_industries = st.multiselect("Filter by Industry", options=df_bulk["Industry"].unique().tolist(), default=df_bulk["Industry"].unique().tolist(), key="filter_ind")
-                        selected_company = st.multiselect("Filter by Company Type", options=df_bulk["Company Type"].unique().tolist(), default=df_bulk["Company Type"].unique().tolist(), key="filter_company")
-                        filtered_df = df_bulk[(df_bulk["Attrition Score"] >= filter_score_min) & (df_bulk["Attrition Score"] <= filter_score_max) & 
-                                                 (df_bulk["Industry"].isin(selected_industries)) & 
-                                                 (df_bulk["Company Type"].isin(selected_company))]
-                        st.write("### Filtered Bulk Predictions")
-                        st.dataframe(filtered_df)
-                    
-                    # ---------------------------
-                    # Dashboard Visualizations
-                    # ---------------------------
-                    with st.expander("Dashboard - Additional Visualizations"):
-                        st.subheader("Scatter Plot: Employee Age vs Attrition Score")
-                        scatter_chart = alt.Chart(df_bulk).mark_circle(size=60).encode(
-                            x="Employee Age",
-                            y="Attrition Score",
-                            color="Industry",
-                            tooltip=["Name", "Employee Age", "Attrition Score", "Industry"]
-                        ).interactive()
-                        st.altair_chart(scatter_chart, use_container_width=True)
+                    with left_col:
+                        # ---------------------------
+                        # Filters
+                        # ---------------------------
+                        with st.expander("Filters"):
+                            filter_score_min, filter_score_max = st.slider("Attrition Score Range", 0, 100, (0, 100), key="filter_score")
+                            selected_industries = st.multiselect("Filter by Industry", options=df_bulk["Industry"].unique().tolist(), default=df_bulk["Industry"].unique().tolist(), key="filter_ind")
+                            selected_company = st.multiselect("Filter by Company Type", options=df_bulk["Company Type"].unique().tolist(), default=df_bulk["Company Type"].unique().tolist(), key="filter_company")
+                            filtered_df = df_bulk[(df_bulk["Attrition Score"] >= filter_score_min) & (df_bulk["Attrition Score"] <= filter_score_max) & 
+                                                   (df_bulk["Industry"].isin(selected_industries)) & 
+                                                   (df_bulk["Company Type"].isin(selected_company))]
+                            st.write("### Filtered Bulk Predictions")
+                            st.dataframe(filtered_df)
                         
-                        st.subheader("Correlation Heatmap (Numeric Features)")
-                        numeric_df = df_bulk.select_dtypes(include=[np.number])
-                        corr = numeric_df.corr().reset_index().melt(id_vars="index")
-                        corr_chart = alt.Chart(corr).mark_rect().encode(
-                            x=alt.X("index:N", title=""),
-                            y=alt.Y("variable:N", title=""),
-                            color=alt.Color("value:Q", scale=alt.Scale(scheme='redblue')),
-                            tooltip=["index", "variable", "value"]
-                        ).properties(width=300, height=300)
-                        st.altair_chart(corr_chart, use_container_width=False)
+                        # ---------------------------
+                        # Dashboard - 20 Charts
+                        # ---------------------------
+                        with st.expander("Dashboard - Additional Visualizations"):
+                            st.subheader("1. Attrition Score Distribution Histogram")
+                            chart1 = alt.Chart(df_bulk).mark_bar().encode(
+                                x=alt.X("Attrition Score:Q", bin=alt.Bin(maxbins=50)),
+                                y="count()"
+                            )
+                            st.altair_chart(chart1, use_container_width=True)
+                            
+                            st.subheader("2. Box Plot of Attrition Score by Gender")
+                            chart2 = alt.Chart(df_bulk).mark_boxplot().encode(
+                                x="Gender:N",
+                                y="Attrition Score:Q"
+                            )
+                            st.altair_chart(chart2, use_container_width=True)
+                            
+                            st.subheader("3. Box Plot of Attrition Score by Age Group")
+                            chart3 = alt.Chart(df_bulk).mark_boxplot().encode(
+                                x=alt.X("bin:Q", title="Employee Age (Binned)", bin=alt.Bin(maxbins=10), field="Employee Age"),
+                                y="Attrition Score:Q"
+                            )
+                            st.altair_chart(chart3, use_container_width=True)
+                            
+                            st.subheader("4. Bar Chart of Average Attrition Score by Industry")
+                            chart4 = alt.Chart(df_bulk).mark_bar().encode(
+                                x="Industry:N",
+                                y=alt.Y("mean(Attrition Score):Q", title="Average Attrition Score")
+                            )
+                            st.altair_chart(chart4, use_container_width=True)
+                            
+                            st.subheader("5. Bar Chart of Average Attrition Score by College Tier")
+                            chart5 = alt.Chart(df_bulk).mark_bar().encode(
+                                x="College Tier:N",
+                                y=alt.Y("mean(Attrition Score):Q", title="Average Attrition Score")
+                            )
+                            st.altair_chart(chart5, use_container_width=True)
+                            
+                            st.subheader("6. Scatter Plot: Employee Age vs. Attrition Score")
+                            chart6 = alt.Chart(df_bulk).mark_circle(size=60).encode(
+                                x="Employee Age:Q",
+                                y="Attrition Score:Q",
+                                color="Industry:N",
+                                tooltip=["Name", "Employee Age", "Attrition Score", "Industry"]
+                            ).interactive()
+                            st.altair_chart(chart6, use_container_width=True)
+                            
+                            st.subheader("7. Scatter Plot: Tenure vs. Attrition Score")
+                            chart7 = alt.Chart(df_bulk).mark_circle(size=60).encode(
+                                x="Tenure (Months):Q",
+                                y="Attrition Score:Q",
+                                tooltip=["Name", "Tenure (Months)", "Attrition Score"]
+                            ).interactive()
+                            st.altair_chart(chart7, use_container_width=True)
+                            
+                            st.subheader("8. Histogram of Employee Age")
+                            chart8 = alt.Chart(df_bulk).mark_bar().encode(
+                                x=alt.X("Employee Age:Q", bin=alt.Bin(maxbins=30)),
+                                y="count()"
+                            )
+                            st.altair_chart(chart8, use_container_width=True)
+                            
+                            st.subheader("9. Histogram of Tenure (Months)")
+                            chart9 = alt.Chart(df_bulk).mark_bar().encode(
+                                x=alt.X("Tenure (Months):Q", bin=alt.Bin(maxbins=30)),
+                                y="count()"
+                            )
+                            st.altair_chart(chart9, use_container_width=True)
+                            
+                            st.subheader("10. Pie Chart of Gender Distribution")
+                            gender_df = df_bulk.groupby("Gender").size().reset_index(name="Count")
+                            chart10 = alt.Chart(gender_df).mark_arc(innerRadius=50).encode(
+                                theta=alt.Theta(field="Count", type="quantitative"),
+                                color=alt.Color(field="Gender", type="nominal"),
+                                tooltip=["Gender", "Count"]
+                            ).properties(width=300, height=300)
+                            st.altair_chart(chart10, use_container_width=True)
+                            
+                            st.subheader("11. Bar Chart: Count of Employees by Industry")
+                            chart11 = alt.Chart(df_bulk).mark_bar().encode(
+                                x="Industry:N",
+                                y="count()"
+                            )
+                            st.altair_chart(chart11, use_container_width=True)
+                            
+                            st.subheader("12. Bar Chart: Count of Employees by College Tier")
+                            chart12 = alt.Chart(df_bulk).mark_bar().encode(
+                                x="College Tier:N",
+                                y="count()"
+                            )
+                            st.altair_chart(chart12, use_container_width=True)
+                            
+                            st.subheader("13. Bar Chart: Count of Employees by Gender")
+                            chart13 = alt.Chart(df_bulk).mark_bar().encode(
+                                x="Gender:N",
+                                y="count()"
+                            )
+                            st.altair_chart(chart13, use_container_width=True)
+                            
+                            st.subheader("14. Scatter Plot: Compa Ratio vs. Attrition Score")
+                            chart14 = alt.Chart(df_bulk).mark_circle(size=60).encode(
+                                x="Compa Ratio:Q",
+                                y="Attrition Score:Q",
+                                tooltip=["Name", "Compa Ratio", "Attrition Score"]
+                            ).interactive()
+                            st.altair_chart(chart14, use_container_width=True)
+                            
+                            st.subheader("15. Box Plot: Compa Ratio by Gender")
+                            chart15 = alt.Chart(df_bulk).mark_boxplot().encode(
+                                x="Gender:N",
+                                y="Compa Ratio:Q"
+                            )
+                            st.altair_chart(chart15, use_container_width=True)
+                            
+                            st.subheader("16. Line Chart: Trend of Attrition Score Over Prediction Time")
+                            # Convert Prediction Time to temporal type if possible
+                            df_bulk["Prediction Time"] = pd.to_datetime(df_bulk["Prediction Time"])
+                            chart16 = alt.Chart(df_bulk).mark_line().encode(
+                                x="Prediction Time:T",
+                                y="Attrition Score:Q"
+                            ).interactive()
+                            st.altair_chart(chart16, use_container_width=True)
+                            
+                            st.subheader("17. Correlation Heatmap for Numeric Features")
+                            numeric_df = df_bulk.select_dtypes(include=[np.number])
+                            corr = numeric_df.corr().reset_index().melt(id_vars="index")
+                            chart17 = alt.Chart(corr).mark_rect().encode(
+                                x=alt.X("index:N", title=""),
+                                y=alt.Y("variable:N", title=""),
+                                color=alt.Color("value:Q", scale=alt.Scale(scheme='redblue')),
+                                tooltip=["index", "variable", "value"]
+                            ).properties(width=300, height=300)
+                            st.altair_chart(chart17, use_container_width=True)
+                            
+                            st.subheader("18. Bar Chart: Count of Employees by Pulse Rating")
+                            chart18 = alt.Chart(df_bulk).mark_bar().encode(
+                                x="Pulse:N",
+                                y="count()"
+                            )
+                            st.altair_chart(chart18, use_container_width=True)
+                            
+                            st.subheader("19. Box Plot: Attrition Score by Pulse Rating")
+                            chart19 = alt.Chart(df_bulk).mark_boxplot().encode(
+                                x="Pulse:N",
+                                y="Attrition Score:Q"
+                            )
+                            st.altair_chart(chart19, use_container_width=True)
+                            
+                            st.subheader("20. Scatter Plot: Tenure vs. Employee Age")
+                            chart20 = alt.Chart(df_bulk).mark_circle(size=60).encode(
+                                x="Employee Age:Q",
+                                y="Tenure (Months):Q",
+                                tooltip=["Name", "Employee Age", "Tenure (Months)"]
+                            ).interactive()
+                            st.altair_chart(chart20, use_container_width=True)
                     
-                    # ---------------------------
-                    # What-If Analysis with Advanced Scenario Saving
-                    # ---------------------------
-                    with st.columns(2)[1]:
-                        if st.session_state.enable_what_if:
+                    # What-If Analysis block goes in right column if activated.
+                    if st.session_state.enable_what_if:
+                        with right_col:
                             st.markdown("## What-If Analysis")
                             whatif_params = {}
                             trig_series = compute_trigger_counts(df_bulk, "Negative Triggers")
@@ -1051,5 +1184,8 @@ else:
                             if st.button("Clear Saved Scenarios", key="clear_scenarios"):
                                 st.session_state.saved_scenarios = []
                                 st.success("Saved scenarios cleared!")
+                    else:
+                        # If What-If Analysis is not activated, display dashboard and filters only.
+                        pass
         else:
             st.info("Please upload a bulk data file to begin analysis.")
