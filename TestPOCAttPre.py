@@ -176,6 +176,9 @@ def load_model(industry):
         st.error("No trained model found for the selected industry. Please train your model in Train Mode first.")
         return None, None, None
 
+# ----------------------------------------------------
+# Trigger Details (for recommended solutions)
+# ----------------------------------------------------
 TRIGGER_DETAILS = {
     "Low gender diversity": {
         "subproblems": {
@@ -368,6 +371,10 @@ TRIGGER_DETAILS = {
     }
 }
 
+# ----------------------------------------------------
+# Rule-based attrition computation (modified)
+# Note: Removed the "Hasn't been promoted" factor.
+# ----------------------------------------------------
 def compute_weighted_attrition(employee, return_triggers=False):
     score = 0
     extreme_factors = 0
@@ -375,8 +382,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
     
     if employee["Gender"] == "Female" and employee["Female Employee Ratio"] <= 15:
         score += 30; extreme_factors += 1; triggers.append("Low gender diversity")
-    if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
-        score += 30; extreme_factors += 1; triggers.append("Stagnant promotions")
+    # Removed: Months Since Last Promotion factor.
     if employee["Last Performance Rating"] == 1:
         score += 25; extreme_factors += 1; triggers.append("Very low performance rating")
     elif employee["Last Performance Rating"] == 2:
@@ -413,6 +419,9 @@ def compute_weighted_attrition(employee, return_triggers=False):
     else:
         return final_score
 
+# ----------------------------------------------------
+# Predict attrition using both ML and rule-based approaches
+# ----------------------------------------------------
 def predict_attrition(employee_data, industry):
     model, scaler, feature_columns = load_model(industry)
     if model is None:
@@ -649,8 +658,8 @@ else:
               - Gender (e.g., "Male", "Female")  
               - Tenure (Months)  
               - Pulse (e.g., "High", "Medium", "Low")  
-              - Hasn't been promoted (months since last promotion)  
-              - Minimum Promotion Cycle (in months)  
+              - Hasn't been promoted  
+              - Minimum Promotion Cycle  
               - College Tier (e.g., "Tier 1", "Tier 2", "Tier 3")  
               - Industry (e.g., "Tech", "Finance", etc.)  
               - Company Type (e.g., "Startup", "Enterprise", etc.)  
@@ -769,7 +778,7 @@ else:
                     if st.session_state.bulk_prediction_complete:
                         st.session_state.enable_what_if = st.checkbox("Enable What-If Analysis", key="whatif_toggle")
                 
-                # If bulk prediction is completed, show the results, drill-down and (if enabled) What-If Analysis.
+                # If bulk prediction is completed, show the results, drill-down and What-If Analysis.
                 if st.session_state.bulk_prediction_complete:
                     df_bulk = st.session_state.bulk_result
                     st.success("✅ Bulk Prediction Completed!")
@@ -796,15 +805,16 @@ else:
                     else:
                         st.info("No negative triggers found across the batch.")
                     
+                    # Drill-down by employee name (displayed as a horizontal table)
                     st.write("### Drill Down into Individual Rows")
-                    row_options = list(range(len(df_bulk)))
-                    sel_row = st.selectbox("Select an Employee (Row Index)", row_options, key="drilldown")
-                    if sel_row is not None:
-                        row_info = df_bulk.loc[sel_row].to_dict()
-                        st.write("### Row Data:")
-                        st.json(row_info)
+                    employee_names = df_bulk["Name"].tolist()
+                    sel_employee = st.selectbox("Select an Employee (by Name)", employee_names, key="drilldown")
+                    if sel_employee:
+                        selected_row = df_bulk[df_bulk["Name"] == sel_employee]
+                        st.write("### Employee Details")
+                        st.table(selected_row)
                     
-                    # If What-If Analysis is enabled, display the what-if sliders on the right.
+                    # What-If Analysis: Remove the "Months Since Last Promotion" factor
                     if st.session_state.enable_what_if:
                         main_cols = st.columns([3, 1])
                         with main_cols[1]:
@@ -813,8 +823,6 @@ else:
                             default_compa = int(df_bulk["Compa Ratio"].mean()) if "Compa Ratio" in df_bulk.columns else 100
                             new_compa_ratio = st.slider("Compa Ratio (%)", 50, 150, default_compa, key="whatif_compa")
                             new_pulse = st.selectbox("Pulse", ["High", "Medium", "Low"], key="whatif_pulse")
-                            new_hasnt_promoted = st.slider("Months Since Last Promotion", 0, 60, 12, key="whatif_promoted")
-                            new_min_promotion_cycle = st.slider("Minimum Promotion Cycle (Months)", 12, 60, 24, key="whatif_min_cycle")
                         with main_cols[0]:
                             st.markdown("### Recalculated Predictions with What-If Adjustments")
                             new_scores = []
@@ -836,13 +844,12 @@ else:
                                 ind_val = row_dict.get("Industry")
                                 row_dict["Industry Retention"] = bulk_industry_retention.get(ind_val, 50)
                                 row_dict["Company Type Retention"] = st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Startup", 60)
-                                # Apply What-If adjustments
-                                row_dict["Compa Ratio"] = new_compa_ratio
-                                row_dict["Pulse"] = new_pulse
-                                row_dict["Hasn't been promoted"] = new_hasnt_promoted
-                                row_dict["Minimum Promotion Cycle"] = new_min_promotion_cycle
+                                # Do NOT update "Hasn't been promoted" or "Minimum Promotion Cycle"
                                 try:
                                     new_score, new_trigs, _ = predict_attrition(row_dict, selected_test_industry)
+                                    if new_score is not None:
+                                        new_score = new_score * 0.75  # Scale down as requested
+                                        new_score = min(100, new_score)
                                 except Exception as e:
                                     new_score = None
                                     new_trigs = ["Prediction Failed"]
