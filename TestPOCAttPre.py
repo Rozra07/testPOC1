@@ -61,6 +61,8 @@ if "bulk_result" not in st.session_state:
     st.session_state.bulk_result = None
 if "enable_what_if" not in st.session_state:
     st.session_state.enable_what_if = False
+if "custom_chart" not in st.session_state:
+    st.session_state.custom_chart = None
 
 # ----------------------------------------------------
 # Helper functions for user storage
@@ -547,6 +549,13 @@ def compute_trigger_counts(df, column_name):
         return pd.Series(dtype=int)
 
 # ---------------------------------------
+# Helper function: Graph header with tooltip
+# ---------------------------------------
+def graph_header(title, explanation):
+    # The info icon (ℹ) has a title attribute that shows a tooltip on hover.
+    return f'<h4 style="color: white;">{title} <span title="{explanation}" style="cursor: help; color: #ccc;">&#9432;</span></h4>'
+
+# ---------------------------------------
 # Login/Sign Up System
 # ---------------------------------------
 if not st.session_state.logged_in:
@@ -898,10 +907,10 @@ else:
                     # Analysis Tab: Merged Filters & Graphs with Custom Graph Builder
                     # -----------------------------------------------------------
                     with st.expander("Analysis", expanded=True):
-                        # Create a 35% (Filters) / 65% (Graphs) layout
+                        # Create a layout with 35% width for filters and 65% for graphs
                         analysis_col1, analysis_col2 = st.columns([0.35, 0.65])
                         
-                        ## LEFT PANEL: FILTERS (Dropdown Format)
+                        ## LEFT PANEL: FILTERS
                         with analysis_col1:
                             st.subheader("Filters")
                             filter_score_min, filter_score_max = st.slider(
@@ -929,18 +938,21 @@ else:
                             st.write("Filtered Bulk Predictions")
                             st.dataframe(filtered_df)
                         
-                        ## RIGHT PANEL: ANALYSIS GRAPHS & CUSTOM GRAPH BUILDER
+                        ## RIGHT PANEL: GRAPHS (in a single vertical column)
                         with analysis_col2:
-                            # --- Custom Graph Builder (as a modal-like popup) ---
+                            # Display the custom graph (if one was generated) at the top
+                            if st.session_state.custom_chart is not None:
+                                st.markdown(graph_header("Custom Graph", "This is the custom graph you built using your selected axes."), unsafe_allow_html=True)
+                                st.altair_chart(st.session_state.custom_chart, use_container_width=True)
+                            
+                            # --- Button & Modal for Custom Graph Builder ---
                             if "show_custom_graph_builder" not in st.session_state:
                                 st.session_state.show_custom_graph_builder = False
-
-                            # Place a small button at the top left to trigger the custom graph builder
+                            
                             custom_graph_button = st.button("Custom Graph Builder", key="custom_graph_button")
                             if custom_graph_button:
                                 st.session_state.show_custom_graph_builder = True
-
-                            # If the flag is set, show a modal–like container using custom CSS
+                            
                             if st.session_state.show_custom_graph_builder:
                                 st.markdown(
                                     """
@@ -957,20 +969,13 @@ else:
                                         border: 2px solid #555;
                                         box-shadow: 0 4px 8px rgba(0,0,0,0.2);
                                     }
-                                    .modal-close-button {
-                                        float: right;
-                                        cursor: pointer;
-                                        font-weight: bold;
-                                        color: white;
-                                    }
                                     </style>
                                     """, unsafe_allow_html=True)
                                 with st.container():
                                     st.markdown('<div class="modal-container">', unsafe_allow_html=True)
                                     if st.button("Close", key="close_custom_graph"):
                                         st.session_state.show_custom_graph_builder = False
-                                    st.markdown("### Custom Graph Builder")
-                                    # Use a form so that the user can select options and click "Generate"
+                                    st.markdown("<h3>Custom Graph Builder</h3>", unsafe_allow_html=True)
                                     with st.form("custom_graph_form"):
                                         x_axis = st.selectbox("Select X Axis", options=df_bulk.columns, key="custom_x")
                                         y_axis = st.selectbox("Select Y Axis", options=df_bulk.columns, key="custom_y")
@@ -981,7 +986,6 @@ else:
                                         )
                                         submitted_custom = st.form_submit_button("Generate Custom Graph")
                                         if submitted_custom:
-                                            # Determine the data types for x and y to choose an appropriate chart type
                                             x_is_numeric = pd.api.types.is_numeric_dtype(df_bulk[x_axis])
                                             y_is_numeric = pd.api.types.is_numeric_dtype(df_bulk[y_axis])
                                             if x_is_numeric and y_is_numeric:
@@ -1008,94 +1012,107 @@ else:
                                                     y=alt.Y("count()", title="Count"),
                                                     tooltip=[x_axis]
                                                 )
-                                            st.altair_chart(custom_chart, use_container_width=True)
+                                            st.session_state.custom_chart = custom_chart
+                                            st.success("Custom graph generated and added to the top!")
                                     st.markdown('</div>', unsafe_allow_html=True)
-
-                            # --- Recommended Graphs ---
-                            st.markdown("## Recommended Graphs", unsafe_allow_html=True)
-                            # Row 1: Two small graphs arranged side by side
-                            row1_col1, row1_col2 = st.columns(2)
-                            with row1_col1:
-                                scatter_chart = alt.Chart(filtered_df).mark_circle(size=60, color="#4c78a8").encode(
-                                    x=alt.X("Employee Age:Q", title="Employee Age"),
-                                    y=alt.Y("Attrition Score:Q", title="Attrition Score"),
-                                    tooltip=["Name", "Employee Age", "Attrition Score", "Industry"]
-                                ).properties(width=250, height=200, background="black")
-                                st.altair_chart(scatter_chart, use_container_width=True)
-                            with row1_col2:
-                                # Create a correlation heatmap for the numeric columns
-                                numeric_df = filtered_df.select_dtypes(include=[np.number])
-                                corr = numeric_df.corr().reset_index().melt(id_vars="index")
-                                heatmap = alt.Chart(corr).mark_rect().encode(
-                                    x=alt.X("index:N", title=""),
-                                    y=alt.Y("variable:N", title=""),
-                                    color=alt.Color("value:Q", scale=alt.Scale(scheme='redblue')),
-                                    tooltip=["index", "variable", "value"]
-                                ).properties(width=250, height=200, background="black")
-                                st.altair_chart(heatmap, use_container_width=True)
-
-                            # Row 2: Full-width histogram
-                            st.markdown("### Attrition Score Distribution", unsafe_allow_html=True)
+                            
+                            # --- Recommended Graphs (each with a header and hover explanation) ---
+                            
+                            st.markdown(graph_header("Employee Age vs Attrition Score", 
+                                                       "This scatter plot shows the relationship between employee age and the predicted attrition score."), 
+                                        unsafe_allow_html=True)
+                            scatter_chart = alt.Chart(filtered_df).mark_circle(size=60, color="#4c78a8").encode(
+                                x=alt.X("Employee Age:Q", title="Employee Age"),
+                                y=alt.Y("Attrition Score:Q", title="Attrition Score"),
+                                tooltip=["Name", "Employee Age", "Attrition Score", "Industry"]
+                            )
+                            st.altair_chart(scatter_chart, use_container_width=True)
+                            
+                            st.markdown(graph_header("Correlation Heatmap", 
+                                                       "This heatmap displays the correlation between numeric features."), 
+                                        unsafe_allow_html=True)
+                            numeric_df = filtered_df.select_dtypes(include=[np.number])
+                            corr = numeric_df.corr().reset_index().melt(id_vars="index")
+                            heatmap = alt.Chart(corr).mark_rect().encode(
+                                x=alt.X("index:N", title=""),
+                                y=alt.Y("variable:N", title=""),
+                                color=alt.Color("value:Q", scale=alt.Scale(scheme='redblue')),
+                                tooltip=["index", "variable", "value"]
+                            )
+                            st.altair_chart(heatmap, use_container_width=True)
+                            
+                            st.markdown(graph_header("Attrition Score Distribution", 
+                                                       "This histogram shows the distribution of attrition scores across employees."), 
+                                        unsafe_allow_html=True)
                             hist_chart = alt.Chart(filtered_df).mark_bar(color="#e45756").encode(
                                 x=alt.X("Attrition Score:Q", bin=alt.Bin(maxbins=20), title="Attrition Score"),
                                 y=alt.Y("count()", title="Frequency")
-                            ).properties(width=500, height=200, background="black")
+                            )
                             st.altair_chart(hist_chart, use_container_width=True)
-
-                            # Row 3: Two columns – Box Plot by Gender and Scatter Plot for Compa Ratio vs Attrition Score
-                            row3_col1, row3_col2 = st.columns(2)
-                            with row3_col1:
-                                box_chart_age_gender = alt.Chart(filtered_df).mark_boxplot(color="#4c78a8").encode(
-                                    x=alt.X("Gender:N", title="Gender"),
-                                    y=alt.Y("Employee Age:Q", title="Employee Age"),
-                                    tooltip=["Gender", "Employee Age"]
-                                ).properties(width=250, height=200, background="black")
-                                st.altair_chart(box_chart_age_gender, use_container_width=True)
-                            with row3_col2:
-                                scatter_chart_compa = alt.Chart(filtered_df).mark_circle(size=60, color="#e45756").encode(
-                                    x=alt.X("Compa Ratio:Q", title="Compa Ratio"),
-                                    y=alt.Y("Attrition Score:Q", title="Attrition Score"),
-                                    tooltip=["Name", "Compa Ratio", "Attrition Score"]
-                                ).properties(width=250, height=200, background="black")
-                                st.altair_chart(scatter_chart_compa, use_container_width=True)
-
-                            # Row 4: Two columns – Box Plot: Tenure by Industry and Pie Chart: Industry Distribution
-                            row4_col1, row4_col2 = st.columns(2)
-                            with row4_col1:
-                                box_chart_tenure_ind = alt.Chart(filtered_df).mark_boxplot(color="#4c78a8").encode(
-                                    x=alt.X("Industry:N", title="Industry"),
-                                    y=alt.Y("Tenure (Months):Q", title="Tenure (Months)"),
-                                    tooltip=["Industry", "Tenure (Months)"]
-                                ).properties(width=250, height=200, background="black")
-                                st.altair_chart(box_chart_tenure_ind, use_container_width=True)
-                            with row4_col2:
-                                industry_counts = filtered_df['Industry'].value_counts().reset_index()
-                                industry_counts.columns = ['Industry', 'Count']
-                                pie_chart = alt.Chart(industry_counts).mark_arc().encode(
-                                    theta=alt.Theta(field="Count", type="quantitative"),
-                                    color=alt.Color(field="Industry", type="nominal"),
-                                    tooltip=["Industry", "Count"]
-                                ).properties(width=250, height=200, background="black")
-                                st.altair_chart(pie_chart, use_container_width=True)
-
-                            # Row 5: Two columns – Bar Charts for Negative Triggers Count and Average Attrition Score by Industry
-                            row5_col1, row5_col2 = st.columns(2)
-                            with row5_col1:
-                                trigger_counts = compute_trigger_counts(filtered_df, "Negative Triggers").reset_index()
-                                trigger_counts.columns = ["Trigger", "Count"]
-                                bar_chart_triggers = alt.Chart(trigger_counts).mark_bar(color="#e45756").encode(
-                                    x=alt.X("Trigger:N", sort='-y', title="Trigger"),
-                                    y=alt.Y("Count:Q", title="Count"),
-                                    tooltip=["Trigger", "Count"]
-                                ).properties(width=250, height=200, background="black")
-                                st.altair_chart(bar_chart_triggers, use_container_width=True)
-                            with row5_col2:
-                                avg_attrition_ind = filtered_df.groupby("Industry")["Attrition Score"].mean().reset_index()
-                                bar_chart_avg_attr = alt.Chart(avg_attrition_ind).mark_bar(color="#4c78a8").encode(
-                                    x=alt.X("Industry:N", sort='-y', title="Industry"),
-                                    y=alt.Y("Attrition Score:Q", title="Average Attrition Score"),
-                                    tooltip=["Industry", "Attrition Score"]
-                                ).properties(width=250, height=200, background="black")
-                                st.altair_chart(bar_chart_avg_attr, use_container_width=True)
+                            
+                            st.markdown(graph_header("Employee Age by Gender", 
+                                                       "This box plot compares the distribution of employee age across genders."), 
+                                        unsafe_allow_html=True)
+                            box_chart_age_gender = alt.Chart(filtered_df).mark_boxplot(color="#4c78a8").encode(
+                                x=alt.X("Gender:N", title="Gender"),
+                                y=alt.Y("Employee Age:Q", title="Employee Age"),
+                                tooltip=["Gender", "Employee Age"]
+                            )
+                            st.altair_chart(box_chart_age_gender, use_container_width=True)
+                            
+                            st.markdown(graph_header("Compa Ratio vs Attrition Score", 
+                                                       "This scatter plot shows the relationship between the compensation ratio and the attrition score."), 
+                                        unsafe_allow_html=True)
+                            scatter_chart_compa = alt.Chart(filtered_df).mark_circle(size=60, color="#e45756").encode(
+                                x=alt.X("Compa Ratio:Q", title="Compa Ratio"),
+                                y=alt.Y("Attrition Score:Q", title="Attrition Score"),
+                                tooltip=["Name", "Compa Ratio", "Attrition Score"]
+                            )
+                            st.altair_chart(scatter_chart_compa, use_container_width=True)
+                            
+                            st.markdown(graph_header("Tenure by Industry", 
+                                                       "This box plot shows how employee tenure varies by industry."), 
+                                        unsafe_allow_html=True)
+                            box_chart_tenure_ind = alt.Chart(filtered_df).mark_boxplot(color="#4c78a8").encode(
+                                x=alt.X("Industry:N", title="Industry"),
+                                y=alt.Y("Tenure (Months):Q", title="Tenure (Months)"),
+                                tooltip=["Industry", "Tenure (Months)"]
+                            )
+                            st.altair_chart(box_chart_tenure_ind, use_container_width=True)
+                            
+                            st.markdown(graph_header("Industry Distribution", 
+                                                       "This pie chart displays the distribution of employees across industries."), 
+                                        unsafe_allow_html=True)
+                            industry_counts = filtered_df['Industry'].value_counts().reset_index()
+                            industry_counts.columns = ['Industry', 'Count']
+                            pie_chart = alt.Chart(industry_counts).mark_arc().encode(
+                                theta=alt.Theta(field="Count", type="quantitative"),
+                                color=alt.Color(field="Industry", type="nominal"),
+                                tooltip=["Industry", "Count"]
+                            )
+                            st.altair_chart(pie_chart, use_container_width=True)
+                            
+                            st.markdown(graph_header("Negative Triggers Count", 
+                                                       "This bar chart shows the frequency of negative triggers identified."), 
+                                        unsafe_allow_html=True)
+                            trigger_counts = compute_trigger_counts(filtered_df, "Negative Triggers").reset_index()
+                            trigger_counts.columns = ["Trigger", "Count"]
+                            bar_chart_triggers = alt.Chart(trigger_counts).mark_bar(color="#e45756").encode(
+                                x=alt.X("Trigger:N", sort='-y', title="Trigger"),
+                                y=alt.Y("Count:Q", title="Count"),
+                                tooltip=["Trigger", "Count"]
+                            )
+                            st.altair_chart(bar_chart_triggers, use_container_width=True)
+                            
+                            st.markdown(graph_header("Average Attrition Score by Industry", 
+                                                       "This bar chart displays the average attrition score for each industry."), 
+                                        unsafe_allow_html=True)
+                            avg_attrition_ind = filtered_df.groupby("Industry")["Attrition Score"].mean().reset_index()
+                            bar_chart_avg_attr = alt.Chart(avg_attrition_ind).mark_bar(color="#4c78a8").encode(
+                                x=alt.X("Industry:N", sort='-y', title="Industry"),
+                                y=alt.Y("Attrition Score:Q", title="Average Attrition Score"),
+                                tooltip=["Industry", "Attrition Score"]
+                            )
+                            st.altair_chart(bar_chart_avg_attr, use_container_width=True)
         else:
             st.info("Please upload a bulk data file to begin analysis.")
