@@ -654,6 +654,65 @@ if st.session_state.nav == "My Account":
     if st.button("Back to Main"):
         st.session_state.nav = "Tabs"
 else:
+    # In Test Mode, start immediately with industry selection (without a large instruction block)
+    if st.session_state.main_mode == "Test Mode":
+        # Industry selection immediately after header:
+        selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=0, key="test_industry")
+        
+        # Display a hover button with instructions
+        st.markdown("""
+        <div class="tooltip">Read Instructions
+          <span class="tooltiptext">
+            Ensure that you have trained a model in Train Mode.
+            <br><br>
+            Upload a CSV or Excel file with the following columns:
+            <br> - Name
+            <br> - Employee Age
+            <br> - Gender
+            <br> - Tenure (Months)
+            <br> - Pulse
+            <br> - Hasn't been promoted
+            <br> - Minimum Promotion Cycle
+            <br> - College Tier
+            <br> - Industry
+            <br> - Company Type
+            <br> - Last Performance Rating
+            <br> - Compa Ratio
+            <br><br>
+            Note: The test data does not require an Attrition column.
+          </span>
+        </div>
+        <style>
+        .tooltip {
+          position: relative;
+          display: inline-block;
+          cursor: pointer;
+          font-weight: bold;
+          color: #0073e6;
+        }
+        .tooltip .tooltiptext {
+          visibility: hidden;
+          width: 300px;
+          background-color: #f9f9f9;
+          color: #333;
+          text-align: left;
+          border-radius: 6px;
+          padding: 10px;
+          position: absolute;
+          z-index: 1;
+          top: 125%;
+          left: 50%;
+          margin-left: -150px;
+          box-shadow: 0px 0px 6px 0px rgba(0,0,0,0.2);
+        }
+        .tooltip:hover .tooltiptext {
+          visibility: visible;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+    else:
+        selected_test_industry = None
+
     if st.session_state.main_mode == "Train Mode":
         st.header("Train Mode")
         selected_train_industry = st.selectbox("Select Your Industry", industry_options, key="train_industry")
@@ -699,27 +758,6 @@ else:
                 train_model(train_df, target_column, selected_train_industry)
     else:  # Test Mode - Bulk Analysis Only
         st.header("Bulk Employee Attrition Prediction")
-        st.markdown("""
-        **Instructions for Bulk Testing:**
-        
-        - Ensure that you have trained a model in Train Mode.
-        - Upload a CSV or Excel file with the following columns:
-             - **Name**
-             - **Employee Age**
-             - **Gender**
-             - **Tenure (Months)**
-             - **Pulse**
-             - **Hasn't been promoted**
-             - **Minimum Promotion Cycle**
-             - **College Tier** *(e.g., "Tier 1", "Tier 2", "Tier 3")*
-             - **Industry** *(e.g., "Tech", "Finance", etc.)*
-             - **Company Type** *(e.g., "Startup", "Small Size", "Mid Size", "MNC/Giant Company")*
-             - **Last Performance Rating**
-             - **Compa Ratio**
-             
-             *Note: The test data does not require an Attrition column.*
-        """)
-        selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=0, key="test_industry")
         uploaded_file = st.file_uploader("Upload Bulk Data (CSV or Excel)", type=["csv", "xlsx"], key="bulk_file")
         if uploaded_file is not None:
             try:
@@ -785,7 +823,6 @@ else:
                 
                 if st.session_state.bulk_prediction_complete:
                     df_bulk = st.session_state.bulk_result
-                    
                     # Divide screen into two columns: Left (Original Results) and Right (What-If Analysis)
                     left_col, right_col = st.columns(2)
                     
@@ -803,7 +840,6 @@ else:
                         st.write("### Risk Distribution")
                         st.bar_chart(risk_df.set_index("Risk Category"))
                         
-                        # Overall negative triggers pie chart
                         trig_series = compute_trigger_counts(df_bulk, "Negative Triggers")
                         if not trig_series.empty:
                             pie_data = pd.DataFrame({"Trigger": trig_series.index, "Count": trig_series.values})
@@ -817,15 +853,13 @@ else:
                             st.write("### Overall Negative Triggers (Pie Chart)")
                             st.altair_chart(pie_chart, use_container_width=True)
                             
-                            # Pie Chart Legend Table
+                            # Display a table with the legend
                             legend_df = pie_data[["Trigger", "Percentage"]].sort_values(by="Percentage", ascending=False)
-                            # Manually assign colours (same order as in the scale)
                             color_scale = ["#AEC6CF", "#FFD1DC", "#C3B1E1", "#FDFD96", "#77DD77", "#B19CD9", "#FFB347"]
                             legend_df["Color"] = color_scale[:len(legend_df)]
                             st.write("### Pie Chart Legend")
                             st.table(legend_df)
                         
-                        # Drill Down
                         st.write("### Drill Down into Individual Employee Details")
                         st.markdown("""
                         <style>
@@ -841,7 +875,6 @@ else:
                             selected_row = df_bulk[df_bulk["Name"] == sel_employee]
                             st.dataframe(selected_row)
                         
-                        # Dropdown for recommended solutions
                         if not trig_series.empty:
                             selected_trigger = st.selectbox("Select a Negative Trigger for Solutions", options=trig_series.index.tolist())
                             if selected_trigger in TRIGGER_DETAILS:
@@ -853,12 +886,9 @@ else:
                         else:
                             selected_trigger = None
                     
-                    # Right Column: What-If Analysis Panel
                     with right_col:
                         st.markdown("## What-If Analysis")
-                        # Generate dynamic controls based on major negative triggers
                         whatif_params = {}
-                        # Loop over overall triggers and generate controls if present
                         if "Low gender diversity" in trig_series.index:
                             whatif_params["female_ratio"] = st.slider("Women % in Organization", 0, 100, global_female_ratio, key="whatif_female")
                         if "Stagnant promotions" in trig_series.index:
@@ -890,7 +920,6 @@ else:
                         new_triggers_list = []
                         df_bulk_whatif = df_bulk.copy()
                         for idx, row in df_bulk_whatif.iterrows():
-                            # Create a new_row dictionary with fallback defaults
                             new_row = dict(row)
                             new_row["Average Employee Age"] = global_avg_age
                             new_row["Female Employee Ratio"] = whatif_params.get("female_ratio", new_row.get("Female Employee Ratio", global_female_ratio))
