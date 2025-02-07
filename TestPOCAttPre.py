@@ -382,7 +382,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
     
     if employee["Gender"] == "Female" and employee["Female Employee Ratio"] <= 15:
         score += 30; extreme_factors += 1; triggers.append("Low gender diversity")
-    # Removed: Months Since Last Promotion factor.
+    # Removed the "Hasn't been promoted" factor.
     if employee["Last Performance Rating"] == 1:
         score += 25; extreme_factors += 1; triggers.append("Very low performance rating")
     elif employee["Last Performance Rating"] == 2:
@@ -814,7 +814,7 @@ else:
                         st.write("### Employee Details")
                         st.table(selected_row)
                     
-                    # What-If Analysis: Remove the "Months Since Last Promotion" factor
+                    # What-If Analysis: (without updating "Hasn't been promoted" or "Minimum Promotion Cycle")
                     if st.session_state.enable_what_if:
                         main_cols = st.columns([3, 1])
                         with main_cols[1]:
@@ -847,9 +847,6 @@ else:
                                 # Do NOT update "Hasn't been promoted" or "Minimum Promotion Cycle"
                                 try:
                                     new_score, new_trigs, _ = predict_attrition(row_dict, selected_test_industry)
-                                    if new_score is not None:
-                                        new_score = new_score * 0.75  # Scale down as requested
-                                        new_score = min(100, new_score)
                                 except Exception as e:
                                     new_score = None
                                     new_trigs = ["Prediction Failed"]
