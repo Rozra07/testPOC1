@@ -857,26 +857,25 @@ else:
                         st.write("Risk Distribution")
                         st.bar_chart(risk_df.set_index("Risk Category"))
                         
-                        # Pie Chart for Negative Triggers
+                        # Pie Chart for Negative Triggers with text labels
                         trig_series = compute_trigger_counts(df_display, "Negative Triggers")
                         if not trig_series.empty:
                             pie_data = pd.DataFrame({"Trigger": trig_series.index, "Count": trig_series.values})
                             pie_data["Percentage"] = (pie_data["Count"] / pie_data["Count"].sum() * 100).round(1)
-                            pie_chart = alt.Chart(pie_data).mark_arc(innerRadius=50).encode(
+                            # Create the arc chart
+                            chart = alt.Chart(pie_data).mark_arc(innerRadius=50).encode(
                                 theta=alt.Theta(field="Count", type="quantitative"),
                                 color=alt.Color(field="Trigger", type="nominal",
                                                 scale=alt.Scale(range=["#FFD700", "#FF8C00", "#00CED1", "#ADFF2F", "#FF69B4", "#7B68EE", "#FFB6C1"]),
                                                 legend=None)
                             ).properties(width=300, height=300)
-                            legend_df = pie_data[["Trigger", "Percentage"]].sort_values(by="Percentage", ascending=False)
-                            color_scale = ["#FFD700", "#FF8C00", "#00CED1", "#ADFF2F", "#FF69B4", "#7B68EE", "#FFB6C1"]
-                            legend_df["Color"] = color_scale[:len(legend_df)]
-                            pie_col, legend_col = st.columns([2,1])
-                            with pie_col:
-                                st.altair_chart(pie_chart, use_container_width=True)
-                            with legend_col:
-                                st.write("Legends")
-                                st.table(legend_df)
+                            # Add text labels with percentage
+                            text = alt.Chart(pie_data).mark_text(radius=70, size=12, color="black").encode(
+                                theta=alt.Theta(field="Count", type="quantitative"),
+                                text=alt.Text("Percentage:Q", format=".1f")
+                            )
+                            final_chart = chart + text
+                            st.altair_chart(final_chart, use_container_width=True)
                         
                         # Drill Down Section
                         st.write("### Drill Down into Individual Employee Details")
@@ -891,27 +890,26 @@ else:
                         enable_what_if = st.checkbox("Enable What-If Analysis", key="enable_what_if")
                         
                         if enable_what_if:
-                            # If a saved scenario exists, allow selection and editing.
+                            # Create a selectbox for saved scenarios (only one instance, unique key)
                             if st.session_state.saved_scenarios:
                                 scenario_names = [s["scenario_name"] for s in st.session_state.saved_scenarios]
                                 selected_saved = st.selectbox("Select Saved Scenario", scenario_names, key="saved_scenario_select")
                                 if st.button("Edit Selected Scenario"):
-                                    # Find the selected scenario and load its inputs for editing.
                                     for s in st.session_state.saved_scenarios:
                                         if s["scenario_name"] == selected_saved:
                                             st.session_state.current_scenario = s["scenario_inputs"]
-                                            st.session_state.scenario_form_active = True
+                                            st.session_state.current_scenario["scenario_name"] = s["scenario_name"]
+                                            st.session_state.show_scenario_form = True
                                             st.experimental_rerun()
                             # Button to create a new scenario if not editing.
-                            if not st.session_state.get("scenario_form_active", False):
+                            if not st.session_state.show_scenario_form:
                                 if st.button("Create New Scenario"):
                                     st.session_state.current_scenario = {}  # start fresh
-                                    st.session_state.scenario_form_active = True
+                                    st.session_state.show_scenario_form = True
                             
-                            if st.session_state.get("scenario_form_active", False):
+                            if st.session_state.show_scenario_form:
                                 st.write("### Scenario Editor")
                                 default_scenario_name = f"Scenario {len(st.session_state.saved_scenarios)+1}"
-                                # If editing an existing scenario, pre-populate the name.
                                 scenario_name = st.text_input("Scenario Name", value=st.session_state.current_scenario.get("scenario_name", default_scenario_name), key="scenario_name")
                                 
                                 # Compute top 4 negative triggers from the bulk results.
@@ -989,12 +987,13 @@ else:
                                     save_user_event(st.session_state.user["email"], "what_if_scenario", scenario_details)
                                     st.success(f"Scenario '{scenario_name}' saved.")
                                     st.session_state.current_scenario = {}
-                                    st.session_state.scenario_form_active = False
+                                    st.session_state.show_scenario_form = False
                             
                             # Display saved scenario details if available.
                             if st.session_state.saved_scenarios:
-                                scenario_names = [s["scenario_name"] for s in st.session_state.saved_scenarios]
-                                selected_saved = st.selectbox("Select Saved Scenario", scenario_names, key="saved_scenario_select")
+                                # Using the same selectbox created above with key "saved_scenario_select"
+                                selected_saved = st.session_state.get("saved_scenario_select", None)
+                                # If a scenario is selected, display its result.
                                 for s in st.session_state.saved_scenarios:
                                     if s["scenario_name"] == selected_saved:
                                         saved_df = pd.DataFrame(s["result_df"])
