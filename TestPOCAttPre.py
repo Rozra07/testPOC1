@@ -11,7 +11,30 @@ from sklearn.preprocessing import StandardScaler
 import altair as alt
 import matplotlib.pyplot as plt
 
-# Set page configuration to wide (full screen)
+# -----------------------------
+# Define and enable a dark Altair theme
+# -----------------------------
+def dark_theme():
+    return {
+        "config": {
+            "background": "black",
+            "view": {"fill": "black"},
+            "title": {"color": "white"},
+            "axis": {
+                "domainColor": "white",
+                "gridColor": "#444444",
+                "labelColor": "white",
+                "titleColor": "white"
+            },
+            "legend": {"labelColor": "white", "titleColor": "white"}
+        }
+    }
+alt.themes.register("dark_theme", dark_theme)
+alt.themes.enable("dark_theme")
+
+# -----------------------------
+# Page configuration
+# -----------------------------
 st.set_page_config(layout="wide")
 
 # ---------------------------------------
@@ -724,8 +747,8 @@ else:
         .tooltip .tooltiptext {
           visibility: hidden;
           width: 300px;
-          background-color: #f9f9f9;
-          color: #333;
+          background-color: #333;
+          color: #ddd;
           text-align: left;
           border-radius: 6px;
           padding: 10px;
@@ -927,17 +950,18 @@ else:
                                         top: 10%;
                                         left: 10%;
                                         width: 80%;
-                                        background-color: #f9f9f9;
+                                        background-color: #222;
+                                        color: white;
                                         padding: 20px;
                                         z-index: 9999;
-                                        border: 2px solid #ddd;
+                                        border: 2px solid #555;
                                         box-shadow: 0 4px 8px rgba(0,0,0,0.2);
                                     }
                                     .modal-close-button {
                                         float: right;
                                         cursor: pointer;
                                         font-weight: bold;
-                                        color: #555;
+                                        color: white;
                                     }
                                     </style>
                                     """, unsafe_allow_html=True)
@@ -961,29 +985,29 @@ else:
                                             x_is_numeric = pd.api.types.is_numeric_dtype(df_bulk[x_axis])
                                             y_is_numeric = pd.api.types.is_numeric_dtype(df_bulk[y_axis])
                                             if x_is_numeric and y_is_numeric:
-                                                custom_chart = alt.Chart(filtered_df).mark_circle(size=60).encode(
+                                                custom_chart = alt.Chart(filtered_df).mark_circle(size=60, color="#4c78a8").encode(
                                                     x=alt.X(f"{x_axis}:Q", title=x_axis),
                                                     y=alt.Y(f"{y_axis}:Q", title=y_axis),
                                                     tooltip=["Name", x_axis, y_axis]
-                                                ).properties(background="white")
+                                                )
                                             elif not x_is_numeric and y_is_numeric:
-                                                custom_chart = alt.Chart(filtered_df).mark_boxplot().encode(
+                                                custom_chart = alt.Chart(filtered_df).mark_boxplot(color="#e45756").encode(
                                                     x=alt.X(f"{x_axis}:N", title=x_axis),
                                                     y=alt.Y(f"{y_axis}:Q", title=y_axis),
                                                     tooltip=[x_axis, y_axis]
-                                                ).properties(background="white")
+                                                )
                                             elif x_is_numeric and not y_is_numeric:
-                                                custom_chart = alt.Chart(filtered_df).mark_boxplot().encode(
+                                                custom_chart = alt.Chart(filtered_df).mark_boxplot(color="#e45756").encode(
                                                     x=alt.X(f"{y_axis}:N", title=y_axis),
                                                     y=alt.Y(f"{x_axis}:Q", title=x_axis),
                                                     tooltip=[x_axis, y_axis]
-                                                ).properties(background="white")
+                                                )
                                             else:
-                                                custom_chart = alt.Chart(filtered_df).mark_bar().encode(
+                                                custom_chart = alt.Chart(filtered_df).mark_bar(color="#4c78a8").encode(
                                                     x=alt.X(f"{x_axis}:N", title=x_axis),
                                                     y=alt.Y("count()", title="Count"),
                                                     tooltip=[x_axis]
-                                                ).properties(background="white")
+                                                )
                                             st.altair_chart(custom_chart, use_container_width=True)
                                     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -996,7 +1020,7 @@ else:
                                     x=alt.X("Employee Age:Q", title="Employee Age"),
                                     y=alt.Y("Attrition Score:Q", title="Attrition Score"),
                                     tooltip=["Name", "Employee Age", "Attrition Score", "Industry"]
-                                ).properties(background="white", width=250, height=200)
+                                ).properties(width=250, height=200, background="black")
                                 st.altair_chart(scatter_chart, use_container_width=True)
                             with row1_col2:
                                 # Create a correlation heatmap for the numeric columns
@@ -1007,42 +1031,42 @@ else:
                                     y=alt.Y("variable:N", title=""),
                                     color=alt.Color("value:Q", scale=alt.Scale(scheme='redblue')),
                                     tooltip=["index", "variable", "value"]
-                                ).properties(background="white", width=250, height=200)
+                                ).properties(width=250, height=200, background="black")
                                 st.altair_chart(heatmap, use_container_width=True)
 
                             # Row 2: Full-width histogram
                             st.markdown("### Attrition Score Distribution", unsafe_allow_html=True)
-                            hist_chart = alt.Chart(filtered_df).mark_bar(color="#a5cee3").encode(
+                            hist_chart = alt.Chart(filtered_df).mark_bar(color="#e45756").encode(
                                 x=alt.X("Attrition Score:Q", bin=alt.Bin(maxbins=20), title="Attrition Score"),
                                 y=alt.Y("count()", title="Frequency")
-                            ).properties(background="white", width=500, height=200)
+                            ).properties(width=500, height=200, background="black")
                             st.altair_chart(hist_chart, use_container_width=True)
 
                             # Row 3: Two columns – Box Plot by Gender and Scatter Plot for Compa Ratio vs Attrition Score
                             row3_col1, row3_col2 = st.columns(2)
                             with row3_col1:
-                                box_chart_age_gender = alt.Chart(filtered_df).mark_boxplot().encode(
+                                box_chart_age_gender = alt.Chart(filtered_df).mark_boxplot(color="#4c78a8").encode(
                                     x=alt.X("Gender:N", title="Gender"),
                                     y=alt.Y("Employee Age:Q", title="Employee Age"),
                                     tooltip=["Gender", "Employee Age"]
-                                ).properties(background="white", width=250, height=200)
+                                ).properties(width=250, height=200, background="black")
                                 st.altair_chart(box_chart_age_gender, use_container_width=True)
                             with row3_col2:
-                                scatter_chart_compa = alt.Chart(filtered_df).mark_circle(size=60, color="#f58518").encode(
+                                scatter_chart_compa = alt.Chart(filtered_df).mark_circle(size=60, color="#e45756").encode(
                                     x=alt.X("Compa Ratio:Q", title="Compa Ratio"),
                                     y=alt.Y("Attrition Score:Q", title="Attrition Score"),
                                     tooltip=["Name", "Compa Ratio", "Attrition Score"]
-                                ).properties(background="white", width=250, height=200)
+                                ).properties(width=250, height=200, background="black")
                                 st.altair_chart(scatter_chart_compa, use_container_width=True)
 
                             # Row 4: Two columns – Box Plot: Tenure by Industry and Pie Chart: Industry Distribution
                             row4_col1, row4_col2 = st.columns(2)
                             with row4_col1:
-                                box_chart_tenure_ind = alt.Chart(filtered_df).mark_boxplot().encode(
+                                box_chart_tenure_ind = alt.Chart(filtered_df).mark_boxplot(color="#4c78a8").encode(
                                     x=alt.X("Industry:N", title="Industry"),
                                     y=alt.Y("Tenure (Months):Q", title="Tenure (Months)"),
                                     tooltip=["Industry", "Tenure (Months)"]
-                                ).properties(background="white", width=250, height=200)
+                                ).properties(width=250, height=200, background="black")
                                 st.altair_chart(box_chart_tenure_ind, use_container_width=True)
                             with row4_col2:
                                 industry_counts = filtered_df['Industry'].value_counts().reset_index()
@@ -1051,7 +1075,7 @@ else:
                                     theta=alt.Theta(field="Count", type="quantitative"),
                                     color=alt.Color(field="Industry", type="nominal"),
                                     tooltip=["Industry", "Count"]
-                                ).properties(background="white", width=250, height=200)
+                                ).properties(width=250, height=200, background="black")
                                 st.altair_chart(pie_chart, use_container_width=True)
 
                             # Row 5: Two columns – Bar Charts for Negative Triggers Count and Average Attrition Score by Industry
@@ -1059,19 +1083,19 @@ else:
                             with row5_col1:
                                 trigger_counts = compute_trigger_counts(filtered_df, "Negative Triggers").reset_index()
                                 trigger_counts.columns = ["Trigger", "Count"]
-                                bar_chart_triggers = alt.Chart(trigger_counts).mark_bar(color="#54a24b").encode(
+                                bar_chart_triggers = alt.Chart(trigger_counts).mark_bar(color="#e45756").encode(
                                     x=alt.X("Trigger:N", sort='-y', title="Trigger"),
                                     y=alt.Y("Count:Q", title="Count"),
                                     tooltip=["Trigger", "Count"]
-                                ).properties(background="white", width=250, height=200)
+                                ).properties(width=250, height=200, background="black")
                                 st.altair_chart(bar_chart_triggers, use_container_width=True)
                             with row5_col2:
                                 avg_attrition_ind = filtered_df.groupby("Industry")["Attrition Score"].mean().reset_index()
-                                bar_chart_avg_attr = alt.Chart(avg_attrition_ind).mark_bar(color="#e45756").encode(
+                                bar_chart_avg_attr = alt.Chart(avg_attrition_ind).mark_bar(color="#4c78a8").encode(
                                     x=alt.X("Industry:N", sort='-y', title="Industry"),
                                     y=alt.Y("Attrition Score:Q", title="Average Attrition Score"),
                                     tooltip=["Industry", "Attrition Score"]
-                                ).properties(background="white", width=250, height=200)
+                                ).properties(width=250, height=200, background="black")
                                 st.altair_chart(bar_chart_avg_attr, use_container_width=True)
         else:
             st.info("Please upload a bulk data file to begin analysis.")
