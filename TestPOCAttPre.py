@@ -18,10 +18,10 @@ st.set_page_config(layout="wide")
 # Helper function for safe rerun
 # ---------------------------------------
 def safe_rerun():
-    if hasattr(st, "experimental_rerun"):
+    try:
         st.experimental_rerun()
-    else:
-        st.warning("Refresh functionality is not available. Please update Streamlit (>=0.65.0).")
+    except AttributeError:
+        st.warning("Your version of Streamlit does not support rerun; please refresh manually.")
 
 # ----------------------------------------------------
 # Initialize st.session_state keys if not already set
@@ -857,25 +857,32 @@ else:
                         st.write("Risk Distribution")
                         st.bar_chart(risk_df.set_index("Risk Category"))
                         
-                        # Pie Chart for Negative Triggers with text labels
+                        # Pie Chart for Negative Triggers with centered text labels
                         trig_series = compute_trigger_counts(df_display, "Negative Triggers")
                         if not trig_series.empty:
                             pie_data = pd.DataFrame({"Trigger": trig_series.index, "Count": trig_series.values})
                             pie_data["Percentage"] = (pie_data["Count"] / pie_data["Count"].sum() * 100).round(1)
-                            # Create the arc chart
                             chart = alt.Chart(pie_data).mark_arc(innerRadius=50).encode(
                                 theta=alt.Theta(field="Count", type="quantitative"),
                                 color=alt.Color(field="Trigger", type="nominal",
                                                 scale=alt.Scale(range=["#FFD700", "#FF8C00", "#00CED1", "#ADFF2F", "#FF69B4", "#7B68EE", "#FFB6C1"]),
                                                 legend=None)
                             ).properties(width=300, height=300)
-                            # Add text labels with percentage
-                            text = alt.Chart(pie_data).mark_text(radius=70, size=12, color="black").encode(
+                            # Place the percentage labels at the center of each arc with increased font size
+                            text = alt.Chart(pie_data).mark_text(
+                                align='center',
+                                baseline='middle',
+                                fontSize=16,
+                                fontWeight='bold',
+                                color='white'
+                            ).encode(
                                 theta=alt.Theta(field="Count", type="quantitative"),
+                                radius=alt.value(80),
                                 text=alt.Text("Percentage:Q", format=".1f")
                             )
                             final_chart = chart + text
                             st.altair_chart(final_chart, use_container_width=True)
+                            st.markdown("<small>Hover over the pie chart for more details.</small>", unsafe_allow_html=True)
                         
                         # Drill Down Section
                         st.write("### Drill Down into Individual Employee Details")
@@ -890,7 +897,7 @@ else:
                         enable_what_if = st.checkbox("Enable What-If Analysis", key="enable_what_if")
                         
                         if enable_what_if:
-                            # Create a selectbox for saved scenarios (only one instance, unique key)
+                            # Create a selectbox for saved scenarios (unique key)
                             if st.session_state.saved_scenarios:
                                 scenario_names = [s["scenario_name"] for s in st.session_state.saved_scenarios]
                                 selected_saved = st.selectbox("Select Saved Scenario", scenario_names, key="saved_scenario_select")
@@ -900,7 +907,7 @@ else:
                                             st.session_state.current_scenario = s["scenario_inputs"]
                                             st.session_state.current_scenario["scenario_name"] = s["scenario_name"]
                                             st.session_state.show_scenario_form = True
-                                            st.experimental_rerun()
+                                            safe_rerun()
                             # Button to create a new scenario if not editing.
                             if not st.session_state.show_scenario_form:
                                 if st.button("Create New Scenario"):
@@ -991,9 +998,8 @@ else:
                             
                             # Display saved scenario details if available.
                             if st.session_state.saved_scenarios:
-                                # Using the same selectbox created above with key "saved_scenario_select"
-                                selected_saved = st.session_state.get("saved_scenario_select", None)
-                                # If a scenario is selected, display its result.
+                                # Use the same selectbox (unique key already used above)
+                                selected_saved = st.selectbox("Select Saved Scenario", [s["scenario_name"] for s in st.session_state.saved_scenarios], key="saved_scenario_display")
                                 for s in st.session_state.saved_scenarios:
                                     if s["scenario_name"] == selected_saved:
                                         saved_df = pd.DataFrame(s["result_df"])
