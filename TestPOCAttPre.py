@@ -52,7 +52,7 @@ def safe_rerun():
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "nav" not in st.session_state:
-    st.session_state.nav = "Tabs"  # main UI
+    st.session_state.nav = "Tabs"
 if "user" not in st.session_state:
     st.session_state.user = {}
 if "bulk_prediction_complete" not in st.session_state:
@@ -575,6 +575,7 @@ if st.session_state.nav == "My Account":
     if st.button("Back to Main"):
         st.session_state.nav = "Tabs"
 else:
+    # For Test Mode:
     if st.session_state.main_mode == "Test Mode":
         selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=0, key="test_industry")
         st.markdown("""
@@ -691,7 +692,6 @@ else:
                         df_bulk["Attrition Score"] = scores
                         df_bulk["Negative Triggers"] = triggers_list
                         df_bulk["Name"] = names
-                        # Remove any What-If columns if present.
                         for col in ["What-If Attrition Score", "What-If Negative Triggers"]:
                             if col in df_bulk.columns:
                                 df_bulk.drop(columns=[col], inplace=True)
@@ -852,15 +852,15 @@ else:
                                 "Risk Category": ["High (>=75)", "Moderate High (60-74)", "Moderate (35-59)", "Low (<35)"],
                                 "Percentage": [high*100/total, mod_high*100/total, moderate*100/total, low*100/total]
                             })
-                            st.markdown(graph_header("What-If Risk Distribution", "This chart shows the percentage breakdown of risk categories based on your What-If adjustments."), unsafe_allow_html=True)
+                            st.markdown(graph_header("What-If Risk Distribution", "Percentage breakdown of risk categories after What-If adjustments."), unsafe_allow_html=True)
                             risk_chart = alt.Chart(risk_df).mark_bar(color="#e45756").encode(
                                 x=alt.X("Risk Category:N", title="Risk Category"),
                                 y=alt.Y("Percentage:Q", title="Percentage"),
                                 tooltip=["Risk Category", "Percentage"]
                             ).properties(width=300, height=200)
                             st.altair_chart(risk_chart, use_container_width=True)
-                            
-                        # One-to-One What-If Correlations for each numeric parameter (excluding unwanted ones)
+                        
+                        # One-to-One What-If Correlations for each numeric parameter
                         st.markdown("<h4 style='color:white;'>One-to-One Correlations with What-If Attrition Score</h4>", unsafe_allow_html=True)
                         numeric_cols = list(df_bulk_whatif.select_dtypes(include=[np.number]).columns)
                         for col in ["What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]:
@@ -909,7 +909,7 @@ else:
                                         "Risk Category": ["High (>=75)", "Moderate High (60-74)", "Moderate (35-59)", "Low (<35)"],
                                         "Percentage": [high*100/total, mod_high*100/total, moderate*100/total, low*100/total]
                                     })
-                                    st.markdown(graph_header("Risk Distribution", "This chart shows the percentage breakdown of risk categories based on the default predictions."), unsafe_allow_html=True)
+                                    st.markdown(graph_header("Risk Distribution", "Percentage breakdown of risk categories based on default predictions."), unsafe_allow_html=True)
                                     risk_chart = alt.Chart(risk_df).mark_bar(color="#e45756").encode(
                                         x=alt.X("Risk Category:N", title="Risk Category"),
                                         y=alt.Y("Percentage:Q", title="Percentage"),
@@ -1054,4 +1054,4 @@ else:
                                     "Tenure by Industry",
                                     "A box plot showing how employee tenure varies across industries.",
                                     key="box2")
-    show_enlarged_chart()
+                    show_enlarged_chart()
