@@ -52,7 +52,7 @@ def safe_rerun():
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "nav" not in st.session_state:
-    st.session_state.nav = "Tabs"  # "Tabs" indicates main UI (i.e. not "My Account")
+    st.session_state.nav = "Tabs"  # main UI (i.e. not "My Account")
 if "user" not in st.session_state:
     st.session_state.user = {}
 if "bulk_prediction_complete" not in st.session_state:
@@ -198,7 +198,6 @@ def train_model(training_df, target_column, industry):
     save_user_event(user["email"], "training", {"action": "Model retrained", "industry": industry})
 
 def update_industry_record(industry, model_file, scaler_file, feature_file):
-    from datetime import datetime
     record = {
         "Industry": industry,
         "Model_File": model_file,
@@ -450,7 +449,6 @@ def compute_trigger_counts(df, column_name):
 # Helper function: Graph header with tooltip
 # ---------------------------------------
 def graph_header(title, explanation):
-    # The info icon (ℹ) shows a tooltip when hovered.
     return f'<h4 style="color: white;">{title} <span title="{explanation}" style="cursor: help; color: #ccc;">&#9432;</span></h4>'
 
 # ---------------------------------------
@@ -782,6 +780,7 @@ else:
                         st.markdown("### Recalculated Predictions with What-If Adjustments")
                         new_scores = []
                         new_triggers_list = []
+                        # Use a new dataframe for what-if calculations
                         df_bulk_whatif = st.session_state.bulk_result.copy()
                         for idx, row in df_bulk_whatif.iterrows():
                             new_row = dict(row)
@@ -827,19 +826,31 @@ else:
                         df_bulk_whatif["What-If Attrition Score"] = new_scores
                         df_bulk_whatif["What-If Negative Triggers"] = new_triggers_list
                         st.dataframe(df_bulk_whatif)
+                        
+                        # Compute risk distribution for What-If predictions
                         high_risk_w = (df_bulk_whatif["What-If Attrition Score"] >= 75).sum()
-                        mod_high_w = ((df_bulk_whatif["What-If Attrition Score"] >= 60) & (df_bulk_whatIf["What-If Attrition Score"] < 75)).sum()
+                        mod_high_w = ((df_bulk_whatif["What-If Attrition Score"] >= 60) & (df_bulk_whatif["What-If Attrition Score"] < 75)).sum()
                         moderate_w = ((df_bulk_whatif["What-If Attrition Score"] >= 35) & (df_bulk_whatif["What-If Attrition Score"] < 60)).sum()
                         low_w = (df_bulk_whatif["What-If Attrition Score"] < 35).sum()
                         risk_df_w = pd.DataFrame({
                             "Risk Category": ["High (>=75)", "Mod-High (60-74)", "Moderate (35-59)", "Low (<35)"],
                             "Count": [high_risk_w, mod_high_w, moderate_w, low_w]
                         })
+                        total_w = risk_df_w["Count"].sum()
+                        if total_w > 0:
+                            risk_df_w["Percentage"] = risk_df_w["Count"] / total_w * 100
+                        else:
+                            risk_df_w["Percentage"] = 0
+                        risk_chart_w = alt.Chart(risk_df_w).mark_bar().encode(
+                            x=alt.X("Risk Category:N", title="Risk Category"),
+                            y=alt.Y("Percentage:Q", title="Percentage"),
+                            tooltip=["Risk Category", "Percentage"]
+                        )
                         st.markdown("### What-If Risk Distribution")
-                        st.bar_chart(risk_df_w.set_index("Risk Category"))
+                        st.altair_chart(risk_chart_w, use_container_width=True)
                 else:
                     # -------------------------------
-                    # Standard Analysis Section (only show after bulk prediction)
+                    # Standard Analysis Section (only if bulk prediction has completed)
                     # -------------------------------
                     if st.session_state.bulk_prediction_complete:
                         with st.expander("Analysis", expanded=True):
@@ -872,7 +883,7 @@ else:
                                 st.write("Filtered Bulk Predictions")
                                 st.dataframe(filtered_df)
                                 
-                                # --- Fixed Risk Distribution Chart (in %) ---
+                                # --- Fixed Risk Distribution Chart (in %)
                                 risk_counts = {
                                     "High (>=75)": (st.session_state.bulk_result["Attrition Score"] >= 75).sum(),
                                     "Mod-High (60-74)": ((st.session_state.bulk_result["Attrition Score"] >= 60) & 
@@ -903,7 +914,6 @@ else:
                                     data_label = st.selectbox("Select Data Label (Optional)", options=["None"] + list(filtered_df.columns), key="custom_label")
                                     submitted_custom = st.form_submit_button("Generate Custom Chart")
                                 if submitted_custom:
-                                    # Special handling if "Negative Triggers" is selected
                                     if x_axis == "Negative Triggers" or y_axis == "Negative Triggers":
                                         ct = compute_trigger_counts(filtered_df, "Negative Triggers").reset_index()
                                         ct.columns = ["Trigger", "Count"]
