@@ -746,7 +746,7 @@ else:
                         st.session_state.enable_what_if = st.checkbox("Enable What-If Analysis", key="whatif_toggle")
                 
                 # -------------------------------
-                # What-If Analysis Section (restored from previous design)
+                # What-If Analysis Section (if enabled)
                 # -------------------------------
                 if st.session_state.enable_what_if:
                     with st.container():
@@ -828,7 +828,7 @@ else:
                         df_bulk_whatif["What-If Negative Triggers"] = new_triggers_list
                         st.dataframe(df_bulk_whatif)
                         high_risk_w = (df_bulk_whatif["What-If Attrition Score"] >= 75).sum()
-                        mod_high_w = ((df_bulk_whatif["What-If Attrition Score"] >= 60) & (df_bulk_whatif["What-If Attrition Score"] < 75)).sum()
+                        mod_high_w = ((df_bulk_whatif["What-If Attrition Score"] >= 60) & (df_bulk_whatIf["What-If Attrition Score"] < 75)).sum()
                         moderate_w = ((df_bulk_whatif["What-If Attrition Score"] >= 35) & (df_bulk_whatif["What-If Attrition Score"] < 60)).sum()
                         low_w = (df_bulk_whatif["What-If Attrition Score"] < 35).sum()
                         risk_df_w = pd.DataFrame({
@@ -839,7 +839,7 @@ else:
                         st.bar_chart(risk_df_w.set_index("Risk Category"))
                 else:
                     # -------------------------------
-                    # Standard Analysis Section
+                    # Standard Analysis Section (only show after bulk prediction)
                     # -------------------------------
                     if st.session_state.bulk_prediction_complete:
                         with st.expander("Analysis", expanded=True):
@@ -872,7 +872,7 @@ else:
                                 st.write("Filtered Bulk Predictions")
                                 st.dataframe(filtered_df)
                                 
-                                # Fixed Risk Distribution Chart (in %)
+                                # --- Fixed Risk Distribution Chart (in %) ---
                                 risk_counts = {
                                     "High (>=75)": (st.session_state.bulk_result["Attrition Score"] >= 75).sum(),
                                     "Mod-High (60-74)": ((st.session_state.bulk_result["Attrition Score"] >= 60) & 
@@ -939,7 +939,6 @@ else:
                                                 y=alt.Y("count()", title="Count"),
                                                 tooltip=[x_axis]
                                             )
-                                    # Prepend the new custom chart so the latest appears on top
                                     st.session_state.custom_charts.insert(0, {
                                         "chart": custom_chart,
                                         "title": f"Custom Chart: {x_axis} vs {y_axis}",
