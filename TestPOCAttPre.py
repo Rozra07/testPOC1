@@ -302,31 +302,57 @@ def compute_weighted_attrition(employee, return_triggers=False):
     triggers = []
     
     if employee["Gender"] == "Female" and employee["Female Employee Ratio"] <= 15:
-        score += 30; extreme_factors += 1; triggers.append("Low gender diversity")
+        score += 30
+        extreme_factors += 1
+        triggers.append("Low gender diversity")
     if employee["Hasn't been promoted"] >= 2 * employee["Minimum Promotion Cycle"]:
-        score += 30; extreme_factors += 1; triggers.append("Stagnant promotions")
+        score += 30
+        extreme_factors += 1
+        triggers.append("Stagnant promotions")
     if employee["Last Performance Rating"] == 1:
-        score += 25; extreme_factors += 1; triggers.append("Very low performance rating")
+        score += 25
+        extreme_factors += 1
+        triggers.append("Very low performance rating")
     elif employee["Last Performance Rating"] == 2:
-        score += 15; extreme_factors += 0.5; triggers.append("Low performance rating")
+        score += 15
+        extreme_factors += 0.5
+        triggers.append("Low performance rating")
     elif employee["Last Performance Rating"] == 5:
-        score -= 15; extreme_factors -= 0.5; triggers.append("Excellent performance rating")
+        score -= 15
+        extreme_factors -= 0.5
+        triggers.append("Excellent performance rating")
     if employee["Compa Ratio"] < 80:
-        score += 20; extreme_factors += 0.8; triggers.append("Low compensation competitiveness")
+        score += 20
+        extreme_factors += 0.8
+        triggers.append("Low compensation competitiveness")
     elif employee["Compa Ratio"] < 70:
-        score += 25; extreme_factors += 1; triggers.append("Low compensation competitiveness")
+        score += 25
+        extreme_factors += 1
+        triggers.append("Low compensation competitiveness")
     elif employee["Compa Ratio"] > 110:
-        score -= 15; extreme_factors -= 0.5; triggers.append("High compensation ratio")
+        score -= 15
+        extreme_factors -= 0.5
+        triggers.append("High compensation ratio")
     if employee["College Tier Retention"] < 15:
-        score += 15; extreme_factors += 0.5; triggers.append("Low college tier retention")
+        score += 15
+        extreme_factors += 0.5
+        triggers.append("Low college tier retention")
     if employee["Industry Retention"] < 15:
-        score += 15; extreme_factors += 0.5; triggers.append("Low industry retention")
+        score += 15
+        extreme_factors += 0.5
+        triggers.append("Low industry retention")
     if employee["Company Type Retention"] < 15:
-        score += 15; extreme_factors += 0.5; triggers.append("Low company type retention")
+        score += 15
+        extreme_factors += 0.5
+        triggers.append("Low company type retention")
     if employee["Pulse"] == "High":
-        score += 20; extreme_factors += 0.5; triggers.append("High dissatisfaction (Pulse)")
+        score += 20
+        extreme_factors += 0.5
+        triggers.append("High dissatisfaction (Pulse)")
     elif employee["Pulse"] == "Low":
-        score -= 20; extreme_factors -= 0.5; triggers.append("Low dissatisfaction (Pulse)")
+        score -= 20
+        extreme_factors -= 0.5
+        triggers.append("Low dissatisfaction (Pulse)")
     
     # --- New factor: Joining CTC (INR) compared to industry average for the given job level
     if ("Joining CTC (INR)" in employee and "Level" in employee and "Industry" in employee):
@@ -337,18 +363,23 @@ def compute_weighted_attrition(employee, return_triggers=False):
                 pass  # within acceptable range, no change
             elif -40 <= pct_diff < -20:
                 score -= 10  # moderate deviation
+                triggers.append("Below average Joining CTC (moderate)")
             elif pct_diff < -40:
                 extreme_factors += 0.5  # significantly below average
+                triggers.append("Below average Joining CTC (severe)")
             elif pct_diff > 40:
                 extreme_factors -= 0.5  # significantly above average
+                triggers.append("Above average Joining CTC")
     # --- New factor: Increase from last company (assumed percentage increase)
     if "Increase from last company" in employee:
         inc = employee["Increase from last company"]
         # Example ranges: low increase (<10%) adds risk, high increase (>30%) reduces risk.
         if inc < 10:
             score += 10
+            triggers.append("Low increase from last company")
         elif inc > 30:
             score -= 5
+            triggers.append("High increase from last company")
 
     final_score = score  # later adjustments based on extreme_factors
     if extreme_factors == 2:
@@ -359,6 +390,10 @@ def compute_weighted_attrition(employee, return_triggers=False):
         final_score = min(100, score * 2)
     
     final_score = min(100, max(0, final_score))
+    
+    # Debug print (uncomment to see triggers for each row)
+    # st.write("Computed triggers:", triggers)
+    
     if return_triggers:
         return final_score, triggers
     else:
