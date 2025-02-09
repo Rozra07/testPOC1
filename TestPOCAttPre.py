@@ -373,7 +373,6 @@ def compute_weighted_attrition(employee, return_triggers=False):
     # --- New factor: Increase from last company (assumed percentage increase)
     if "Increase from last company" in employee:
         inc = employee["Increase from last company"]
-        # Example ranges: low increase (<10%) adds risk, high increase (>30%) reduces risk.
         if inc < 10:
             score += 10
             triggers.append("Low increase from last company")
@@ -381,7 +380,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
             score -= 5
             triggers.append("High increase from last company")
 
-    final_score = score  # later adjustments based on extreme_factors
+    final_score = score
     if extreme_factors == 2:
         final_score = min(100, score * 1.3)
     elif extreme_factors == 3:
@@ -391,7 +390,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
     
     final_score = min(100, max(0, final_score))
     
-    # Debug print (uncomment to see triggers for each row)
+    # Uncomment the following line to debug triggers per row:
     # st.write("Computed triggers:", triggers)
     
     if return_triggers:
@@ -407,7 +406,6 @@ def predict_attrition(employee_data, industry):
     if model is None:
         return None, None, None
     df_input = pd.DataFrame([employee_data])
-    # Drop non-training columns from input (removed: Total Job Experience in years)
     df_input = df_input.drop(columns=["Total Job Experience in years", "Base Location of joining"], errors='ignore')
     df_input = pd.get_dummies(df_input)
     df_input = df_input.reindex(columns=feature_columns, fill_value=0)
@@ -775,7 +773,6 @@ else:
                                 triggers_list.append("Prediction Failed")
                                 continue
                             scores.append(bulk_score)
-                            # Use computed triggers directly.
                             triggers_str = ", ".join(bulk_trigs) if bulk_trigs else "None"
                             triggers_list.append(triggers_str)
                         df_bulk["Attrition Score"] = scores
@@ -903,83 +900,73 @@ else:
                             # LEFT COLUMN: Filters and fixed risk distribution chart
                             with analysis_col1:
                                 st.subheader("Filters")
-                                filter_score_min, filter_score_max = st.slider(
-                                    "Attrition Score Range", 0, 100, (0, 100), key="filter_score"
-                                )
-                                selected_industries = st.multiselect(
-                                    "Filter by Industry",
-                                    options=st.session_state.bulk_result["Industry"].unique().tolist(),
-                                    default=st.session_state.bulk_result["Industry"].unique().tolist(),
-                                    key="filter_ind"
-                                )
-                                selected_company = st.multiselect(
-                                    "Filter by Company Type",
-                                    options=st.session_state.bulk_result["Company Type"].unique().tolist(),
-                                    default=st.session_state.bulk_result["Company Type"].unique().tolist(),
-                                    key="filter_company"
-                                )
-                                selected_levels = st.multiselect(
-                                    "Filter by Level",
-                                    options=st.session_state.bulk_result["Level"].unique().tolist(),
-                                    default=st.session_state.bulk_result["Level"].unique().tolist(),
-                                    key="filter_level"
-                                )
-                                selected_locations = st.multiselect(
-                                    "Filter by Base Location of joining",
-                                    options=st.session_state.bulk_result["Base Location of joining"].unique().tolist(),
-                                    default=st.session_state.bulk_result["Base Location of joining"].unique().tolist(),
-                                    key="filter_location"
-                                )
+                                filter_score_min, filter_score_max = st.slider("Attrition Score Range", 0, 100, (0, 100), key="filter_score")
+                                
+                                # Arrange default filters in two columns
+                                col1_filter, col2_filter = st.columns(2)
+                                with col1_filter:
+                                    selected_industries = st.multiselect("Industry", 
+                                        options=sorted(st.session_state.bulk_result["Industry"].unique().tolist()),
+                                        default=sorted(st.session_state.bulk_result["Industry"].unique().tolist()),
+                                        key="filter_ind")
+                                    selected_company = st.multiselect("Company Type", 
+                                        options=sorted(st.session_state.bulk_result["Company Type"].unique().tolist()),
+                                        default=sorted(st.session_state.bulk_result["Company Type"].unique().tolist()),
+                                        key="filter_company")
+                                    selected_levels = st.multiselect("Level", 
+                                        options=sorted(st.session_state.bulk_result["Level"].unique().tolist()),
+                                        default=sorted(st.session_state.bulk_result["Level"].unique().tolist()),
+                                        key="filter_level")
+                                with col2_filter:
+                                    selected_locations = st.multiselect("Base Location", 
+                                        options=sorted(st.session_state.bulk_result["Base Location of joining"].unique().tolist()),
+                                        default=sorted(st.session_state.bulk_result["Base Location of joining"].unique().tolist()),
+                                        key="filter_location")
+                                    selected_performance = st.multiselect("Performance Rating", 
+                                        options=sorted(st.session_state.bulk_result["Last Performance Rating"].unique().tolist()),
+                                        default=sorted(st.session_state.bulk_result["Last Performance Rating"].unique().tolist()),
+                                        key="filter_performance")
+                                
+                                # Apply default filters
                                 filtered_df = st.session_state.bulk_result[
                                     (st.session_state.bulk_result["Attrition Score"] >= filter_score_min) &
                                     (st.session_state.bulk_result["Attrition Score"] <= filter_score_max) &
                                     (st.session_state.bulk_result["Industry"].isin(selected_industries)) &
                                     (st.session_state.bulk_result["Company Type"].isin(selected_company)) &
                                     (st.session_state.bulk_result["Level"].isin(selected_levels)) &
-                                    (st.session_state.bulk_result["Base Location of joining"].isin(selected_locations))
+                                    (st.session_state.bulk_result["Base Location of joining"].isin(selected_locations)) &
+                                    (st.session_state.bulk_result["Last Performance Rating"].isin(selected_performance))
                                 ]
+                                
+                                # NEW: Custom Filter Section
+                                with st.expander("Custom Filters", expanded=False):
+                                    custom_columns = st.multiselect("Select additional columns for filtering", 
+                                                                    options=st.session_state.bulk_result.columns.tolist(), 
+                                                                    key="custom_filter_columns")
+                                    custom_filters = {}
+                                    for col in custom_columns:
+                                        if np.issubdtype(st.session_state.bulk_result[col].dtype, np.number):
+                                            min_val = float(st.session_state.bulk_result[col].min())
+                                            max_val = float(st.session_state.bulk_result[col].max())
+                                            selected_range = st.slider(f"Select range for {col}", 
+                                                                       min_value=min_val, max_value=max_val, 
+                                                                       value=(min_val, max_val), key=f"custom_filter_{col}")
+                                            custom_filters[col] = selected_range
+                                        else:
+                                            unique_vals = sorted(st.session_state.bulk_result[col].dropna().unique().tolist())
+                                            selected_vals = st.multiselect(f"Select values for {col}", 
+                                                                           options=unique_vals, default=unique_vals, key=f"custom_filter_{col}")
+                                            custom_filters[col] = selected_vals
+                                    
+                                    # Apply custom filters to filtered_df
+                                    for col, condition in custom_filters.items():
+                                        if isinstance(condition, tuple):
+                                            filtered_df = filtered_df[(filtered_df[col] >= condition[0]) & (filtered_df[col] <= condition[1])]
+                                        else:
+                                            filtered_df = filtered_df[filtered_df[col].isin(condition)]
+                                
                                 st.write("Filtered Bulk Predictions")
                                 st.dataframe(filtered_df)
-                                
-                                # --- Fixed Risk Distribution Chart (in %)
-                                risk_counts = {
-                                    "High (>=75)": (st.session_state.bulk_result["Attrition Score"] >= 75).sum(),
-                                    "Mod-High (60-74)": ((st.session_state.bulk_result["Attrition Score"] >= 60) & 
-                                                           (st.session_state.bulk_result["Attrition Score"] < 75)).sum(),
-                                    "Moderate (35-59)": ((st.session_state.bulk_result["Attrition Score"] >= 35) & 
-                                                          (st.session_state.bulk_result["Attrition Score"] < 60)).sum(),
-                                    "Low (<35)": (st.session_state.bulk_result["Attrition Score"] < 35).sum()
-                                }
-                                total = sum(risk_counts.values())
-                                risk_df = pd.DataFrame({
-                                    "Risk Category": list(risk_counts.keys()),
-                                    "Percentage": [round(100 * count / total, 2) for count in risk_counts.values()]
-                                })
-                                st.markdown("### Overall Risk Distribution")
-                                risk_chart = alt.Chart(risk_df).mark_bar().encode(
-                                    x=alt.X("Risk Category:N", title="Risk Category"),
-                                    y=alt.Y("Percentage:Q", title="Percentage"),
-                                    tooltip=["Risk Category", "Percentage"]
-                                )
-                                st.altair_chart(risk_chart, use_container_width=True)
-                                
-                                # --- Geography Map for Base Locations (if applicable)
-                                location_coords = {
-                                    "Bangalore": {"lat": 12.9716, "lon": 77.5946},
-                                    "Mumbai": {"lat": 19.0760, "lon": 72.8777},
-                                    "Delhi": {"lat": 28.7041, "lon": 77.1025}
-                                }
-                                map_data = []
-                                for loc in filtered_df["Base Location of joining"].unique():
-                                    if loc in location_coords:
-                                        map_data.append({
-                                            "lat": location_coords[loc]["lat"],
-                                            "lon": location_coords[loc]["lon"],
-                                            "location": loc
-                                        })
-                                if map_data:
-                                    st.markdown("### Base Location Map")
-                                    st.map(pd.DataFrame(map_data))
                             
                             # RIGHT COLUMN: Custom Graph Builder and additional charts
                             with analysis_col2:
