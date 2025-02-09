@@ -740,8 +740,8 @@ else:
                                 triggers_list.append("Prediction Failed")
                                 continue
                             scores.append(bulk_score)
-                            neg_trigs = [t for t in bulk_trigs if t in []]  # adjust as needed
-                            triggers_str = ", ".join(neg_trigs) if neg_trigs else "None"
+                            # Use computed triggers directly.
+                            triggers_str = ", ".join(bulk_trigs) if bulk_trigs else "None"
                             triggers_list.append(triggers_str)
                         df_bulk["Attrition Score"] = scores
                         df_bulk["Negative Triggers"] = triggers_list
@@ -830,9 +830,8 @@ else:
                                 new_score = None
                                 new_trigs = ["Prediction Failed"]
                             new_scores.append(new_score)
-                            neg_trigs = [t for t in new_trigs if t in []]
-                            triggers_str = ", ".join(neg_trigs) if neg_trigs else "None"
-                            new_triggers_list.append(triggers_str)
+                            neg_trigs = ", ".join(new_trigs) if new_trigs else "None"
+                            new_triggers_list.append(neg_trigs)
                         df_bulk_whatif["What-If Attrition Score"] = new_scores
                         df_bulk_whatif["What-If Negative Triggers"] = new_triggers_list
                         st.dataframe(df_bulk_whatif)
