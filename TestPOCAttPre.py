@@ -64,6 +64,28 @@ if "enable_what_if" not in st.session_state:
 if "custom_charts" not in st.session_state:
     st.session_state.custom_charts = []  # list to store custom charts
 
+# --- New: Initialize retention-related session_state variables if missing ---
+if "bulk_tier1" not in st.session_state:
+    st.session_state.bulk_tier1 = 60
+if "bulk_tier2" not in st.session_state:
+    st.session_state.bulk_tier2 = 50
+if "bulk_tier3" not in st.session_state:
+    st.session_state.bulk_tier3 = 40
+if "bulk_industry_retention" not in st.session_state:
+    # Default: 60 for Tech and 50 for all others
+    st.session_state.bulk_industry_retention = {ind: 60 if ind=="Tech" else 50 for ind in [
+        "Tech", "Finance", "Healthcare", "Education", "Manufacturing",
+        "Retail", "Energy", "Telecommunications", "Government", "Nonprofit", "Other"
+    ]}
+if "bulk_startup" not in st.session_state:
+    st.session_state.bulk_startup = 60
+if "bulk_small" not in st.session_state:
+    st.session_state.bulk_small = 55
+if "bulk_mid" not in st.session_state:
+    st.session_state.bulk_mid = 50
+if "bulk_mnc" not in st.session_state:
+    st.session_state.bulk_mnc = 45
+
 # ----------------------------------------------------
 # Helper functions for user storage
 # ----------------------------------------------------
@@ -364,7 +386,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
     
     final_score = min(100, max(0, final_score))
     
-    # Debug: Uncomment to view triggers per row
+    # Debug: Uncomment the next line to see triggers for each row
     # st.write("Computed triggers:", triggers)
     
     if return_triggers:
