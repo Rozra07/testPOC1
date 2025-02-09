@@ -178,7 +178,6 @@ def train_model(training_df, target_column, industry):
         update_industry_average_ctc(row, industry)
         
     # Drop columns that are not used as ML features (but may be used in post-analysis)
-    # Removed: "Total Job Experience in years"
     drop_cols = [target_column, "Total Job Experience in years", "Base Location of joining"]
     X = training_df.drop(columns=drop_cols, errors='ignore')
     y = training_df[target_column]
@@ -190,9 +189,6 @@ def train_model(training_df, target_column, industry):
     model.fit(X_scaled, y)
     st.write("Model coefficients:", model.coef_)
     
-    # -------------------------------
-    # Model Evaluation Metrics
-    # -------------------------------
     from sklearn.metrics import roc_curve, auc, confusion_matrix, classification_report
     preds = model.predict_proba(X_scaled)[:, 1]
     fpr, tpr, thresholds = roc_curve(y, preds)
@@ -233,7 +229,6 @@ def train_model(training_df, target_column, industry):
     
     update_industry_record(industry, model_filename, scaler_filename, features_filename)
     
-    # Save global settings to user record
     user = st.session_state.user
     user_settings = user.get("settings") or {}
     user_settings["global_avg_age"] = st.session_state.global_avg_age
@@ -390,7 +385,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
     
     final_score = min(100, max(0, final_score))
     
-    # Uncomment the following line to debug triggers per row:
+    # Uncomment for debugging:
     # st.write("Computed triggers:", triggers)
     
     if return_triggers:
@@ -868,7 +863,6 @@ else:
                         df_bulk_whatif["What-If Negative Triggers"] = new_triggers_list
                         st.dataframe(df_bulk_whatif)
                         
-                        # Compute risk distribution for What-If predictions
                         high_risk_w = (df_bulk_whatif["What-If Attrition Score"] >= 75).sum()
                         mod_high_w = ((df_bulk_whatif["What-If Attrition Score"] >= 60) & (df_bulk_whatif["What-If Attrition Score"] < 75)).sum()
                         moderate_w = ((df_bulk_whatif["What-If Attrition Score"] >= 35) & (df_bulk_whatif["What-If Attrition Score"] < 60)).sum()
@@ -890,19 +884,14 @@ else:
                         st.markdown("### What-If Risk Distribution")
                         st.altair_chart(risk_chart_w, use_container_width=True)
                 else:
-                    # -------------------------------
-                    # Standard Analysis Section (only if bulk prediction has completed)
-                    # -------------------------------
                     if st.session_state.bulk_prediction_complete:
                         with st.expander("Analysis", expanded=True):
                             analysis_col1, analysis_col2 = st.columns([0.35, 0.65])
                             
-                            # LEFT COLUMN: Filters and fixed risk distribution chart
                             with analysis_col1:
                                 st.subheader("Filters")
                                 filter_score_min, filter_score_max = st.slider("Attrition Score Range", 0, 100, (0, 100), key="filter_score")
                                 
-                                # Arrange default filters in two columns
                                 col1_filter, col2_filter = st.columns(2)
                                 with col1_filter:
                                     selected_industries = st.multiselect("Industry", 
@@ -938,37 +927,35 @@ else:
                                     (st.session_state.bulk_result["Last Performance Rating"].isin(selected_performance))
                                 ]
                                 
-                                # NEW: Custom Filter Section
-                                with st.expander("Custom Filters", expanded=False):
-                                    custom_columns = st.multiselect("Select additional columns for filtering", 
-                                                                    options=st.session_state.bulk_result.columns.tolist(), 
-                                                                    key="custom_filter_columns")
-                                    custom_filters = {}
-                                    for col in custom_columns:
-                                        if np.issubdtype(st.session_state.bulk_result[col].dtype, np.number):
-                                            min_val = float(st.session_state.bulk_result[col].min())
-                                            max_val = float(st.session_state.bulk_result[col].max())
-                                            selected_range = st.slider(f"Select range for {col}", 
-                                                                       min_value=min_val, max_value=max_val, 
-                                                                       value=(min_val, max_val), key=f"custom_filter_{col}")
-                                            custom_filters[col] = selected_range
-                                        else:
-                                            unique_vals = sorted(st.session_state.bulk_result[col].dropna().unique().tolist())
-                                            selected_vals = st.multiselect(f"Select values for {col}", 
-                                                                           options=unique_vals, default=unique_vals, key=f"custom_filter_{col}")
-                                            custom_filters[col] = selected_vals
-                                    
-                                    # Apply custom filters to filtered_df
-                                    for col, condition in custom_filters.items():
-                                        if isinstance(condition, tuple):
-                                            filtered_df = filtered_df[(filtered_df[col] >= condition[0]) & (filtered_df[col] <= condition[1])]
-                                        else:
-                                            filtered_df = filtered_df[filtered_df[col].isin(condition)]
+                                # Custom Filter Section (not nested in an expander)
+                                st.markdown("#### Custom Filters")
+                                custom_columns = st.multiselect("Select additional columns for filtering", 
+                                                                options=st.session_state.bulk_result.columns.tolist(), 
+                                                                key="custom_filter_columns")
+                                custom_filters = {}
+                                for col in custom_columns:
+                                    if np.issubdtype(st.session_state.bulk_result[col].dtype, np.number):
+                                        min_val = float(st.session_state.bulk_result[col].min())
+                                        max_val = float(st.session_state.bulk_result[col].max())
+                                        selected_range = st.slider(f"Select range for {col}", 
+                                                                   min_value=min_val, max_value=max_val, 
+                                                                   value=(min_val, max_val), key=f"custom_filter_{col}")
+                                        custom_filters[col] = selected_range
+                                    else:
+                                        unique_vals = sorted(st.session_state.bulk_result[col].dropna().unique().tolist())
+                                        selected_vals = st.multiselect(f"Select values for {col}", 
+                                                                       options=unique_vals, default=unique_vals, key=f"custom_filter_{col}")
+                                        custom_filters[col] = selected_vals
+                                
+                                for col, condition in custom_filters.items():
+                                    if isinstance(condition, tuple):
+                                        filtered_df = filtered_df[(filtered_df[col] >= condition[0]) & (filtered_df[col] <= condition[1])]
+                                    else:
+                                        filtered_df = filtered_df[filtered_df[col].isin(condition)]
                                 
                                 st.write("Filtered Bulk Predictions")
                                 st.dataframe(filtered_df)
                             
-                            # RIGHT COLUMN: Custom Graph Builder and additional charts
                             with analysis_col2:
                                 st.markdown("<h3 style='color: white;'>Custom Graph Builder</h3>", unsafe_allow_html=True)
                                 with st.form("custom_graph_form"):
