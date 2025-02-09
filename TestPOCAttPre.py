@@ -130,6 +130,9 @@ def train_model(training_df, target_column, industry):
     model.fit(X_scaled, y)
     st.write("Model coefficients:", model.coef_)
     
+    # -------------------------------
+    # Model Evaluation Metrics
+    # -------------------------------
     from sklearn.metrics import roc_curve, auc, confusion_matrix, classification_report
     preds = model.predict_proba(X_scaled)[:, 1]
     fpr, tpr, thresholds = roc_curve(y, preds)
@@ -294,6 +297,7 @@ TRIGGER_DETAILS = {
             "poor_benefits": "Offer competitive benefits including health insurance and retirement plans."
         }
     }
+    # Additional trigger details can be added similarly...
 }
 
 # ----------------------------------------------------
@@ -912,7 +916,7 @@ else:
                         st.dataframe(df_bulk_whatif)
                         
                         high_risk_w = (df_bulk_whatif["What-If Attrition Score"] >= 75).sum()
-                        mod_high_w = ((df_bulk_whatif["What-If Attrition Score"] >= 60) & (df_bulk_whatIf["What-If Attrition Score"] < 75)).sum()
+                        mod_high_w = ((df_bulk_whatif["What-If Attrition Score"] >= 60) & (df_bulk_whatif["What-If Attrition Score"] < 75)).sum()
                         moderate_w = ((df_bulk_whatif["What-If Attrition Score"] >= 35) & (df_bulk_whatif["What-If Attrition Score"] < 60)).sum()
                         low_w = (df_bulk_whatif["What-If Attrition Score"] < 35).sum()
                         risk_df_w = pd.DataFrame({
@@ -923,11 +927,14 @@ else:
                         st.bar_chart(risk_df_w.set_index("Risk Category"))
                 else:
                     # -------------------------------
-                    # Standard Analysis Section (Modified to two filters)
+                    # Standard Analysis Section (Modified)
                     # -------------------------------
                     with st.expander("Analysis", expanded=True):
                         st.subheader("Filters")
+                        # Only display two filters: Attrition Score slider and a custom filter button.
                         filter_score_min, filter_score_max = st.slider("Attrition Score Range", 0, 100, (0, 100), key="filter_score")
+                        
+                        # Custom Filter: Toggle to show a text input
                         if "show_custom_filter" not in st.session_state:
                             st.session_state.show_custom_filter = False
                         if st.button("Add filter"):
@@ -951,7 +958,7 @@ else:
                         st.write("Filtered Bulk Predictions")
                         st.dataframe(filtered_df)
                         
-                        # Calculate risk distribution percentages
+                        # Compute risk distribution percentages
                         risk_counts = {
                             "High (>=75)": (filtered_df["Attrition Score"] >= 75).sum(),
                             "Mod-High (60-74)": ((filtered_df["Attrition Score"] >= 60) & (filtered_df["Attrition Score"] < 75)).sum(),
@@ -971,6 +978,8 @@ else:
                             tooltip=["Risk Category", "Percentage"]
                         )
                         st.altair_chart(risk_chart, use_container_width=True)
+                        
+                        # Optionally, you can also display the filtered data table below the chart.
                         st.write("Filtered Data:")
                         st.dataframe(filtered_df)
         else:
