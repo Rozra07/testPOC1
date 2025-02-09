@@ -63,6 +63,8 @@ if "enable_what_if" not in st.session_state:
     st.session_state.enable_what_if = False
 if "custom_charts" not in st.session_state:
     st.session_state.custom_charts = []  # list to store custom charts
+if "bulk_df" not in st.session_state:
+    st.session_state.bulk_df = None
 
 # --- Initialize retention-related session_state variables if missing ---
 if "bulk_tier1" not in st.session_state:
@@ -233,8 +235,8 @@ def train_model(training_df, target_column, industry):
     update_industry_record(industry, model_filename, scaler_filename, features_filename)
     user = st.session_state.user
     user_settings = user.get("settings") or {}
-    user_settings["global_avg_age"] = st.session_state.global_avg_age
-    user_settings["global_female_ratio"] = st.session_state.global_female_ratio
+    user_settings["global_avg_age"] = st.session_state.get("global_avg_age", 35)
+    user_settings["global_female_ratio"] = st.session_state.get("global_female_ratio", 40)
     user_settings["bulk_tier1"] = st.session_state.bulk_tier1
     user_settings["bulk_tier2"] = st.session_state.bulk_tier2
     user_settings["bulk_tier3"] = st.session_state.bulk_tier3
@@ -711,14 +713,17 @@ else:
         st.header("Bulk Employee Attrition Prediction")
         uploaded_file = st.file_uploader("Upload Bulk Data (CSV or Excel)", type=["csv", "xlsx"], key="bulk_file")
         if uploaded_file is not None:
-            try:
-                df_bulk = pd.read_csv(uploaded_file) if uploaded_file.name.endswith(".csv") else pd.read_excel(uploaded_file)
-                # Reset bulk prediction state on new file upload
-                st.session_state.bulk_prediction_complete = False
-                st.session_state.bulk_result = None
-            except Exception as e:
-                st.error(f"❌ Error reading file: {e}")
-                st.stop()
+            # Only read and store the file if it has not been processed already
+            if st.session_state.bulk_df is None:
+                try:
+                    df_bulk = pd.read_csv(uploaded_file) if uploaded_file.name.endswith(".csv") else pd.read_excel(uploaded_file)
+                    st.session_state.bulk_df = df_bulk
+                except Exception as e:
+                    st.error(f"❌ Error reading file: {e}")
+                    st.stop()
+            else:
+                df_bulk = st.session_state.bulk_df
+
             st.write("### Bulk Data Preview:")
             st.dataframe(df_bulk.head())
             required_cols = [
@@ -779,11 +784,11 @@ else:
                         df_bulk["Negative Triggers"] = triggers_list
                         df_bulk["Name"] = names
                         st.session_state.bulk_result = df_bulk.copy()
-                        st.session_state.bulk_prediction_complete = True
                         st.session_state.bulk_result["Prediction Time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        st.session_state.bulk_prediction_complete = True
                         save_user_event(st.session_state.user["email"], "bulk_prediction", {"rows": len(df_bulk)})
                 with btn_cols[1]:
-                    if st.session_state.bulk_prediction_complete:
+                    if st.session_state.get("bulk_prediction_complete", False):
                         st.session_state.enable_what_if = st.checkbox("Enable What-If Analysis", key="whatif_toggle")
                 
                 # -------------------------------
