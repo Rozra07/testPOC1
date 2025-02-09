@@ -244,15 +244,9 @@ TRIGGER_DETAILS = {
             "rigid_policies": "The policies are too rigid (e.g., no maternity or remote options)."
         },
         "solutions": {
-            "lack_female_applicants": (
-                "Partner with women’s universities or female‑oriented professional groups and emphasize diversity in recruitment."
-            ),
-            "lack_female_mentors": (
-                "Implement formal mentorship programs and sponsor leadership development for female employees."
-            ),
-            "rigid_policies": (
-                "Introduce flexible working hours, remote/hybrid work options, and enhance family‑friendly benefits."
-            )
+            "lack_female_applicants": "Partner with women’s universities or female‑oriented professional groups and emphasize diversity in recruitment.",
+            "lack_female_mentors": "Implement formal mentorship programs and sponsor leadership development for female employees.",
+            "rigid_policies": "Introduce flexible working hours, remote/hybrid work options, and enhance family‑friendly benefits."
         }
     },
     "Stagnant promotions": {
@@ -262,17 +256,47 @@ TRIGGER_DETAILS = {
             "bureaucratic_structure": "The organizational structure is overly bureaucratic."
         },
         "solutions": {
-            "unclear_criteria": (
-                "Publish clear promotion guidelines with KPIs and provide regular feedback."
-            ),
-            "no_mentorship": (
-                "Launch mentoring programs and provide upskilling opportunities."
-            ),
-            "bureaucratic_structure": (
-                "Streamline decision‑making processes or reduce hierarchical layers to foster agility."
-            )
+            "unclear_criteria": "Publish clear promotion guidelines with KPIs and provide regular feedback.",
+            "no_mentorship": "Launch mentoring programs and provide upskilling opportunities.",
+            "bureaucratic_structure": "Streamline decision‑making processes or reduce hierarchical layers to foster agility."
         }
     },
+    "Very low performance rating": {
+        "subproblems": {
+            "misaligned_role": "Job roles or expectations are unclear or mismatched.",
+            "no_feedback": "There is a lack of continuous feedback or one‑on‑one sessions.",
+            "skill_gaps": "Training needs are not being addressed."
+        },
+        "solutions": {
+            "misaligned_role": "Clarify job responsibilities, set SMART goals, and align roles with employees’ strengths.",
+            "no_feedback": "Implement frequent one‑on‑one check‑ins and real‑time performance dashboards.",
+            "skill_gaps": "Offer targeted training, certification reimbursements, and peer‑to‑peer learning opportunities."
+        }
+    },
+    "Low performance rating": {
+        "subproblems": {
+            "misaligned_role": "Job roles or expectations are unclear or mismatched.",
+            "no_feedback": "Continuous feedback is lacking.",
+            "skill_gaps": "Training needs are not addressed."
+        },
+        "solutions": {
+            "misaligned_role": "Clarify job responsibilities and ensure roles align with employees’ strengths.",
+            "no_feedback": "Implement regular one‑on‑one check‑ins and provide ongoing coaching.",
+            "skill_gaps": "Offer targeted training sessions and promote cross‑functional learning."
+        }
+    },
+    "Low compensation competitiveness": {
+        "subproblems": {
+            "below_market": "Base salary is below market rates.",
+            "minimal_bonus": "Bonuses or variable pay are minimal or nonexistent.",
+            "poor_benefits": "The benefits package is insufficient."
+        },
+        "solutions": {
+            "below_market": "Conduct market benchmarking to adjust salaries to at least median levels.",
+            "minimal_bonus": "Introduce performance‑based incentives or profit‑sharing schemes.",
+            "poor_benefits": "Offer competitive benefits including health insurance and retirement plans."
+        }
+    }
     # Additional trigger details can be added similarly...
 }
 
@@ -560,7 +584,6 @@ if st.session_state.nav == "My Account":
     if st.button("Back to Main"):
         st.session_state.nav = "Tabs"
 else:
-    # For Test Mode:
     if st.session_state.main_mode == "Test Mode":
         selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=0, key="test_industry")
         st.markdown("""
@@ -690,39 +713,163 @@ else:
                         st.session_state.enable_what_if = st.checkbox("Enable What-If Analysis", key="whatif_toggle")
                 
                 # -------------------------------
-                # What-If Analysis Section (embedded snippet)
+                # What-If Analysis Section (Dynamic for all negative triggers)
                 # -------------------------------
                 if st.session_state.enable_what_if:
                     with st.container():
                         st.markdown("<h3 style='color: white;'>What-If Analysis</h3>", unsafe_allow_html=True)
-                        st.info("Adjust the parameters below to simulate changes in predicted attrition based on negative triggers.")
+                        st.info("Adjust the parameters below to simulate changes in predicted attrition based on the negative triggers present in your data.")
+                        
+                        # Create an empty dictionary to store adjustments
                         whatif_params = {}
+                        # Compute counts of negative triggers from bulk result
                         trig_series = compute_trigger_counts(st.session_state.bulk_result, "Negative Triggers")
-                        if "Low gender diversity" in trig_series.index:
-                            whatif_params["female_ratio"] = st.slider("Women % in Organization", 0, 100, global_female_ratio, key="whatif_female")
-                        if "Stagnant promotions" in trig_series.index:
-                            default_not_promoted = int(st.session_state.bulk_result["Hasn't been promoted"].mean())
-                            default_min_cycle = int(st.session_state.bulk_result["Minimum Promotion Cycle"].mean())
-                            whatif_params["not_promoted"] = st.slider("Months Since Last Promotion", 0, 60, default_not_promoted, key="whatif_not_promoted")
-                            whatif_params["min_cycle"] = st.slider("Minimum Promotion Cycle", 12, 60, default_min_cycle, key="whatif_min_cycle")
-                        if any(x in trig_series.index for x in ["Very low performance rating", "Low performance rating"]):
-                            default_rating = int(st.session_state.bulk_result["Last Performance Rating"].mean())
-                            default_rating = min(max(default_rating, 1), 5)
-                            whatif_params["rating"] = st.selectbox("Last Performance Rating", [1,2,3,4,5], index=default_rating-1, key="whatif_rating")
-                        if any(x in trig_series.index for x in ["Low compensation competitiveness", "High compensation ratio"]):
-                            default_compa = int(st.session_state.bulk_result["Compa Ratio"].mean())
-                            whatif_params["compa_ratio"] = st.slider("Compa Ratio (%)", 50, 150, default_compa, key="whatif_compa")
-                        if "Low college tier retention" in trig_series.index:
-                            whatif_params["tier1"] = st.slider("Tier 1 Retention (%)", 10, 100, bulk_tier1, key="whatif_tier1")
-                            whatif_params["tier2"] = st.slider("Tier 2 Retention (%)", 10, 100, bulk_tier2, key="whatif_tier2")
-                            whatif_params["tier3"] = st.slider("Tier 3 Retention (%)", 10, 100, bulk_tier3, key="whatif_tier3")
-                        if "Low industry retention" in trig_series.index:
-                            avg_ind = int(np.mean(list(bulk_industry_retention.values())))
-                            whatif_params["industry_retention"] = st.slider("Industry Retention (%)", 10, 100, avg_ind, key="whatif_industry")
-                        if "Low company type retention" in trig_series.index:
-                            whatif_params["company_retention"] = st.slider("Company Type Retention (%)", 10, 100, 60, key="whatif_company")
-                        if "High dissatisfaction (Pulse)" in trig_series.index:
-                            whatif_params["pulse"] = st.selectbox("Pulse", ["High", "Medium", "Low"], index=0, key="whatif_pulse")
+                        
+                        # Define widget configurations for each known trigger
+                        # (Defaults are derived from global settings and bulk_result averages when applicable)
+                        trigger_widget_config = {
+                            "Low gender diversity": {
+                                "widget": "slider",
+                                "label": "Women % in Organization",
+                                "min": 0,
+                                "max": 100,
+                                "default": global_female_ratio,
+                                "param": "female_ratio"
+                            },
+                            "Stagnant promotions": {
+                                "widget": "slider_pair",
+                                "labels": ["Months Since Last Promotion", "Minimum Promotion Cycle"],
+                                "min": [0, 12],
+                                "max": [60, 60],
+                                "default": [
+                                    int(st.session_state.bulk_result["Hasn't been promoted"].mean()) if "Hasn't been promoted" in st.session_state.bulk_result.columns else 0,
+                                    int(st.session_state.bulk_result["Minimum Promotion Cycle"].mean()) if "Minimum Promotion Cycle" in st.session_state.bulk_result.columns else 24
+                                ],
+                                "params": ["not_promoted", "min_cycle"]
+                            },
+                            "Very low performance rating": {
+                                "widget": "selectbox",
+                                "label": "Last Performance Rating",
+                                "options": [1,2,3,4,5],
+                                "default": int(st.session_state.bulk_result["Last Performance Rating"].mean()) if "Last Performance Rating" in st.session_state.bulk_result.columns else 3,
+                                "param": "rating"
+                            },
+                            "Low performance rating": {  # Same as above
+                                "widget": "selectbox",
+                                "label": "Last Performance Rating",
+                                "options": [1,2,3,4,5],
+                                "default": int(st.session_state.bulk_result["Last Performance Rating"].mean()) if "Last Performance Rating" in st.session_state.bulk_result.columns else 3,
+                                "param": "rating"
+                            },
+                            "Low compensation competitiveness": {
+                                "widget": "slider",
+                                "label": "Compa Ratio (%)",
+                                "min": 50,
+                                "max": 150,
+                                "default": int(st.session_state.bulk_result["Compa Ratio"].mean()) if "Compa Ratio" in st.session_state.bulk_result.columns else 90,
+                                "param": "compa_ratio"
+                            },
+                            "High compensation ratio": {
+                                "widget": "slider",
+                                "label": "Compa Ratio (%)",
+                                "min": 50,
+                                "max": 150,
+                                "default": int(st.session_state.bulk_result["Compa Ratio"].mean()) if "Compa Ratio" in st.session_state.bulk_result.columns else 90,
+                                "param": "compa_ratio"
+                            },
+                            "Low college tier retention": {
+                                "widget": "slider_group",
+                                "labels": ["Tier 1 Retention (%)", "Tier 2 Retention (%)", "Tier 3 Retention (%)"],
+                                "min": [10, 10, 10],
+                                "max": [100, 100, 100],
+                                "default": [bulk_tier1, bulk_tier2, bulk_tier3],
+                                "params": ["tier1", "tier2", "tier3"]
+                            },
+                            "Low industry retention": {
+                                "widget": "slider",
+                                "label": "Industry Retention (%)",
+                                "min": 10,
+                                "max": 100,
+                                "default": int(np.mean(list(bulk_industry_retention.values()))),
+                                "param": "industry_retention"
+                            },
+                            "Low company type retention": {
+                                "widget": "slider",
+                                "label": "Company Type Retention (%)",
+                                "min": 10,
+                                "max": 100,
+                                "default": 60,
+                                "param": "company_retention"
+                            },
+                            "High dissatisfaction (Pulse)": {
+                                "widget": "selectbox",
+                                "label": "Pulse",
+                                "options": ["High", "Medium", "Low"],
+                                "default": "High",
+                                "param": "pulse"
+                            }
+                        }
+                        
+                        # Dynamically display widgets for each trigger found in the bulk result
+                        displayed_params = set()
+                        for trigger, config in trigger_widget_config.items():
+                            if trigger in trig_series.index:
+                                # For widget types that yield a single parameter:
+                                if config["widget"] in ["slider", "selectbox"]:
+                                    param_name = config["param"]
+                                    if param_name in displayed_params:
+                                        continue
+                                    if config["widget"] == "slider":
+                                        whatif_params[param_name] = st.slider(
+                                            config["label"],
+                                            config["min"],
+                                            config["max"],
+                                            config["default"],
+                                            key=f"whatif_{param_name}"
+                                        )
+                                    elif config["widget"] == "selectbox":
+                                        # Find the index of the default value in options if possible
+                                        default_index = config["options"].index(config["default"]) if config["default"] in config["options"] else 0
+                                        whatif_params[param_name] = st.selectbox(
+                                            config["label"],
+                                            config["options"],
+                                            index=default_index,
+                                            key=f"whatif_{param_name}"
+                                        )
+                                    displayed_params.add(param_name)
+                                elif config["widget"] == "slider_pair":
+                                    param_names = config["params"]
+                                    values = []
+                                    for i, p in enumerate(param_names):
+                                        values.append(
+                                            st.slider(
+                                                config["labels"][i],
+                                                config["min"][i],
+                                                config["max"][i],
+                                                config["default"][i],
+                                                key=f"whatif_{p}"
+                                            )
+                                        )
+                                    whatif_params[param_names[0]] = values[0]
+                                    whatif_params[param_names[1]] = values[1]
+                                    displayed_params.update(param_names)
+                                elif config["widget"] == "slider_group":
+                                    param_names = config["params"]
+                                    values = []
+                                    for i, p in enumerate(param_names):
+                                        values.append(
+                                            st.slider(
+                                                config["labels"][i],
+                                                config["min"][i],
+                                                config["max"][i],
+                                                config["default"][i],
+                                                key=f"whatif_{p}"
+                                            )
+                                        )
+                                    for i, p in enumerate(param_names):
+                                        whatif_params[p] = values[i]
+                                    displayed_params.update(param_names)
+                        
                         st.markdown("### Recalculated Predictions with What-If Adjustments")
                         new_scores = []
                         new_triggers_list = []
