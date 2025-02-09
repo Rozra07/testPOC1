@@ -1065,10 +1065,9 @@ else:
                                 st.markdown(graph_header(custom["title"], custom["explanation"]), unsafe_allow_html=True)
                                 st.altair_chart(custom["chart"], use_container_width=True)
                         
-                        st.markdown("### Quick Charts")
-                        # Quick Charts as full-length expanders (not nested inside any other expander)
-                        with st.expander("Distribution Analysis"):
-                            st.markdown("_These charts help you understand the overall makeup of your data._")
+                        st.markdown("## Quick Charts")
+                        
+                        with st.expander("Distribution Analysis: These charts help you understand the overall makeup of your data."):
                             # Attrition Score Distribution
                             try:
                                 chart1 = alt.Chart(st.session_state.bulk_result).mark_bar(color="#4c78a8").encode(
@@ -1119,8 +1118,7 @@ else:
                             except Exception as e:
                                 st.write("Performance Rating Distribution chart not available.")
                         
-                        with st.expander("Comparative Analysis"):
-                            st.markdown("_These charts compare key variables to uncover potential relationships._")
+                        with st.expander("Comparative Analysis: These charts compare key variables to uncover potential relationships."):
                             # Employee Age vs. Attrition Score
                             try:
                                 chart1 = alt.Chart(st.session_state.bulk_result).mark_circle(size=60, color="#4c78a8").encode(
@@ -1177,8 +1175,7 @@ else:
                             except Exception as e:
                                 st.write("Tenure vs. Attrition Score by Industry chart not available.")
                         
-                        with st.expander("Correlation & Relationship Analysis"):
-                            st.markdown("_These charts assess how numerical variables interact with one another._")
+                        with st.expander("Correlation & Relationship Analysis: These charts assess how numerical variables interact with one another."):
                             # Correlation Heatmap
                             try:
                                 numeric_df = st.session_state.bulk_result.select_dtypes(include=[np.number])
@@ -1208,8 +1205,7 @@ else:
                             except Exception as e:
                                 st.write("Pairwise Scatter Plot Matrix not available.")
                         
-                        with st.expander("Trigger & Factor Analysis"):
-                            st.markdown("_These charts focus on the factors influencing attrition risk._")
+                        with st.expander("Trigger & Factor Analysis: These charts focus on the factors influencing attrition risk."):
                             # Negative Triggers Count
                             try:
                                 ct = compute_trigger_counts(st.session_state.bulk_result, "Negative Triggers").reset_index()
@@ -1246,8 +1242,7 @@ else:
                             except Exception as e:
                                 st.write("Combined Trigger Analysis chart not available.")
                         
-                        with st.expander("Retention & Industry Analysis"):
-                            st.markdown("_These charts provide insights into retention factors and industry/company characteristics._")
+                        with st.expander("Retention & Industry Analysis: These charts provide insights into retention factors and industry/company characteristics."):
                             # Industry Distribution (Pie Chart)
                             try:
                                 industry_counts = st.session_state.bulk_result["Industry"].value_counts().reset_index()
@@ -1302,8 +1297,7 @@ else:
                             except Exception as e:
                                 st.write("Retention Rate chart not available.")
                         
-                        with st.expander("Temporal Analysis"):
-                            st.markdown("_These charts track trends and changes in attrition over time._")
+                        with st.expander("Temporal Analysis: These charts track trends and changes in attrition over time."):
                             # Attrition Trend Over Time (Line Chart)
                             try:
                                 if "Prediction Time" in st.session_state.bulk_result.columns:
