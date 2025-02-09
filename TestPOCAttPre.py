@@ -59,8 +59,7 @@ if "bulk_prediction_complete" not in st.session_state:
     st.session_state.bulk_prediction_complete = False
 if "bulk_result" not in st.session_state:
     st.session_state.bulk_result = None
-if "enable_what_if" not in st.session_state:
-    st.session_state.enable_what_if = False
+# We no longer write directly to st.session_state for what-if flag
 if "custom_charts" not in st.session_state:
     st.session_state.custom_charts = []  # list to store custom charts
 
@@ -84,6 +83,14 @@ if "bulk_mid" not in st.session_state:
     st.session_state.bulk_mid = 50
 if "bulk_mnc" not in st.session_state:
     st.session_state.bulk_mnc = 45
+
+# For filtering negative triggers in What-If analysis
+TRIGGER_DETAILS = [
+    "Low gender diversity", "Stagnant promotions", "Very low performance rating",
+    "Low performance rating", "Low compensation competitiveness", "High compensation ratio",
+    "Low college tier retention", "Low industry retention", "Low company type retention",
+    "High dissatisfaction (Pulse)"
+]
 
 # ----------------------------------------------------
 # Helper functions for user storage
@@ -782,9 +789,11 @@ else:
                         st.session_state.bulk_prediction_complete = True
                         st.session_state.bulk_result["Prediction Time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         save_user_event(st.session_state.user["email"], "bulk_prediction", {"rows": len(df_bulk)})
+                # --- Use a local variable for the what-if checkbox ---
                 with btn_cols[1]:
+                    local_enable_what_if = False
                     if st.session_state.bulk_prediction_complete:
-                        st.session_state.enable_what_if = st.checkbox("Enable What-If Analysis", key="whatif_toggle")
+                        local_enable_what_if = st.checkbox("Enable What-If Analysis", key="whatif_toggle")
                 
                 # -------------------------------
                 # Analysis Section (appears once bulk prediction is complete)
@@ -991,13 +1000,14 @@ else:
                             )
                             st.altair_chart(box_chart_tenure_ind, use_container_width=True)
                         
-                        # What-If Analysis Section
-                        if st.session_state.enable_what_if:
+                        # -------------------------------
+                        # What-If Analysis Section (using local variable for checkbox)
+                        # -------------------------------
+                        if local_enable_what_if:
                             with st.container():
                                 st.markdown("<h3 style='color: white;'>What-If Analysis</h3>", unsafe_allow_html=True)
                                 st.info("Adjust the parameters below to simulate changes in predicted attrition based on negative triggers.")
                                 whatif_params = {}
-                                # Use the original bulk result to compute trigger counts
                                 trig_series = compute_trigger_counts(st.session_state.bulk_result, "Negative Triggers")
                                 if "Low gender diversity" in trig_series.index:
                                     whatif_params["female_ratio"] = st.slider("Women % in Organization", 0, 100, global_female_ratio, key="whatif_female")
@@ -1014,9 +1024,9 @@ else:
                                     default_compa = int(st.session_state.bulk_result["Compa Ratio"].mean())
                                     whatif_params["compa_ratio"] = st.slider("Compa Ratio (%)", 50, 150, default_compa, key="whatif_compa")
                                 if "Low college tier retention" in trig_series.index:
-                                    whatif_params["tier1"] = st.slider("Tier 1 Retention (%)", 10, 100, st.session_state.bulk_tier1, key="whatif_tier1")
-                                    whatif_params["tier2"] = st.slider("Tier 2 Retention (%)", 10, 100, st.session_state.bulk_tier2, key="whatif_tier2")
-                                    whatif_params["tier3"] = st.slider("Tier 3 Retention (%)", 10, 100, st.session_state.bulk_tier3, key="whatif_tier3")
+                                    whatif_params["tier1"] = st.slider("Tier 1 Retention (%)", 10, 100, bulk_tier1, key="whatif_tier1")
+                                    whatif_params["tier2"] = st.slider("Tier 2 Retention (%)", 10, 100, bulk_tier2, key="whatif_tier2")
+                                    whatif_params["tier3"] = st.slider("Tier 3 Retention (%)", 10, 100, bulk_tier3, key="whatif_tier3")
                                 if "Low industry retention" in trig_series.index:
                                     avg_ind = int(np.mean(list(bulk_industry_retention.values())))
                                     whatif_params["industry_retention"] = st.slider("Industry Retention (%)", 10, 100, avg_ind, key="whatif_industry")
@@ -1038,24 +1048,24 @@ else:
                                     new_row["Compa Ratio"] = whatif_params.get("compa_ratio", row.get("Compa Ratio"))
                                     college_tier = row.get("College Tier")
                                     if college_tier == "Tier 1":
-                                        new_row["College Tier Retention"] = whatif_params.get("tier1", row.get("College Tier Retention", st.session_state.bulk_tier1))
+                                        new_row["College Tier Retention"] = whatif_params.get("tier1", row.get("College Tier Retention", bulk_tier1))
                                     elif college_tier == "Tier 2":
-                                        new_row["College Tier Retention"] = whatif_params.get("tier2", row.get("College Tier Retention", st.session_state.bulk_tier2))
+                                        new_row["College Tier Retention"] = whatif_params.get("tier2", row.get("College Tier Retention", bulk_tier2))
                                     elif college_tier == "Tier 3":
-                                        new_row["College Tier Retention"] = whatif_params.get("tier3", row.get("College Tier Retention", st.session_state.bulk_tier3))
+                                        new_row["College Tier Retention"] = whatif_params.get("tier3", row.get("College Tier Retention", bulk_tier3))
                                     else:
                                         new_row["College Tier Retention"] = row.get("College Tier Retention", 40)
                                     industry_val = row.get("Industry")
-                                    new_row["Industry Retention"] = whatif_params.get("industry_retention", row.get("Industry Retention", st.session_state.bulk_industry_retention.get(industry_val, 50)))
+                                    new_row["Industry Retention"] = whatif_params.get("industry_retention", row.get("Industry Retention", bulk_industry_retention.get(industry_val, 50)))
                                     ctype_val = row.get("Company Type", "Startup")
                                     if ctype_val.lower() == "startup":
-                                        default_company_retention = st.session_state.bulk_startup
+                                        default_company_retention = bulk_startup
                                     elif "small" in ctype_val.lower():
-                                        default_company_retention = st.session_state.bulk_small
+                                        default_company_retention = bulk_small
                                     elif "mid" in ctype_val.lower():
-                                        default_company_retention = st.session_state.bulk_mid
+                                        default_company_retention = bulk_mid
                                     elif "mnc" in ctype_val.lower() or "giant" in ctype_val.lower():
-                                        default_company_retention = st.session_state.bulk_mnc
+                                        default_company_retention = bulk_mnc
                                     else:
                                         default_company_retention = 50
                                     new_row["Company Type Retention"] = whatif_params.get("company_retention", row.get("Company Type Retention", default_company_retention))
@@ -1066,8 +1076,9 @@ else:
                                         new_score = None
                                         new_trigs = ["Prediction Failed"]
                                     new_scores.append(new_score)
-                                    neg_trigs = ", ".join(new_trigs) if new_trigs else "None"
-                                    new_triggers_list.append(neg_trigs)
+                                    neg_trigs = [t for t in new_trigs if t in TRIGGER_DETAILS]
+                                    triggers_str = ", ".join(neg_trigs) if neg_trigs else "None"
+                                    new_triggers_list.append(triggers_str)
                                 df_bulk_whatif["What-If Attrition Score"] = new_scores
                                 df_bulk_whatif["What-If Negative Triggers"] = new_triggers_list
                                 st.dataframe(df_bulk_whatif)
@@ -1079,15 +1090,5 @@ else:
                                     "Risk Category": ["High (>=75)", "Mod-High (60-74)", "Moderate (35-59)", "Low (<35)"],
                                     "Count": [high_risk_w, mod_high_w, moderate_w, low_w]
                                 })
-                                total_w = risk_df_w["Count"].sum()
-                                if total_w > 0:
-                                    risk_df_w["Percentage"] = risk_df_w["Count"] / total_w * 100
-                                else:
-                                    risk_df_w["Percentage"] = 0
                                 st.markdown("### What-If Risk Distribution")
-                                risk_chart_w = alt.Chart(risk_df_w).mark_bar().encode(
-                                    x=alt.X("Risk Category:N", title="Risk Category"),
-                                    y=alt.Y("Percentage:Q", title="Percentage"),
-                                    tooltip=["Risk Category", "Percentage"]
-                                )
-                                st.altair_chart(risk_chart_w, use_container_width=True)
+                                st.bar_chart(risk_df_w.set_index("Risk Category"))
