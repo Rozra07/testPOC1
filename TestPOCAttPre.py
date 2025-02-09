@@ -364,7 +364,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
     
     final_score = min(100, max(0, final_score))
     
-    # Debug: Uncomment the next line to see triggers for each row
+    # Debug: Uncomment the following line to see triggers for each row
     # st.write("Computed triggers:", triggers)
     
     if return_triggers:
@@ -534,7 +534,7 @@ with header_container:
             logout()
 
 # ---------------------------------------
-# Sidebar: Global Settings for Bulk Analysis (global settings remain unchanged)
+# Sidebar: Global Settings for Bulk Analysis (Retention settings reintroduced)
 # ---------------------------------------
 if st.session_state.nav != "My Account":
     with st.sidebar:
@@ -551,6 +551,54 @@ if st.session_state.nav != "My Account":
             st.session_state.user.get("settings", {}).get("global_female_ratio", 40),
             key="global_female_ratio", disabled=disabled_flag
         )
+        with st.expander("College Tier Retention Settings", expanded=True):
+            st.write("These values are used for comparison during prediction.")
+            bulk_tier1 = st.slider(
+                "Tier 1 Retention (%)", 10, 100,
+                st.session_state.user.get("settings", {}).get("bulk_tier1", 60),
+                key="bulk_tier1", disabled=disabled_flag
+            )
+            bulk_tier2 = st.slider(
+                "Tier 2 Retention (%)", 10, 100,
+                st.session_state.user.get("settings", {}).get("bulk_tier2", 50),
+                key="bulk_tier2", disabled=disabled_flag
+            )
+            bulk_tier3 = st.slider(
+                "Tier 3 Retention (%)", 10, 100,
+                st.session_state.user.get("settings", {}).get("bulk_tier3", 40),
+                key="bulk_tier3", disabled=disabled_flag
+            )
+        with st.expander("Industry Retention Settings", expanded=True):
+            st.write("These values are used for comparison during prediction.")
+            bulk_industry_retention = {}
+            for ind in industry_options:
+                default_val = st.session_state.user.get("settings", {}).get("bulk_industry_retention", {}).get(ind, 60 if ind=="Tech" else 50)
+                bulk_industry_retention[ind] = st.slider(
+                    f"{ind} Retention (%)", 10, 100, default_val,
+                    key=f"bulk_ind_{ind}", disabled=disabled_flag
+                )
+        with st.expander("Company Type Retention Settings", expanded=True):
+            st.write("These values are used for comparison during prediction.")
+            bulk_startup = st.slider(
+                "Startup Retention (%)", 10, 100,
+                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Startup", 60),
+                key="bulk_startup", disabled=disabled_flag
+            )
+            bulk_small = st.slider(
+                "Small Size Retention (%)", 10, 100,
+                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Small Size", 55),
+                key="bulk_small", disabled=disabled_flag
+            )
+            bulk_mid = st.slider(
+                "Mid Size Retention (%)", 10, 100,
+                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Mid Size", 50),
+                key="bulk_mid", disabled=disabled_flag
+            )
+            bulk_mnc = st.slider(
+                "MNC/Giant Company Retention (%)", 10, 100,
+                st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("MNC/Giant Company", 45),
+                key="bulk_mnc", disabled=disabled_flag
+            )
 
 # ---------------------------------------
 # Main Navigation for Train/Test Modes
@@ -577,7 +625,7 @@ if st.session_state.nav == "My Account":
     if st.button("Back to Main"):
         st.session_state.nav = "Tabs"
 else:
-    # Test Mode
+    # Test Mode:
     if st.session_state.main_mode == "Test Mode":
         selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=0, key="test_industry")
         st.markdown("""
@@ -716,7 +764,7 @@ else:
                         st.session_state.enable_what_if = st.checkbox("Enable What-If Analysis", key="whatif_toggle")
                 
                 # -------------------------------
-                # Analysis Section (shown after bulk prediction)
+                # Analysis Section (appears once bulk prediction is complete)
                 # -------------------------------
                 if st.session_state.bulk_prediction_complete:
                     with st.expander("Analysis", expanded=True):
@@ -725,27 +773,28 @@ else:
                         # LEFT COLUMN: Filters and Risk Distribution
                         with analysis_col1:
                             st.subheader("Filters")
+                            # Default filter: Attrition Score Range
                             analysis_filter_min, analysis_filter_max = st.slider("Attrition Score Range", 0, 100, (0, 100), key="analysis_filter_score")
-                            # Custom filters toggle
-                            show_custom = st.checkbox("Show Custom Filters", key="show_custom_filters")
+                            
+                            # Always show custom filters under the heading "Add Filter"
+                            st.markdown("#### Add Filter")
+                            custom_columns = st.multiselect("Select additional columns for filtering", 
+                                                            options=st.session_state.bulk_result.columns.tolist(), 
+                                                            key="custom_filter_columns")
                             custom_filters = {}
-                            if show_custom:
-                                custom_columns = st.multiselect("Select additional columns for filtering", 
-                                                                options=st.session_state.bulk_result.columns.tolist(), 
-                                                                key="custom_filter_columns")
-                                for col in custom_columns:
-                                    if np.issubdtype(st.session_state.bulk_result[col].dtype, np.number):
-                                        min_val = float(st.session_state.bulk_result[col].min())
-                                        max_val = float(st.session_state.bulk_result[col].max())
-                                        selected_range = st.slider(f"Select range for {col}", 
-                                                                   min_value=min_val, max_value=max_val, 
-                                                                   value=(min_val, max_val), key=f"custom_filter_{col}")
-                                        custom_filters[col] = selected_range
-                                    else:
-                                        unique_vals = sorted(st.session_state.bulk_result[col].dropna().unique().tolist())
-                                        selected_vals = st.multiselect(f"Select values for {col}", 
-                                                                       options=unique_vals, default=unique_vals, key=f"custom_filter_{col}")
-                                        custom_filters[col] = selected_vals
+                            for col in custom_columns:
+                                if np.issubdtype(st.session_state.bulk_result[col].dtype, np.number):
+                                    min_val = float(st.session_state.bulk_result[col].min())
+                                    max_val = float(st.session_state.bulk_result[col].max())
+                                    selected_range = st.slider(f"Select range for {col}", 
+                                                               min_value=min_val, max_value=max_val, 
+                                                               value=(min_val, max_val), key=f"custom_filter_{col}")
+                                    custom_filters[col] = selected_range
+                                else:
+                                    unique_vals = sorted(st.session_state.bulk_result[col].dropna().unique().tolist())
+                                    selected_vals = st.multiselect(f"Select values for {col}", 
+                                                                   options=unique_vals, default=unique_vals, key=f"custom_filter_{col}")
+                                    custom_filters[col] = selected_vals
                             
                             filtered_df = st.session_state.bulk_result[
                                 (st.session_state.bulk_result["Attrition Score"] >= analysis_filter_min) &
@@ -780,26 +829,8 @@ else:
                             )
                             st.altair_chart(risk_chart, use_container_width=True)
                         
-                        # RIGHT COLUMN: Map and Custom Graph Builder & Other Charts
+                        # RIGHT COLUMN: Custom Graph Builder & Other Charts (map removed)
                         with analysis_col2:
-                            # Map Section
-                            location_coords = {
-                                "Bangalore": {"lat": 12.9716, "lon": 77.5946},
-                                "Mumbai": {"lat": 19.0760, "lon": 72.8777},
-                                "Delhi": {"lat": 28.7041, "lon": 77.1025}
-                            }
-                            map_data = []
-                            for loc in filtered_df["Base Location of joining"].unique():
-                                if loc in location_coords:
-                                    map_data.append({
-                                        "lat": location_coords[loc]["lat"],
-                                        "lon": location_coords[loc]["lon"],
-                                        "location": loc
-                                    })
-                            if map_data:
-                                st.markdown("### Base Location Map")
-                                st.map(pd.DataFrame(map_data))
-                            
                             st.markdown("<h3 style='color: white;'>Custom Graph Builder</h3>", unsafe_allow_html=True)
                             with st.form("custom_graph_form"):
                                 x_axis = st.selectbox("Select X Axis", options=filtered_df.columns, key="custom_x")
