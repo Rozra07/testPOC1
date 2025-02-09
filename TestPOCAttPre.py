@@ -170,6 +170,7 @@ def train_model(training_df, target_column, industry):
     
     update_industry_record(industry, model_filename, scaler_filename, features_filename)
     
+    # Save global settings to user record
     user = st.session_state.user
     user_settings = user.get("settings") or {}
     user_settings["global_avg_age"] = st.session_state.global_avg_age
@@ -922,32 +923,35 @@ else:
                         st.bar_chart(risk_df_w.set_index("Risk Category"))
                 else:
                     # -------------------------------
-                    # Standard Analysis Section (Modified with only 2 filters)
+                    # Standard Analysis Section (Modified to two filters)
                     # -------------------------------
                     with st.expander("Analysis", expanded=True):
                         st.subheader("Filters")
-                        # 1. Attrition Score Range slider
                         filter_score_min, filter_score_max = st.slider("Attrition Score Range", 0, 100, (0, 100), key="filter_score")
-                        # 2. Custom Filter dropdown & multiselect
-                        # Allow the user to choose a column from a preset list:
-                        custom_filter_column = st.selectbox("Select filter column", options=["Industry", "Gender", "College Tier", "Company Type"], key="filter_dropdown")
-                        # Get unique values from the chosen column (if bulk_result exists)
-                        unique_vals = []
-                        if st.session_state.bulk_result is not None and custom_filter_column in st.session_state.bulk_result.columns:
-                            unique_vals = st.session_state.bulk_result[custom_filter_column].unique().tolist()
-                        custom_filter_values = st.multiselect("Select values to filter", options=unique_vals, key="filter_values")
+                        if "show_custom_filter" not in st.session_state:
+                            st.session_state.show_custom_filter = False
+                        if st.button("Add filter"):
+                            st.session_state.show_custom_filter = not st.session_state.show_custom_filter
+                        custom_filter = ""
+                        if st.session_state.show_custom_filter:
+                            custom_filter = st.text_input("Enter custom filter (format: Column=Value)", key="custom_filter")
                         
                         filtered_df = st.session_state.bulk_result[
                             (st.session_state.bulk_result["Attrition Score"] >= filter_score_min) &
                             (st.session_state.bulk_result["Attrition Score"] <= filter_score_max)
                         ]
-                        if custom_filter_values:
-                            filtered_df = filtered_df[filtered_df[custom_filter_column].isin(custom_filter_values)]
-                        
+                        if custom_filter:
+                            try:
+                                col, val = custom_filter.split("=")
+                                col = col.strip()
+                                val = val.strip()
+                                filtered_df = filtered_df[filtered_df[col] == val]
+                            except Exception as e:
+                                st.error("Error parsing custom filter. Please use format Column=Value.")
                         st.write("Filtered Bulk Predictions")
                         st.dataframe(filtered_df)
                         
-                        # Compute risk distribution percentages and show as a bar chart
+                        # Calculate risk distribution percentages
                         risk_counts = {
                             "High (>=75)": (filtered_df["Attrition Score"] >= 75).sum(),
                             "Mod-High (60-74)": ((filtered_df["Attrition Score"] >= 60) & (filtered_df["Attrition Score"] < 75)).sum(),
