@@ -130,9 +130,6 @@ def train_model(training_df, target_column, industry):
     model.fit(X_scaled, y)
     st.write("Model coefficients:", model.coef_)
     
-    # -------------------------------
-    # Model Evaluation Metrics
-    # -------------------------------
     from sklearn.metrics import roc_curve, auc, confusion_matrix, classification_report
     preds = model.predict_proba(X_scaled)[:, 1]
     fpr, tpr, thresholds = roc_curve(y, preds)
@@ -173,7 +170,6 @@ def train_model(training_df, target_column, industry):
     
     update_industry_record(industry, model_filename, scaler_filename, features_filename)
     
-    # Save global settings to user record
     user = st.session_state.user
     user_settings = user.get("settings") or {}
     user_settings["global_avg_age"] = st.session_state.global_avg_age
@@ -297,7 +293,6 @@ TRIGGER_DETAILS = {
             "poor_benefits": "Offer competitive benefits including health insurance and retirement plans."
         }
     }
-    # Additional trigger details can be added similarly...
 }
 
 # ----------------------------------------------------
@@ -720,13 +715,12 @@ else:
                         st.markdown("<h3 style='color: white;'>What-If Analysis</h3>", unsafe_allow_html=True)
                         st.info("Adjust the parameters below to simulate changes in predicted attrition based on the negative triggers present in your data.")
                         
-                        # Create an empty dictionary to store adjustments
+                        # Dictionary to store adjustments
                         whatif_params = {}
-                        # Compute counts of negative triggers from bulk result
+                        # Compute negative trigger counts from bulk result
                         trig_series = compute_trigger_counts(st.session_state.bulk_result, "Negative Triggers")
                         
-                        # Define widget configurations for each known trigger
-                        # (Defaults are derived from global settings and bulk_result averages when applicable)
+                        # Configuration for widgets for each known trigger:
                         trigger_widget_config = {
                             "Low gender diversity": {
                                 "widget": "slider",
@@ -754,7 +748,7 @@ else:
                                 "default": int(st.session_state.bulk_result["Last Performance Rating"].mean()) if "Last Performance Rating" in st.session_state.bulk_result.columns else 3,
                                 "param": "rating"
                             },
-                            "Low performance rating": {  # Same as above
+                            "Low performance rating": {
                                 "widget": "selectbox",
                                 "label": "Last Performance Rating",
                                 "options": [1,2,3,4,5],
@@ -810,11 +804,9 @@ else:
                             }
                         }
                         
-                        # Dynamically display widgets for each trigger found in the bulk result
                         displayed_params = set()
                         for trigger, config in trigger_widget_config.items():
                             if trigger in trig_series.index:
-                                # For widget types that yield a single parameter:
                                 if config["widget"] in ["slider", "selectbox"]:
                                     param_name = config["param"]
                                     if param_name in displayed_params:
@@ -828,7 +820,6 @@ else:
                                             key=f"whatif_{param_name}"
                                         )
                                     elif config["widget"] == "selectbox":
-                                        # Find the index of the default value in options if possible
                                         default_index = config["options"].index(config["default"]) if config["default"] in config["options"] else 0
                                         whatif_params[param_name] = st.selectbox(
                                             config["label"],
@@ -920,7 +911,7 @@ else:
                         st.dataframe(df_bulk_whatif)
                         
                         high_risk_w = (df_bulk_whatif["What-If Attrition Score"] >= 75).sum()
-                        mod_high_w = ((df_bulk_whatif["What-If Attrition Score"] >= 60) & (df_bulk_whatif["What-If Attrition Score"] < 75)).sum()
+                        mod_high_w = ((df_bulk_whatif["What-If Attrition Score"] >= 60) & (df_bulk_whatIf["What-If Attrition Score"] < 75)).sum()
                         moderate_w = ((df_bulk_whatif["What-If Attrition Score"] >= 35) & (df_bulk_whatif["What-If Attrition Score"] < 60)).sum()
                         low_w = (df_bulk_whatif["What-If Attrition Score"] < 35).sum()
                         risk_df_w = pd.DataFrame({
@@ -931,175 +922,52 @@ else:
                         st.bar_chart(risk_df_w.set_index("Risk Category"))
                 else:
                     # -------------------------------
-                    # Standard Analysis Section
+                    # Standard Analysis Section (Modified with only 2 filters)
                     # -------------------------------
                     with st.expander("Analysis", expanded=True):
-                        analysis_col1, analysis_col2 = st.columns([0.35, 0.65])
-                        with analysis_col1:
-                            st.subheader("Filters")
-                            filter_score_min, filter_score_max = st.slider(
-                                "Attrition Score Range", 0, 100, (0, 100), key="filter_score"
-                            )
-                            selected_industries = st.multiselect(
-                                "Filter by Industry",
-                                options=st.session_state.bulk_result["Industry"].unique().tolist(),
-                                default=st.session_state.bulk_result["Industry"].unique().tolist(),
-                                key="filter_ind"
-                            )
-                            selected_company = st.multiselect(
-                                "Filter by Company Type",
-                                options=st.session_state.bulk_result["Company Type"].unique().tolist(),
-                                default=st.session_state.bulk_result["Company Type"].unique().tolist(),
-                                key="filter_company"
-                            )
-                            filtered_df = st.session_state.bulk_result[
-                                (st.session_state.bulk_result["Attrition Score"] >= filter_score_min) &
-                                (st.session_state.bulk_result["Attrition Score"] <= filter_score_max) &
-                                (st.session_state.bulk_result["Industry"].isin(selected_industries)) &
-                                (st.session_state.bulk_result["Company Type"].isin(selected_company))
-                            ]
-                            st.write("Filtered Bulk Predictions")
-                            st.dataframe(filtered_df)
-                        with analysis_col2:
-                            st.markdown("<h3 style='color: white;'>Custom Graph Builder</h3>", unsafe_allow_html=True)
-                            with st.form("custom_graph_form"):
-                                x_axis = st.selectbox("Select X Axis", options=filtered_df.columns, key="custom_x")
-                                y_axis = st.selectbox("Select Y Axis", options=filtered_df.columns, key="custom_y")
-                                data_label = st.selectbox("Select Data Label (Optional)", options=["None"] + list(filtered_df.columns), key="custom_label")
-                                submitted_custom = st.form_submit_button("Generate Custom Chart")
-                            if submitted_custom:
-                                if x_axis == "Negative Triggers" or y_axis == "Negative Triggers":
-                                    ct = compute_trigger_counts(filtered_df, "Negative Triggers").reset_index()
-                                    ct.columns = ["Trigger", "Count"]
-                                    custom_chart = alt.Chart(ct).mark_bar(color="#e45756").encode(
-                                        x=alt.X("Trigger:N", title="Negative Triggers"),
-                                        y=alt.Y("Count:Q", title="Count"),
-                                        tooltip=["Trigger", "Count"]
-                                    )
-                                else:
-                                    x_is_numeric = pd.api.types.is_numeric_dtype(filtered_df[x_axis])
-                                    y_is_numeric = pd.api.types.is_numeric_dtype(filtered_df[y_axis])
-                                    if x_is_numeric and y_is_numeric:
-                                        custom_chart = alt.Chart(filtered_df).mark_circle(size=60, color="#4c78a8").encode(
-                                            x=alt.X(f"{x_axis}:Q", title=x_axis),
-                                            y=alt.Y(f"{y_axis}:Q", title=y_axis),
-                                            tooltip=["Name", x_axis, y_axis]
-                                        )
-                                    elif not x_is_numeric and y_is_numeric:
-                                        custom_chart = alt.Chart(filtered_df).mark_boxplot(color="#e45756").encode(
-                                            x=alt.X(f"{x_axis}:N", title=x_axis),
-                                            y=alt.Y(f"{y_axis}:Q", title=y_axis),
-                                            tooltip=[x_axis, y_axis]
-                                        )
-                                    elif x_is_numeric and not y_is_numeric:
-                                        custom_chart = alt.Chart(filtered_df).mark_boxplot(color="#e45756").encode(
-                                            x=alt.X(f"{y_axis}:N", title=y_axis),
-                                            y=alt.Y(f"{x_axis}:Q", title=x_axis),
-                                            tooltip=[x_axis, y_axis]
-                                        )
-                                    else:
-                                        custom_chart = alt.Chart(filtered_df).mark_bar(color="#4c78a8").encode(
-                                            x=alt.X(f"{x_axis}:N", title=x_axis),
-                                            y=alt.Y("count()", title="Count"),
-                                            tooltip=[x_axis]
-                                        )
-                                st.session_state.custom_charts.insert(0, {
-                                    "chart": custom_chart,
-                                    "title": f"Custom Chart: {x_axis} vs {y_axis}",
-                                    "explanation": "This chart was generated based on your selected axes."
-                                })
-                                st.success("Custom chart generated and added!")
-                            
-                            if st.session_state.custom_charts:
-                                st.markdown("<h3 style='color: white;'>Your Custom Charts</h3>", unsafe_allow_html=True)
-                                for custom in st.session_state.custom_charts:
-                                    st.markdown(graph_header(custom["title"], custom["explanation"]), unsafe_allow_html=True)
-                                    st.altair_chart(custom["chart"], use_container_width=True)
-                            
-                            st.markdown(graph_header("Employee Age vs Attrition Score", 
-                                                       "A scatter plot showing the relationship between employee age and the predicted attrition risk."), 
-                                        unsafe_allow_html=True)
-                            scatter_chart = alt.Chart(filtered_df).mark_circle(size=60, color="#4c78a8").encode(
-                                x=alt.X("Employee Age:Q", title="Employee Age"),
-                                y=alt.Y("Attrition Score:Q", title="Attrition Score"),
-                                tooltip=["Name", "Employee Age", "Attrition Score", "Industry"]
-                            )
-                            st.altair_chart(scatter_chart, use_container_width=True)
-                            
-                            st.markdown(graph_header("Attrition Score Distribution", 
-                                                       "A histogram showing how frequently each attrition risk score occurs among employees."), 
-                                        unsafe_allow_html=True)
-                            hist_chart = alt.Chart(filtered_df).mark_bar(color="#e45756").encode(
-                                x=alt.X("Attrition Score:Q", bin=alt.Bin(maxbins=20), title="Attrition Score"),
-                                y=alt.Y("count()", title="Frequency")
-                            )
-                            st.altair_chart(hist_chart, use_container_width=True)
-                            
-                            st.markdown(graph_header("Employee Age by Gender", 
-                                                       "A box plot comparing age distributions across genders."), 
-                                        unsafe_allow_html=True)
-                            box_chart_age_gender = alt.Chart(filtered_df).mark_boxplot(color="#4c78a8").encode(
-                                x=alt.X("Gender:N", title="Gender"),
-                                y=alt.Y("Employee Age:Q", title="Employee Age"),
-                                tooltip=["Gender", "Employee Age"]
-                            )
-                            st.altair_chart(box_chart_age_gender, use_container_width=True)
-                            
-                            st.markdown(graph_header("Compa Ratio vs Attrition Score", 
-                                                       "A scatter plot exploring the relationship between the compensation ratio and attrition risk."), 
-                                        unsafe_allow_html=True)
-                            scatter_chart_compa = alt.Chart(filtered_df).mark_circle(size=60, color="#e45756").encode(
-                                x=alt.X("Compa Ratio:Q", title="Compa Ratio"),
-                                y=alt.Y("Attrition Score:Q", title="Attrition Score"),
-                                tooltip=["Name", "Compa Ratio", "Attrition Score"]
-                            )
-                            st.altair_chart(scatter_chart_compa, use_container_width=True)
-                            
-                            st.markdown(graph_header("Correlation Heatmap", 
-                                                       "A heatmap displaying the correlation among numeric features."), 
-                                        unsafe_allow_html=True)
-                            numeric_df = filtered_df.select_dtypes(include=[np.number])
-                            corr = numeric_df.corr().reset_index().melt(id_vars="index")
-                            heatmap = alt.Chart(corr).mark_rect().encode(
-                                x=alt.X("index:N", title=""),
-                                y=alt.Y("variable:N", title=""),
-                                color=alt.Color("value:Q", scale=alt.Scale(scheme='redblue')),
-                                tooltip=["index", "variable", "value"]
-                            )
-                            st.altair_chart(heatmap, use_container_width=True)
-                            
-                            st.markdown(graph_header("Industry Distribution", 
-                                                       "A pie chart displaying the distribution of employees across industries."), 
-                                        unsafe_allow_html=True)
-                            industry_counts = filtered_df['Industry'].value_counts().reset_index()
-                            industry_counts.columns = ['Industry', 'Count']
-                            pie_chart = alt.Chart(industry_counts).mark_arc().encode(
-                                theta=alt.Theta(field="Count", type="quantitative"),
-                                color=alt.Color(field="Industry", type="nominal"),
-                                tooltip=["Industry", "Count"]
-                            )
-                            st.altair_chart(pie_chart, use_container_width=True)
-                            
-                            st.markdown(graph_header("Negative Triggers Count", 
-                                                       "A bar chart showing how often each negative trigger was identified."), 
-                                        unsafe_allow_html=True)
-                            trigger_counts = compute_trigger_counts(filtered_df, "Negative Triggers").reset_index()
-                            trigger_counts.columns = ["Trigger", "Count"]
-                            bar_chart_triggers = alt.Chart(trigger_counts).mark_bar(color="#e45756").encode(
-                                x=alt.X("Trigger:N", sort='-y', title="Trigger"),
-                                y=alt.Y("Count:Q", title="Count"),
-                                tooltip=["Trigger", "Count"]
-                            )
-                            st.altair_chart(bar_chart_triggers, use_container_width=True)
-                            
-                            st.markdown(graph_header("Tenure by Industry", 
-                                                       "A box plot showing how employee tenure varies across industries."), 
-                                        unsafe_allow_html=True)
-                            box_chart_tenure_ind = alt.Chart(filtered_df).mark_boxplot(color="#4c78a8").encode(
-                                x=alt.X("Industry:N", title="Industry"),
-                                y=alt.Y("Tenure (Months):Q", title="Tenure (Months)"),
-                                tooltip=["Industry", "Tenure (Months)"]
-                            )
-                            st.altair_chart(box_chart_tenure_ind, use_container_width=True)
+                        st.subheader("Filters")
+                        # 1. Attrition Score Range slider
+                        filter_score_min, filter_score_max = st.slider("Attrition Score Range", 0, 100, (0, 100), key="filter_score")
+                        # 2. Custom Filter dropdown & multiselect
+                        # Allow the user to choose a column from a preset list:
+                        custom_filter_column = st.selectbox("Select filter column", options=["Industry", "Gender", "College Tier", "Company Type"], key="filter_dropdown")
+                        # Get unique values from the chosen column (if bulk_result exists)
+                        unique_vals = []
+                        if st.session_state.bulk_result is not None and custom_filter_column in st.session_state.bulk_result.columns:
+                            unique_vals = st.session_state.bulk_result[custom_filter_column].unique().tolist()
+                        custom_filter_values = st.multiselect("Select values to filter", options=unique_vals, key="filter_values")
+                        
+                        filtered_df = st.session_state.bulk_result[
+                            (st.session_state.bulk_result["Attrition Score"] >= filter_score_min) &
+                            (st.session_state.bulk_result["Attrition Score"] <= filter_score_max)
+                        ]
+                        if custom_filter_values:
+                            filtered_df = filtered_df[filtered_df[custom_filter_column].isin(custom_filter_values)]
+                        
+                        st.write("Filtered Bulk Predictions")
+                        st.dataframe(filtered_df)
+                        
+                        # Compute risk distribution percentages and show as a bar chart
+                        risk_counts = {
+                            "High (>=75)": (filtered_df["Attrition Score"] >= 75).sum(),
+                            "Mod-High (60-74)": ((filtered_df["Attrition Score"] >= 60) & (filtered_df["Attrition Score"] < 75)).sum(),
+                            "Moderate (35-59)": ((filtered_df["Attrition Score"] >= 35) & (filtered_df["Attrition Score"] < 60)).sum(),
+                            "Low (<35)": (filtered_df["Attrition Score"] < 35).sum()
+                        }
+                        total = sum(risk_counts.values())
+                        risk_percentages = {k: (v/total)*100 if total > 0 else 0 for k,v in risk_counts.items()}
+                        risk_df = pd.DataFrame({
+                            "Risk Category": list(risk_percentages.keys()),
+                            "Percentage": list(risk_percentages.values())
+                        })
+                        st.markdown("### Overall Risk Distribution")
+                        risk_chart = alt.Chart(risk_df).mark_bar().encode(
+                            x=alt.X("Risk Category:N", title="Risk Category"),
+                            y=alt.Y("Percentage:Q", title="Percentage"),
+                            tooltip=["Risk Category", "Percentage"]
+                        )
+                        st.altair_chart(risk_chart, use_container_width=True)
+                        st.write("Filtered Data:")
+                        st.dataframe(filtered_df)
         else:
             st.info("Please upload a bulk data file to begin analysis.")
