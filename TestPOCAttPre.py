@@ -171,8 +171,9 @@ def train_model(training_df, target_column, industry):
     for idx, row in training_df.iterrows():
         update_industry_average_ctc(row, industry)
         
-    # Drop columns that are not used as ML features (but will be used in post-analysis)
-    drop_cols = [target_column, "Designation", "Level", "Base Location of joining"]
+    # Drop columns that are not used as ML features (but may be used in post-analysis)
+    # Removed: "Designation" and "Total Job Experience in years"
+    drop_cols = [target_column, "Total Job Experience in years", "Base Location of joining"]
     X = training_df.drop(columns=drop_cols, errors='ignore')
     y = training_df[target_column]
     X_encoded = pd.get_dummies(X)
@@ -331,7 +332,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
             elif -40 <= pct_diff < -20:
                 score -= 10  # moderate deviation
             elif pct_diff < -40:
-                extreme_factors += 0.5  # significant below average
+                extreme_factors += 0.5  # significantly below average
             elif pct_diff > 40:
                 extreme_factors -= 0.5  # significantly above average
     # --- New factor: Increase from last company (assumed percentage increase)
@@ -365,8 +366,8 @@ def predict_attrition(employee_data, industry):
     if model is None:
         return None, None, None
     df_input = pd.DataFrame([employee_data])
-    # Drop non-training columns from input (e.g., Designation, Level, Base Location)
-    df_input = df_input.drop(columns=["Designation", "Level", "Base Location of joining"], errors='ignore')
+    # Drop non-training columns from input (removed: Designation, Total Job Experience in years)
+    df_input = df_input.drop(columns=["Total Job Experience in years", "Base Location of joining"], errors='ignore')
     df_input = pd.get_dummies(df_input)
     df_input = df_input.reindex(columns=feature_columns, fill_value=0)
     X_scaled = scaler.transform(df_input)
@@ -380,7 +381,6 @@ def generate_sample_csv():
         "Name": ["Example 1", "Example 2"],
         "Employee Age": [30, 45],
         "Gender": ["Male", "Female"],
-        "Designation": ["Software Engineer", "Manager"],
         "Level": ["Junior", "Senior"],
         "Tenure (Months)": [36, 48],
         "Pulse": ["Medium", "High"],
@@ -393,7 +393,6 @@ def generate_sample_csv():
         "Compa Ratio": [90, 65],
         "Joining CTC (INR)": [600000, 800000],
         "Increase from last company": [15, 8],
-        "Total Job Experience in years": [5, 12],
         "Base Location of joining": ["Bangalore", "Mumbai"],
         "Number of companies worked in the past": [2, 4],
         "Highest Degree": ["Bachelor", "Master"],
@@ -409,7 +408,6 @@ def generate_dummy_training_file():
         "Name": ["Example 1", "Example 2", "Example 3"],
         "Employee Age": [30, 40, 35],
         "Gender": ["Male", "Female", "Male"],
-        "Designation": ["Engineer", "Manager", "Engineer"],
         "Level": ["Junior", "Senior", "Mid"],
         "Tenure (Months)": [36, 48, 24],
         "Pulse": ["Medium", "High", "Low"],
@@ -422,7 +420,6 @@ def generate_dummy_training_file():
         "Compa Ratio": [90, 65, 100],
         "Joining CTC (INR)": [550000, 750000, 800000],
         "Increase from last company": [12, 8, 20],
-        "Total Job Experience in years": [4, 10, 7],
         "Base Location of joining": ["Bangalore", "Delhi", "Mumbai"],
         "Number of companies worked in the past": [1, 3, 2],
         "Highest Degree": ["Bachelor", "Master", "Bachelor"],
@@ -475,7 +472,6 @@ if not st.session_state.logged_in:
     else:
         with st.form("signup_form"):
             name = st.text_input("Name")
-            designation = st.text_input("Designation")
             company = st.text_input("Company Name")
             email = st.text_input("Email")
             password = st.text_input("Password", type="password")
@@ -491,7 +487,6 @@ if not st.session_state.logged_in:
                     else:
                         user = {
                             "name": name,
-                            "designation": designation,
                             "company": company,
                             "email": email,
                             "password": password,
@@ -597,7 +592,6 @@ if st.session_state.nav == "My Account":
     user = st.session_state.user
     st.write("### Account Information")
     st.write(f"**Name:** {user.get('name', '')}")
-    st.write(f"**Designation:** {user.get('designation', '')}")
     st.write(f"**Company:** {user.get('company', '')}")
     st.write(f"**Email:** {user.get('email', '')}")
     st.write("### Saved Global Settings")
@@ -624,10 +618,10 @@ else:
             Ensure you have trained a model in Train Mode.
             <br><br>
             Upload a CSV/Excel file with columns:
-            Name, Employee Age, Gender, Designation, Level, Tenure (Months), Pulse, 
+            Name, Employee Age, Gender, Level, Tenure (Months), Pulse, 
             Hasn't been promoted, Minimum Promotion Cycle, College Tier, Industry, Company Type,
             Last Performance Rating, Compa Ratio, Joining CTC (INR), Increase from last company,
-            Total Job Experience in years, Base Location of joining, Number of companies worked in the past,
+            Base Location of joining, Number of companies worked in the past,
             Highest Degree, Overall Participation in Events.
             <br><br>
             (No Attrition column needed for testing.)
@@ -656,10 +650,10 @@ else:
             - **Feature columns** (used for ML training):
                 - Employee Age, Gender, Tenure (Months), Pulse, Hasn't been promoted, Minimum Promotion Cycle,
                   College Tier, Industry, Company Type, Last Performance Rating, Compa Ratio,
-                  Joining CTC (INR), Increase from last company, Total Job Experience in years,
-                  Number of companies worked in the past, Highest Degree, Overall Participation in Events.
+                  Joining CTC (INR), Increase from last company, Number of companies worked in the past,
+                  Highest Degree, Overall Participation in Events.
             - **Filter columns** (not used in ML but used for post‑analysis filtering):
-                - Designation, Level, Base Location of joining.
+                - Level, Base Location of joining.
             """)
             st.download_button(
                 label="Download Dummy Training File",
@@ -689,11 +683,11 @@ else:
             st.write("### Bulk Data Preview:")
             st.dataframe(df_bulk.head())
             required_cols = [
-                "Name", "Employee Age", "Gender", "Designation", "Level", "Tenure (Months)", "Pulse",
+                "Name", "Employee Age", "Gender", "Level", "Tenure (Months)", "Pulse",
                 "Hasn't been promoted", "Minimum Promotion Cycle", "College Tier",
                 "Industry", "Company Type", "Last Performance Rating", "Compa Ratio",
-                "Joining CTC (INR)", "Increase from last company", "Total Job Experience in years",
-                "Base Location of joining", "Number of companies worked in the past", "Highest Degree",
+                "Joining CTC (INR)", "Increase from last company", "Base Location of joining",
+                "Number of companies worked in the past", "Highest Degree",
                 "Overall Participation in Events"
             ]
             missing = [c for c in required_cols if c not in df_bulk.columns]
@@ -740,7 +734,7 @@ else:
                                 triggers_list.append("Prediction Failed")
                                 continue
                             scores.append(bulk_score)
-                            neg_trigs = [t for t in bulk_trigs if t in []]  # triggers mapping can be adjusted as needed
+                            neg_trigs = [t for t in bulk_trigs if t in []]  # adjust as needed
                             triggers_str = ", ".join(neg_trigs) if neg_trigs else "None"
                             triggers_list.append(triggers_str)
                         df_bulk["Attrition Score"] = scores
@@ -884,32 +878,11 @@ else:
                                     default=st.session_state.bulk_result["Company Type"].unique().tolist(),
                                     key="filter_company"
                                 )
-                                # Additional filters for new fields:
-                                selected_designations = st.multiselect(
-                                    "Filter by Designation",
-                                    options=st.session_state.bulk_result["Designation"].unique().tolist(),
-                                    default=st.session_state.bulk_result["Designation"].unique().tolist(),
-                                    key="filter_designation"
-                                )
                                 selected_levels = st.multiselect(
                                     "Filter by Level",
                                     options=st.session_state.bulk_result["Level"].unique().tolist(),
                                     default=st.session_state.bulk_result["Level"].unique().tolist(),
                                     key="filter_level"
-                                )
-                                exp_min = int(st.session_state.bulk_result["Total Job Experience in years"].min())
-                                exp_max = int(st.session_state.bulk_result["Total Job Experience in years"].max())
-                                exp_range = st.slider(
-                                    "Total Job Experience (Years)",
-                                    exp_min, exp_max, (exp_min, exp_max),
-                                    key="filter_experience"
-                                )
-                                inc_min = int(st.session_state.bulk_result["Increase from last company"].min())
-                                inc_max = int(st.session_state.bulk_result["Increase from last company"].max())
-                                inc_range = st.slider(
-                                    "Increase from last company (%)",
-                                    inc_min, inc_max, (inc_min, inc_max),
-                                    key="filter_increase"
                                 )
                                 selected_locations = st.multiselect(
                                     "Filter by Base Location of joining",
@@ -922,10 +895,7 @@ else:
                                     (st.session_state.bulk_result["Attrition Score"] <= filter_score_max) &
                                     (st.session_state.bulk_result["Industry"].isin(selected_industries)) &
                                     (st.session_state.bulk_result["Company Type"].isin(selected_company)) &
-                                    (st.session_state.bulk_result["Designation"].isin(selected_designations)) &
                                     (st.session_state.bulk_result["Level"].isin(selected_levels)) &
-                                    (st.session_state.bulk_result["Total Job Experience in years"].between(exp_range[0], exp_range[1])) &
-                                    (st.session_state.bulk_result["Increase from last company"].between(inc_range[0], inc_range[1])) &
                                     (st.session_state.bulk_result["Base Location of joining"].isin(selected_locations))
                                 ]
                                 st.write("Filtered Bulk Predictions")
