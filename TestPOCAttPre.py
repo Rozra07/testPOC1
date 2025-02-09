@@ -141,6 +141,12 @@ def update_industry_average_ctc(row, industry):
     ctc = row.get("Joining CTC (INR)")
     if ctc is None:
         return
+    # Convert the ctc to a float in case it is a string.
+    try:
+        ctc = float(ctc)
+    except ValueError:
+        st.warning(f"Unable to convert Joining CTC '{ctc}' to float; skipping update.")
+        return
     if industry not in data:
         data[industry] = {}
     if level not in data[industry]:
@@ -172,7 +178,7 @@ def train_model(training_df, target_column, industry):
         update_industry_average_ctc(row, industry)
         
     # Drop columns that are not used as ML features (but may be used in post-analysis)
-    # Removed: "Designation" and "Total Job Experience in years"
+    # Removed: "Total Job Experience in years"
     drop_cols = [target_column, "Total Job Experience in years", "Base Location of joining"]
     X = training_df.drop(columns=drop_cols, errors='ignore')
     y = training_df[target_column]
@@ -326,7 +332,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
     if ("Joining CTC (INR)" in employee and "Level" in employee and "Industry" in employee):
         avg_ctc = get_industry_average_ctc(employee["Industry"], employee["Level"])
         if avg_ctc is not None:
-            pct_diff = (employee["Joining CTC (INR)"] - avg_ctc) / avg_ctc * 100
+            pct_diff = (float(employee["Joining CTC (INR)"]) - avg_ctc) / avg_ctc * 100
             if -20 <= pct_diff <= 20:
                 pass  # within acceptable range, no change
             elif -40 <= pct_diff < -20:
@@ -366,7 +372,7 @@ def predict_attrition(employee_data, industry):
     if model is None:
         return None, None, None
     df_input = pd.DataFrame([employee_data])
-    # Drop non-training columns from input (removed: Designation, Total Job Experience in years)
+    # Drop non-training columns from input (removed: Total Job Experience in years)
     df_input = df_input.drop(columns=["Total Job Experience in years", "Base Location of joining"], errors='ignore')
     df_input = pd.get_dummies(df_input)
     df_input = df_input.reindex(columns=feature_columns, fill_value=0)
