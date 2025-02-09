@@ -116,11 +116,64 @@ industry_options = [
 ]
 
 # ----------------------------------------------------
+# Functions for managing industry average Joining CTC values
+# ----------------------------------------------------
+INDUSTRY_CTC_FILE = "industry_average_ctc.json"
+
+def load_industry_ctc():
+    if os.path.exists(INDUSTRY_CTC_FILE):
+        with open(INDUSTRY_CTC_FILE, "r") as f:
+            return json.load(f)
+    else:
+        return {}
+
+def save_industry_ctc(data):
+    with open(INDUSTRY_CTC_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+def update_industry_average_ctc(row, industry):
+    """
+    Update the backup industry average joining CTC for a given industry and job level.
+    Expects the row to have keys "Level" and "Joining CTC (INR)".
+    """
+    data = load_industry_ctc()
+    level = str(row.get("Level", "Unknown"))
+    ctc = row.get("Joining CTC (INR)")
+    if ctc is None:
+        return
+    if industry not in data:
+        data[industry] = {}
+    if level not in data[industry]:
+        data[industry][level] = {"total": 0, "count": 0}
+    data[industry][level]["total"] += ctc
+    data[industry][level]["count"] += 1
+    save_industry_ctc(data)
+
+def get_industry_average_ctc(industry, level):
+    """
+    Retrieve the industry average joining CTC for a given industry and job level.
+    """
+    data = load_industry_ctc()
+    level = str(level)
+    if industry in data and level in data[industry]:
+        total = data[industry][level]["total"]
+        count = data[industry][level]["count"]
+        return total / count if count != 0 else None
+    else:
+        return None
+
+# ----------------------------------------------------
 # Functions for model training/prediction
 # ----------------------------------------------------
 def train_model(training_df, target_column, industry):
     st.write("Training on data shape:", training_df.shape)
-    X = training_df.drop(columns=[target_column])
+    # Update the industry average joining CTC using training data
+    for idx, row in training_df.iterrows():
+        update_industry_average_ctc(row, industry)
+        
+    # Drop columns that are not used as ML features (but will be used in post-analysis)
+    drop_cols = [target_column, "Designation", "Level", "Base Location of joining"]
+    X = training_df.drop(columns=drop_cols, errors='ignore')
     y = training_df[target_column]
     X_encoded = pd.get_dummies(X)
     feature_columns = list(X_encoded.columns)
@@ -234,104 +287,7 @@ def load_model(industry):
         return None, None, None
 
 # ----------------------------------------------------
-# Trigger Details (for recommended solutions)
-# ----------------------------------------------------
-TRIGGER_DETAILS = {
-    "Low gender diversity": {
-        "subproblems": {
-            "lack_female_applicants": "Not enough female applicants are applying.",
-            "lack_female_mentors": "There are few female mentors or leaders available.",
-            "rigid_policies": "The policies are too rigid (e.g., no maternity or remote options)."
-        },
-        "solutions": {
-            "lack_female_applicants": (
-                "Partner with women’s universities or female‑oriented professional groups and emphasize diversity in recruitment."
-            ),
-            "lack_female_mentors": (
-                "Implement formal mentorship programs and sponsor leadership development for female employees."
-            ),
-            "rigid_policies": (
-                "Introduce flexible working hours, remote/hybrid work options, and enhance family‑friendly benefits."
-            )
-        }
-    },
-    "Stagnant promotions": {
-        "subproblems": {
-            "unclear_criteria": "Promotion criteria are not transparent.",
-            "no_mentorship": "There is a lack of mentorship or upskilling tracks.",
-            "bureaucratic_structure": "The organizational structure is overly bureaucratic."
-        },
-        "solutions": {
-            "unclear_criteria": (
-                "Publish clear promotion guidelines with KPIs and provide regular feedback."
-            ),
-            "no_mentorship": (
-                "Launch mentoring programs and provide upskilling opportunities."
-            ),
-            "bureaucratic_structure": (
-                "Streamline decision‑making processes or reduce hierarchical layers to foster agility."
-            )
-        }
-    },
-    "Very low performance rating": {
-        "subproblems": {
-            "misaligned_role": "Job roles or expectations are unclear or mismatched.",
-            "no_feedback": "There is a lack of continuous feedback or one‑on‑one sessions.",
-            "skill_gaps": "Training needs are not being addressed."
-        },
-        "solutions": {
-            "misaligned_role": (
-                "Clarify job responsibilities, set SMART goals, and align roles with employees’ strengths."
-            ),
-            "no_feedback": (
-                "Implement frequent one‑on‑one check‑ins and real‑time performance dashboards."
-            ),
-            "skill_gaps": (
-                "Offer targeted training, certification reimbursements, and peer‑to‑peer learning opportunities."
-            )
-        }
-    },
-    "Low performance rating": {
-        "subproblems": {
-            "misaligned_role": "Job roles or expectations are unclear or mismatched.",
-            "no_feedback": "Continuous feedback is lacking.",
-            "skill_gaps": "Training needs are not addressed."
-        },
-        "solutions": {
-            "misaligned_role": (
-                "Clarify job responsibilities and ensure roles align with employees’ strengths."
-            ),
-            "no_feedback": (
-                "Implement regular one‑on‑one check‑ins and provide ongoing coaching."
-            ),
-            "skill_gaps": (
-                "Offer targeted training sessions and promote cross‑functional learning."
-            )
-        }
-    },
-    "Low compensation competitiveness": {
-        "subproblems": {
-            "below_market": "Base salary is below market rates.",
-            "minimal_bonus": "Bonuses or variable pay are minimal or nonexistent.",
-            "poor_benefits": "The benefits package is insufficient."
-        },
-        "solutions": {
-            "below_market": (
-                "Conduct market benchmarking to adjust salaries to at least median levels."
-            ),
-            "minimal_bonus": (
-                "Introduce performance‑based incentives or profit‑sharing schemes."
-            ),
-            "poor_benefits": (
-                "Offer competitive benefits including health insurance and retirement plans."
-            )
-        }
-    },
-    # Additional trigger details can be added similarly...
-}
-
-# ----------------------------------------------------
-# Rule-based attrition computation
+# Rule-based attrition computation (with new factors)
 # ----------------------------------------------------
 def compute_weighted_attrition(employee, return_triggers=False):
     score = 0
@@ -365,14 +321,37 @@ def compute_weighted_attrition(employee, return_triggers=False):
     elif employee["Pulse"] == "Low":
         score -= 20; extreme_factors -= 0.5; triggers.append("Low dissatisfaction (Pulse)")
     
+    # --- New factor: Joining CTC (INR) compared to industry average for the given job level
+    if ("Joining CTC (INR)" in employee and "Level" in employee and "Industry" in employee):
+        avg_ctc = get_industry_average_ctc(employee["Industry"], employee["Level"])
+        if avg_ctc is not None:
+            pct_diff = (employee["Joining CTC (INR)"] - avg_ctc) / avg_ctc * 100
+            if -20 <= pct_diff <= 20:
+                pass  # within acceptable range, no change
+            elif -40 <= pct_diff < -20:
+                score -= 10  # moderate deviation
+            elif pct_diff < -40:
+                extreme_factors += 0.5  # significant below average
+            elif pct_diff > 40:
+                extreme_factors -= 0.5  # significantly above average
+    # --- New factor: Increase from last company (assumed percentage increase)
+    if "Increase from last company" in employee:
+        inc = employee["Increase from last company"]
+        # Example ranges: low increase (<10%) adds risk, high increase (>30%) reduces risk.
+        if inc < 10:
+            score += 10
+        elif inc > 30:
+            score -= 5
+
+    final_score = score  # later adjustments based on extreme_factors
     if extreme_factors == 2:
-        score = min(100, score * 1.3)
+        final_score = min(100, score * 1.3)
     elif extreme_factors == 3:
-        score = min(100, score * 1.6)
+        final_score = min(100, score * 1.6)
     elif extreme_factors >= 4:
-        score = min(100, score * 2)
+        final_score = min(100, score * 2)
     
-    final_score = min(100, max(0, score))
+    final_score = min(100, max(0, final_score))
     if return_triggers:
         return final_score, triggers
     else:
@@ -386,6 +365,8 @@ def predict_attrition(employee_data, industry):
     if model is None:
         return None, None, None
     df_input = pd.DataFrame([employee_data])
+    # Drop non-training columns from input (e.g., Designation, Level, Base Location)
+    df_input = df_input.drop(columns=["Designation", "Level", "Base Location of joining"], errors='ignore')
     df_input = pd.get_dummies(df_input)
     df_input = df_input.reindex(columns=feature_columns, fill_value=0)
     X_scaled = scaler.transform(df_input)
@@ -396,8 +377,11 @@ def predict_attrition(employee_data, industry):
 
 def generate_sample_csv():
     sample_csv = pd.DataFrame({
+        "Name": ["Example 1", "Example 2"],
         "Employee Age": [30, 45],
         "Gender": ["Male", "Female"],
+        "Designation": ["Software Engineer", "Manager"],
+        "Level": ["Junior", "Senior"],
         "Tenure (Months)": [36, 48],
         "Pulse": ["Medium", "High"],
         "Hasn't been promoted": [12, 36],
@@ -406,7 +390,15 @@ def generate_sample_csv():
         "Industry": ["Tech", "Finance"],
         "Company Type": ["Startup", "Enterprise"],
         "Last Performance Rating": [3, 1],
-        "Compa Ratio": [90, 65]
+        "Compa Ratio": [90, 65],
+        "Joining CTC (INR)": [600000, 800000],
+        "Increase from last company": [15, 8],
+        "Total Job Experience in years": [5, 12],
+        "Base Location of joining": ["Bangalore", "Mumbai"],
+        "Number of companies worked in the past": [2, 4],
+        "Highest Degree": ["Bachelor", "Master"],
+        "Overall Participation in Events": ["Medium", "High"],
+        "Attrition": [0, 1]
     })
     csv_buffer = io.StringIO()
     sample_csv.to_csv(csv_buffer, index=False)
@@ -417,6 +409,8 @@ def generate_dummy_training_file():
         "Name": ["Example 1", "Example 2", "Example 3"],
         "Employee Age": [30, 40, 35],
         "Gender": ["Male", "Female", "Male"],
+        "Designation": ["Engineer", "Manager", "Engineer"],
+        "Level": ["Junior", "Senior", "Mid"],
         "Tenure (Months)": [36, 48, 24],
         "Pulse": ["Medium", "High", "Low"],
         "Hasn't been promoted": [12, 30, 15],
@@ -426,6 +420,13 @@ def generate_dummy_training_file():
         "Company Type": ["Startup", "Enterprise", "SME"],
         "Last Performance Rating": [3, 1, 4],
         "Compa Ratio": [90, 65, 100],
+        "Joining CTC (INR)": [550000, 750000, 800000],
+        "Increase from last company": [12, 8, 20],
+        "Total Job Experience in years": [4, 10, 7],
+        "Base Location of joining": ["Bangalore", "Delhi", "Mumbai"],
+        "Number of companies worked in the past": [1, 3, 2],
+        "Highest Degree": ["Bachelor", "Master", "Bachelor"],
+        "Overall Participation in Events": ["High", "Medium", "Low"],
         "Attrition": [0, 1, 0]
     })
     csv_buffer = io.StringIO()
@@ -622,9 +623,12 @@ else:
           <span class="tooltiptext">
             Ensure you have trained a model in Train Mode.
             <br><br>
-            Upload a CSV/Excel file with columns: Name, Employee Age, Gender, Tenure (Months),
-            Pulse, Hasn't been promoted, Minimum Promotion Cycle, College Tier, Industry, 
-            Company Type, Last Performance Rating, Compa Ratio.
+            Upload a CSV/Excel file with columns:
+            Name, Employee Age, Gender, Designation, Level, Tenure (Months), Pulse, 
+            Hasn't been promoted, Minimum Promotion Cycle, College Tier, Industry, Company Type,
+            Last Performance Rating, Compa Ratio, Joining CTC (INR), Increase from last company,
+            Total Job Experience in years, Base Location of joining, Number of companies worked in the past,
+            Highest Degree, Overall Participation in Events.
             <br><br>
             (No Attrition column needed for testing.)
           </span>
@@ -649,9 +653,13 @@ else:
             st.markdown("""
             Your training file must include:
             - A **target column** (e.g., Attrition; use 0 for active, 1 for non‑active).
-            - **Feature columns:** Employee Age, Gender, Tenure (Months), Pulse, 
-              Hasn't been promoted, Minimum Promotion Cycle, College Tier, Industry, 
-              Company Type, Last Performance Rating, Compa Ratio.
+            - **Feature columns** (used for ML training):
+                - Employee Age, Gender, Tenure (Months), Pulse, Hasn't been promoted, Minimum Promotion Cycle,
+                  College Tier, Industry, Company Type, Last Performance Rating, Compa Ratio,
+                  Joining CTC (INR), Increase from last company, Total Job Experience in years,
+                  Number of companies worked in the past, Highest Degree, Overall Participation in Events.
+            - **Filter columns** (not used in ML but used for post‑analysis filtering):
+                - Designation, Level, Base Location of joining.
             """)
             st.download_button(
                 label="Download Dummy Training File",
@@ -681,9 +689,12 @@ else:
             st.write("### Bulk Data Preview:")
             st.dataframe(df_bulk.head())
             required_cols = [
-                "Name", "Employee Age", "Gender", "Tenure (Months)", "Pulse",
+                "Name", "Employee Age", "Gender", "Designation", "Level", "Tenure (Months)", "Pulse",
                 "Hasn't been promoted", "Minimum Promotion Cycle", "College Tier",
-                "Industry", "Company Type", "Last Performance Rating", "Compa Ratio"
+                "Industry", "Company Type", "Last Performance Rating", "Compa Ratio",
+                "Joining CTC (INR)", "Increase from last company", "Total Job Experience in years",
+                "Base Location of joining", "Number of companies worked in the past", "Highest Degree",
+                "Overall Participation in Events"
             ]
             missing = [c for c in required_cols if c not in df_bulk.columns]
             if missing:
@@ -729,7 +740,7 @@ else:
                                 triggers_list.append("Prediction Failed")
                                 continue
                             scores.append(bulk_score)
-                            neg_trigs = [t for t in bulk_trigs if t in TRIGGER_DETAILS]
+                            neg_trigs = [t for t in bulk_trigs if t in []]  # triggers mapping can be adjusted as needed
                             triggers_str = ", ".join(neg_trigs) if neg_trigs else "None"
                             triggers_list.append(triggers_str)
                         df_bulk["Attrition Score"] = scores
@@ -780,7 +791,6 @@ else:
                         st.markdown("### Recalculated Predictions with What-If Adjustments")
                         new_scores = []
                         new_triggers_list = []
-                        # Use a new dataframe for what-if calculations
                         df_bulk_whatif = st.session_state.bulk_result.copy()
                         for idx, row in df_bulk_whatif.iterrows():
                             new_row = dict(row)
@@ -820,7 +830,7 @@ else:
                                 new_score = None
                                 new_trigs = ["Prediction Failed"]
                             new_scores.append(new_score)
-                            neg_trigs = [t for t in new_trigs if t in TRIGGER_DETAILS]
+                            neg_trigs = [t for t in new_trigs if t in []]
                             triggers_str = ", ".join(neg_trigs) if neg_trigs else "None"
                             new_triggers_list.append(triggers_str)
                         df_bulk_whatif["What-If Attrition Score"] = new_scores
@@ -874,11 +884,49 @@ else:
                                     default=st.session_state.bulk_result["Company Type"].unique().tolist(),
                                     key="filter_company"
                                 )
+                                # Additional filters for new fields:
+                                selected_designations = st.multiselect(
+                                    "Filter by Designation",
+                                    options=st.session_state.bulk_result["Designation"].unique().tolist(),
+                                    default=st.session_state.bulk_result["Designation"].unique().tolist(),
+                                    key="filter_designation"
+                                )
+                                selected_levels = st.multiselect(
+                                    "Filter by Level",
+                                    options=st.session_state.bulk_result["Level"].unique().tolist(),
+                                    default=st.session_state.bulk_result["Level"].unique().tolist(),
+                                    key="filter_level"
+                                )
+                                exp_min = int(st.session_state.bulk_result["Total Job Experience in years"].min())
+                                exp_max = int(st.session_state.bulk_result["Total Job Experience in years"].max())
+                                exp_range = st.slider(
+                                    "Total Job Experience (Years)",
+                                    exp_min, exp_max, (exp_min, exp_max),
+                                    key="filter_experience"
+                                )
+                                inc_min = int(st.session_state.bulk_result["Increase from last company"].min())
+                                inc_max = int(st.session_state.bulk_result["Increase from last company"].max())
+                                inc_range = st.slider(
+                                    "Increase from last company (%)",
+                                    inc_min, inc_max, (inc_min, inc_max),
+                                    key="filter_increase"
+                                )
+                                selected_locations = st.multiselect(
+                                    "Filter by Base Location of joining",
+                                    options=st.session_state.bulk_result["Base Location of joining"].unique().tolist(),
+                                    default=st.session_state.bulk_result["Base Location of joining"].unique().tolist(),
+                                    key="filter_location"
+                                )
                                 filtered_df = st.session_state.bulk_result[
                                     (st.session_state.bulk_result["Attrition Score"] >= filter_score_min) &
                                     (st.session_state.bulk_result["Attrition Score"] <= filter_score_max) &
                                     (st.session_state.bulk_result["Industry"].isin(selected_industries)) &
-                                    (st.session_state.bulk_result["Company Type"].isin(selected_company))
+                                    (st.session_state.bulk_result["Company Type"].isin(selected_company)) &
+                                    (st.session_state.bulk_result["Designation"].isin(selected_designations)) &
+                                    (st.session_state.bulk_result["Level"].isin(selected_levels)) &
+                                    (st.session_state.bulk_result["Total Job Experience in years"].between(exp_range[0], exp_range[1])) &
+                                    (st.session_state.bulk_result["Increase from last company"].between(inc_range[0], inc_range[1])) &
+                                    (st.session_state.bulk_result["Base Location of joining"].isin(selected_locations))
                                 ]
                                 st.write("Filtered Bulk Predictions")
                                 st.dataframe(filtered_df)
@@ -904,6 +952,24 @@ else:
                                     tooltip=["Risk Category", "Percentage"]
                                 )
                                 st.altair_chart(risk_chart, use_container_width=True)
+                                
+                                # --- Geography Map for Base Locations (if applicable)
+                                location_coords = {
+                                    "Bangalore": {"lat": 12.9716, "lon": 77.5946},
+                                    "Mumbai": {"lat": 19.0760, "lon": 72.8777},
+                                    "Delhi": {"lat": 28.7041, "lon": 77.1025}
+                                }
+                                map_data = []
+                                for loc in filtered_df["Base Location of joining"].unique():
+                                    if loc in location_coords:
+                                        map_data.append({
+                                            "lat": location_coords[loc]["lat"],
+                                            "lon": location_coords[loc]["lon"],
+                                            "location": loc
+                                        })
+                                if map_data:
+                                    st.markdown("### Base Location Map")
+                                    st.map(pd.DataFrame(map_data))
                             
                             # RIGHT COLUMN: Custom Graph Builder and additional charts
                             with analysis_col2:
