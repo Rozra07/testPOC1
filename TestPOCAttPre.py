@@ -52,7 +52,7 @@ def safe_rerun():
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "nav" not in st.session_state:
-    st.session_state.nav = "Tabs"  # "Tabs" indicates main UI (i.e. not "My Account")
+    st.session_state.nav = "Tabs"  # main UI (not "My Account")
 if "user" not in st.session_state:
     st.session_state.user = {}
 if "bulk_prediction_complete" not in st.session_state:
@@ -132,9 +132,54 @@ def load_user_history(email):
 # Global: Expanded Industry Options
 # ----------------------------------------------------
 industry_options = [
-    "Tech", "Finance", "Healthcare", "Education", "Manufacturing", 
+    "Tech", "Finance", "Healthcare", "Education", "Manufacturing",
     "Retail", "Energy", "Telecommunications", "Government", "Nonprofit", "Other"
 ]
+
+# ----------------------------------------------------
+# Functions for managing industry average Joining CTC values
+# ----------------------------------------------------
+INDUSTRY_CTC_FILE = "industry_average_ctc.json"
+
+def load_industry_ctc():
+    if os.path.exists(INDUSTRY_CTC_FILE):
+        with open(INDUSTRY_CTC_FILE, "r") as f:
+            return json.load(f)
+    else:
+        return {}
+
+def save_industry_ctc(data):
+    with open(INDUSTRY_CTC_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+def update_industry_average_ctc(row, industry):
+    data = load_industry_ctc()
+    level = str(row.get("Level", "Unknown"))
+    ctc = row.get("Joining CTC (INR)")
+    if ctc is None:
+        return
+    try:
+        ctc = float(ctc)
+    except ValueError:
+        st.warning(f"Unable to convert Joining CTC '{ctc}' to float; skipping update.")
+        return
+    if industry not in data:
+        data[industry] = {}
+    if level not in data[industry]:
+        data[industry][level] = {"total": 0, "count": 0}
+    data[industry][level]["total"] += ctc
+    data[industry][level]["count"] += 1
+    save_industry_ctc(data)
+
+def get_industry_average_ctc(industry, level):
+    data = load_industry_ctc()
+    level = str(level)
+    if industry in data and level in data[industry]:
+        total = data[industry][level]["total"]
+        count = data[industry][level]["count"]
+        return total / count if count != 0 else None
+    else:
+        return None
 
 # ----------------------------------------------------
 # Functions for model training/prediction
@@ -143,7 +188,8 @@ def train_model(training_df, target_column, industry):
     st.write("Training on data shape:", training_df.shape)
     for idx, row in training_df.iterrows():
         update_industry_average_ctc(row, industry)
-    X = training_df.drop(columns=[target_column])
+    drop_cols = [target_column, "Total Job Experience in years", "Base Location of joining"]
+    X = training_df.drop(columns=drop_cols, errors='ignore')
     y = training_df[target_column]
     X_encoded = pd.get_dummies(X)
     feature_columns = list(X_encoded.columns)
@@ -184,10 +230,7 @@ def train_model(training_df, target_column, industry):
     st.success("Model trained and saved successfully!")
     training_accuracy = model.score(X_scaled, y) * 100
     st.info(f"Training Accuracy (Confidence): {training_accuracy:.2f}%")
-    
     update_industry_record(industry, model_filename, scaler_filename, features_filename)
-    
-    # Save global settings to user record
     user = st.session_state.user
     user_settings = user.get("settings") or {}
     user_settings["global_avg_age"] = st.session_state.global_avg_age
@@ -332,14 +375,19 @@ def compute_weighted_attrition(employee, return_triggers=False):
             score -= 5
             triggers.append("High increase from last company")
     
+    final_score = score
     if extreme_factors == 2:
-        score = min(100, score * 1.3)
+        final_score = min(100, score * 1.3)
     elif extreme_factors == 3:
-        score = min(100, score * 1.6)
+        final_score = min(100, score * 1.6)
     elif extreme_factors >= 4:
-        score = min(100, score * 2)
+        final_score = min(100, score * 2)
     
-    final_score = min(100, max(0, score))
+    final_score = min(100, max(0, final_score))
+    
+    # Debug: Uncomment the following line to see triggers for each row
+    # st.write("Computed triggers:", triggers)
+    
     if return_triggers:
         return final_score, triggers
     else:
@@ -353,6 +401,7 @@ def predict_attrition(employee_data, industry):
     if model is None:
         return None, None, None
     df_input = pd.DataFrame([employee_data])
+    df_input = df_input.drop(columns=["Total Job Experience in years", "Base Location of joining"], errors='ignore')
     df_input = pd.get_dummies(df_input)
     df_input = df_input.reindex(columns=feature_columns, fill_value=0)
     X_scaled = scaler.transform(df_input)
@@ -457,7 +506,6 @@ if not st.session_state.logged_in:
     else:
         with st.form("signup_form"):
             name = st.text_input("Name")
-            designation = st.text_input("Designation")
             company = st.text_input("Company Name")
             email = st.text_input("Email")
             password = st.text_input("Password", type="password")
@@ -473,7 +521,6 @@ if not st.session_state.logged_in:
                     else:
                         user = {
                             "name": name,
-                            "designation": designation,
                             "company": company,
                             "email": email,
                             "password": password,
@@ -525,7 +572,8 @@ if st.session_state.nav != "My Account":
             st.session_state.user.get("settings", {}).get("global_female_ratio", 40),
             key="global_female_ratio", disabled=disabled_flag
         )
-        with st.expander("College Tier Retention Settings", expanded=False):
+        with st.expander("College Tier Retention Settings", expanded=True):
+            st.write("These values are used for comparison during prediction.")
             bulk_tier1 = st.slider(
                 "Tier 1 Retention (%)", 10, 100,
                 st.session_state.user.get("settings", {}).get("bulk_tier1", 60),
@@ -541,7 +589,8 @@ if st.session_state.nav != "My Account":
                 st.session_state.user.get("settings", {}).get("bulk_tier3", 40),
                 key="bulk_tier3", disabled=disabled_flag
             )
-        with st.expander("Industry Retention Settings", expanded=False):
+        with st.expander("Industry Retention Settings", expanded=True):
+            st.write("These values are used for comparison during prediction.")
             bulk_industry_retention = {}
             for ind in industry_options:
                 default_val = st.session_state.user.get("settings", {}).get("bulk_industry_retention", {}).get(ind, 60 if ind=="Tech" else 50)
@@ -549,7 +598,8 @@ if st.session_state.nav != "My Account":
                     f"{ind} Retention (%)", 10, 100, default_val,
                     key=f"bulk_ind_{ind}", disabled=disabled_flag
                 )
-        with st.expander("Company Type Retention Settings", expanded=False):
+        with st.expander("Company Type Retention Settings", expanded=True):
+            st.write("These values are used for comparison during prediction.")
             bulk_startup = st.slider(
                 "Startup Retention (%)", 10, 100,
                 st.session_state.user.get("settings", {}).get("bulk_company_retention", {}).get("Startup", 60),
@@ -579,7 +629,6 @@ if st.session_state.nav == "My Account":
     user = st.session_state.user
     st.write("### Account Information")
     st.write(f"**Name:** {user.get('name', '')}")
-    st.write(f"**Designation:** {user.get('designation', '')}")
     st.write(f"**Company:** {user.get('company', '')}")
     st.write(f"**Email:** {user.get('email', '')}")
     st.write("### Saved Global Settings")
@@ -634,10 +683,13 @@ else:
             st.markdown("""
             Your training file must include:
             - A **target column** (e.g., Attrition; use 0 for active, 1 for non‑active).
-            - **Feature columns:** Employee Age, Gender, Tenure (Months), Pulse, 
-              Hasn't been promoted, Minimum Promotion Cycle, College Tier, Industry, 
-              Company Type, Last Performance Rating, Compa Ratio, Joining CTC (INR), Increase from last company.
-            - **Filter columns:** Level, Base Location of joining.
+            - **Feature columns** (used for ML training):
+                - Employee Age, Gender, Tenure (Months), Pulse, Hasn't been promoted, Minimum Promotion Cycle,
+                  College Tier, Industry, Company Type, Last Performance Rating, Compa Ratio,
+                  Joining CTC (INR), Increase from last company, Number of companies worked in the past,
+                  Highest Degree, Overall Participation in Events.
+            - **Filter columns** (not used in ML but used for post‑analysis filtering):
+                - Level, Base Location of joining.
             """)
             st.download_button(
                 label="Download Dummy Training File",
@@ -721,8 +773,7 @@ else:
                                 triggers_list.append("Prediction Failed")
                                 continue
                             scores.append(bulk_score)
-                            neg_trigs = [t for t in bulk_trigs if t in TRIGGER_DETAILS]
-                            triggers_str = ", ".join(neg_trigs) if neg_trigs else "None"
+                            triggers_str = ", ".join(bulk_trigs) if bulk_trigs else "None"
                             triggers_list.append(triggers_str)
                         df_bulk["Attrition Score"] = scores
                         df_bulk["Negative Triggers"] = triggers_list
@@ -940,9 +991,7 @@ else:
                             )
                             st.altair_chart(box_chart_tenure_ind, use_container_width=True)
                         
-                        # -------------------------------
-                        # What-If Analysis Section (stays within Analysis expander)
-                        # -------------------------------
+                        # What-If Analysis Section (stays within the Analysis expander)
                         if st.session_state.enable_what_if:
                             st.markdown("<h3 style='color: white;'>What-If Analysis</h3>", unsafe_allow_html=True)
                             st.info("Adjust the parameters below to simulate changes in predicted attrition based on negative triggers.")
@@ -963,9 +1012,9 @@ else:
                                 default_compa = int(st.session_state.bulk_result["Compa Ratio"].mean())
                                 whatif_params["compa_ratio"] = st.slider("Compa Ratio (%)", 50, 150, default_compa, key="whatif_compa")
                             if "Low college tier retention" in trig_series.index:
-                                whatif_params["tier1"] = st.slider("Tier 1 Retention (%)", 10, 100, bulk_tier1, key="whatif_tier1")
-                                whatif_params["tier2"] = st.slider("Tier 2 Retention (%)", 10, 100, bulk_tier2, key="whatif_tier2")
-                                whatif_params["tier3"] = st.slider("Tier 3 Retention (%)", 10, 100, bulk_tier3, key="whatif_tier3")
+                                whatif_params["tier1"] = st.slider("Tier 1 Retention (%)", 10, 100, st.session_state.bulk_tier1, key="whatif_tier1")
+                                whatif_params["tier2"] = st.slider("Tier 2 Retention (%)", 10, 100, st.session_state.bulk_tier2, key="whatif_tier2")
+                                whatif_params["tier3"] = st.slider("Tier 3 Retention (%)", 10, 100, st.session_state.bulk_tier3, key="whatif_tier3")
                             if "Low industry retention" in trig_series.index:
                                 avg_ind = int(np.mean(list(bulk_industry_retention.values())))
                                 whatif_params["industry_retention"] = st.slider("Industry Retention (%)", 10, 100, avg_ind, key="whatif_industry")
@@ -973,7 +1022,6 @@ else:
                                 whatif_params["company_retention"] = st.slider("Company Type Retention (%)", 10, 100, 60, key="whatif_company")
                             if "High dissatisfaction (Pulse)" in trig_series.index:
                                 whatif_params["pulse"] = st.selectbox("Pulse", ["High", "Medium", "Low"], index=0, key="whatif_pulse")
-                            
                             st.markdown("### Recalculated Predictions with What-If Adjustments")
                             new_scores = []
                             new_triggers_list = []
@@ -988,24 +1036,24 @@ else:
                                 new_row["Compa Ratio"] = whatif_params.get("compa_ratio", row.get("Compa Ratio"))
                                 college_tier = row.get("College Tier")
                                 if college_tier == "Tier 1":
-                                    new_row["College Tier Retention"] = whatif_params.get("tier1", row.get("College Tier Retention", bulk_tier1))
+                                    new_row["College Tier Retention"] = whatif_params.get("tier1", row.get("College Tier Retention", st.session_state.bulk_tier1))
                                 elif college_tier == "Tier 2":
-                                    new_row["College Tier Retention"] = whatif_params.get("tier2", row.get("College Tier Retention", bulk_tier2))
+                                    new_row["College Tier Retention"] = whatif_params.get("tier2", row.get("College Tier Retention", st.session_state.bulk_tier2))
                                 elif college_tier == "Tier 3":
-                                    new_row["College Tier Retention"] = whatif_params.get("tier3", row.get("College Tier Retention", bulk_tier3))
+                                    new_row["College Tier Retention"] = whatif_params.get("tier3", row.get("College Tier Retention", st.session_state.bulk_tier3))
                                 else:
                                     new_row["College Tier Retention"] = row.get("College Tier Retention", 40)
                                 industry_val = row.get("Industry")
-                                new_row["Industry Retention"] = whatif_params.get("industry_retention", row.get("Industry Retention", bulk_industry_retention.get(industry_val, 50)))
+                                new_row["Industry Retention"] = whatif_params.get("industry_retention", row.get("Industry Retention", st.session_state.bulk_industry_retention.get(industry_val, 50)))
                                 ctype_val = row.get("Company Type", "Startup")
                                 if ctype_val.lower() == "startup":
-                                    default_company_retention = bulk_startup
+                                    default_company_retention = st.session_state.bulk_startup
                                 elif "small" in ctype_val.lower():
-                                    default_company_retention = bulk_small
+                                    default_company_retention = st.session_state.bulk_small
                                 elif "mid" in ctype_val.lower():
-                                    default_company_retention = bulk_mid
+                                    default_company_retention = st.session_state.bulk_mid
                                 elif "mnc" in ctype_val.lower() or "giant" in ctype_val.lower():
-                                    default_company_retention = bulk_mnc
+                                    default_company_retention = st.session_state.bulk_mnc
                                 else:
                                     default_company_retention = 50
                                 new_row["Company Type Retention"] = whatif_params.get("company_retention", row.get("Company Type Retention", default_company_retention))
@@ -1016,9 +1064,8 @@ else:
                                     new_score = None
                                     new_trigs = ["Prediction Failed"]
                                 new_scores.append(new_score)
-                                neg_trigs = [t for t in new_trigs if t in TRIGGER_DETAILS]
-                                triggers_str = ", ".join(neg_trigs) if neg_trigs else "None"
-                                new_triggers_list.append(triggers_str)
+                                neg_trigs = ", ".join(new_trigs) if new_trigs else "None"
+                                new_triggers_list.append(neg_trigs)
                             df_bulk_whatif["What-If Attrition Score"] = new_scores
                             df_bulk_whatif["What-If Negative Triggers"] = new_triggers_list
                             st.dataframe(df_bulk_whatif)
@@ -1030,5 +1077,15 @@ else:
                                 "Risk Category": ["High (>=75)", "Mod-High (60-74)", "Moderate (35-59)", "Low (<35)"],
                                 "Count": [high_risk_w, mod_high_w, moderate_w, low_w]
                             })
+                            total_w = risk_df_w["Count"].sum()
+                            if total_w > 0:
+                                risk_df_w["Percentage"] = risk_df_w["Count"] / total_w * 100
+                            else:
+                                risk_df_w["Percentage"] = 0
                             st.markdown("### What-If Risk Distribution")
-                            st.bar_chart(risk_df_w.set_index("Risk Category"))
+                            risk_chart_w = alt.Chart(risk_df_w).mark_bar().encode(
+                                x=alt.X("Risk Category:N", title="Risk Category"),
+                                y=alt.Y("Percentage:Q", title="Percentage"),
+                                tooltip=["Risk Category", "Percentage"]
+                            )
+                            st.altair_chart(risk_chart_w, use_container_width=True)
