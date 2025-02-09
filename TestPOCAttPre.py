@@ -1064,28 +1064,11 @@ else:
                                     st.markdown(graph_header(custom["title"], custom["explanation"]), unsafe_allow_html=True)
                                     st.altair_chart(custom["chart"], use_container_width=True)
                             
-                            # ------------- Quick Charts Section in Right Column -------------
-                            st.markdown("### Quick Charts")
-                            quick_chart_options = {
-                                "Distribution Analysis": "These charts help you understand the overall makeup of your data.",
-                                "Comparative Analysis": "These charts compare key variables to uncover potential relationships.",
-                                "Correlation & Relationship Analysis": "These charts assess how numerical variables interact with one another.",
-                                "Trigger & Factor Analysis": "These charts focus on the factors influencing attrition risk.",
-                                "Retention & Industry Analysis": "These charts provide insights into retention factors and industry/company characteristics.",
-                                "Temporal Analysis": "These charts track trends and changes in attrition over time."
-                            }
-                            # Display each quick chart option as a row with a button and description text.
-                            for category, desc in quick_chart_options.items():
-                                col_btn, col_desc = st.columns([1, 4])
-                                with col_btn:
-                                    if st.button(category, key=category):
-                                        st.session_state.selected_chart_category = category
-                                with col_desc:
-                                    st.markdown(desc)
+                            # ------------- Quick Charts Section as Expanders -------------
+                            st.markdown("## Quick Charts")
                             
-                            # Display charts based on the selected category.
-                            if st.session_state.selected_chart_category == "Distribution Analysis":
-                                st.subheader("Distribution Analysis")
+                            with st.expander("Distribution Analysis"):
+                                st.markdown("_These charts help you understand the overall makeup of your data._")
                                 # Attrition Score Distribution
                                 try:
                                     chart1 = alt.Chart(st.session_state.bulk_result).mark_bar(color="#4c78a8").encode(
@@ -1136,8 +1119,8 @@ else:
                                 except Exception as e:
                                     st.write("Performance Rating Distribution chart not available.")
                             
-                            elif st.session_state.selected_chart_category == "Comparative Analysis":
-                                st.subheader("Comparative Analysis")
+                            with st.expander("Comparative Analysis"):
+                                st.markdown("_These charts compare key variables to uncover potential relationships._")
                                 # Employee Age vs. Attrition Score
                                 try:
                                     chart1 = alt.Chart(st.session_state.bulk_result).mark_circle(size=60, color="#4c78a8").encode(
@@ -1194,8 +1177,8 @@ else:
                                 except Exception as e:
                                     st.write("Tenure vs. Attrition Score by Industry chart not available.")
                             
-                            elif st.session_state.selected_chart_category == "Correlation & Relationship Analysis":
-                                st.subheader("Correlation & Relationship Analysis")
+                            with st.expander("Correlation & Relationship Analysis"):
+                                st.markdown("_These charts assess how numerical variables interact with one another._")
                                 # Correlation Heatmap
                                 try:
                                     numeric_df = st.session_state.bulk_result.select_dtypes(include=[np.number])
@@ -1225,8 +1208,8 @@ else:
                                 except Exception as e:
                                     st.write("Pairwise Scatter Plot Matrix not available.")
                             
-                            elif st.session_state.selected_chart_category == "Trigger & Factor Analysis":
-                                st.subheader("Trigger & Factor Analysis")
+                            with st.expander("Trigger & Factor Analysis"):
+                                st.markdown("_These charts focus on the factors influencing attrition risk._")
                                 # Negative Triggers Count
                                 try:
                                     ct = compute_trigger_counts(st.session_state.bulk_result, "Negative Triggers").reset_index()
@@ -1263,8 +1246,8 @@ else:
                                 except Exception as e:
                                     st.write("Combined Trigger Analysis chart not available.")
                             
-                            elif st.session_state.selected_chart_category == "Retention & Industry Analysis":
-                                st.subheader("Retention & Industry Analysis")
+                            with st.expander("Retention & Industry Analysis"):
+                                st.markdown("_These charts provide insights into retention factors and industry/company characteristics._")
                                 # Industry Distribution (Pie Chart)
                                 try:
                                     industry_counts = st.session_state.bulk_result["Industry"].value_counts().reset_index()
@@ -1319,8 +1302,8 @@ else:
                                 except Exception as e:
                                     st.write("Retention Rate chart not available.")
                             
-                            elif st.session_state.selected_chart_category == "Temporal Analysis":
-                                st.subheader("Temporal Analysis")
+                            with st.expander("Temporal Analysis"):
+                                st.markdown("_These charts track trends and changes in attrition over time._")
                                 # Attrition Trend Over Time (Line Chart)
                                 try:
                                     if "Prediction Time" in st.session_state.bulk_result.columns:
