@@ -669,9 +669,6 @@ else:
         .tooltip:hover .tooltiptext { visibility: visible; }
         </style>
         """, unsafe_allow_html=True)
-    else:
-        selected_test_industry = None
-
     if st.session_state.main_mode == "Train Mode":
         st.header("Train Mode")
         selected_train_industry = st.selectbox("Select Your Industry", industry_options, key="train_industry")
@@ -711,14 +708,17 @@ else:
         st.header("Bulk Employee Attrition Prediction")
         uploaded_file = st.file_uploader("Upload Bulk Data (CSV or Excel)", type=["csv", "xlsx"], key="bulk_file")
         if uploaded_file is not None:
-            try:
-                df_bulk = pd.read_csv(uploaded_file) if uploaded_file.name.endswith(".csv") else pd.read_excel(uploaded_file)
-                # Reset bulk prediction state on new file upload
-                st.session_state.bulk_prediction_complete = False
-                st.session_state.bulk_result = None
-            except Exception as e:
-                st.error(f"❌ Error reading file: {e}")
-                st.stop()
+            # Only process the file if we haven't already stored a bulk result.
+            if "bulk_result" not in st.session_state or st.session_state.bulk_result is None:
+                try:
+                    df_bulk = pd.read_csv(uploaded_file) if uploaded_file.name.endswith(".csv") else pd.read_excel(uploaded_file)
+                    st.session_state.bulk_result = df_bulk.copy()
+                    st.session_state.bulk_prediction_complete = False
+                except Exception as e:
+                    st.error(f"❌ Error reading file: {e}")
+                    st.stop()
+            else:
+                df_bulk = st.session_state.bulk_result.copy()
             st.write("### Bulk Data Preview:")
             st.dataframe(df_bulk.head())
             required_cols = [
