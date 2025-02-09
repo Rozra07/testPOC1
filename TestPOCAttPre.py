@@ -1063,344 +1063,304 @@ else:
                                 for custom in st.session_state.custom_charts:
                                     st.markdown(graph_header(custom["title"], custom["explanation"]), unsafe_allow_html=True)
                                     st.altair_chart(custom["chart"], use_container_width=True)
-            
-            # -------------------------------
-            # Quick Charts Section: Predefined Charts for Attrition Analysis
-            # -------------------------------
-            if st.session_state.bulk_result is not None:
-                st.markdown("## Quick Charts")
-                # Create six header-buttons in one row
-                col_buttons = st.columns(6)
-                with col_buttons[0]:
-                    if st.button("I", key="btn_cat_I"):
-                        st.session_state.selected_chart_category = "I"
-                    st.markdown(
-                        '<div class="tooltip" style="text-align:center;">I'
-                        '<span class="tooltiptext">Distribution Analysis: Contains charts such as Attrition Score Distribution, '
-                        'Employee Age Distribution, Tenure Distribution, Compa Ratio Distribution, Performance Rating Distribution.</span>'
-                        '</div>',
-                        unsafe_allow_html=True)
-                with col_buttons[1]:
-                    if st.button("II", key="btn_cat_II"):
-                        st.session_state.selected_chart_category = "II"
-                    st.markdown(
-                        '<div class="tooltip" style="text-align:center;">II'
-                        '<span class="tooltiptext">Comparative Analysis: Includes charts like Employee Age vs. Attrition Score, '
-                        'Compa Ratio vs. Attrition Score, Attrition Score by Gender, Attrition Score by College Tier, '
-                        'and Tenure vs. Attrition Score by Industry.</span>'
-                        '</div>',
-                        unsafe_allow_html=True)
-                with col_buttons[2]:
-                    if st.button("III", key="btn_cat_III"):
-                        st.session_state.selected_chart_category = "III"
-                    st.markdown(
-                        '<div class="tooltip" style="text-align:center;">III'
-                        '<span class="tooltiptext">Correlation & Relationship Analysis: Includes Correlation Heatmap and Pairwise Scatter Plot Matrix.</span>'
-                        '</div>',
-                        unsafe_allow_html=True)
-                with col_buttons[3]:
-                    if st.button("IV", key="btn_cat_IV"):
-                        st.session_state.selected_chart_category = "IV"
-                    st.markdown(
-                        '<div class="tooltip" style="text-align:center;">IV'
-                        '<span class="tooltiptext">Trigger & Factor Analysis: Includes Negative Triggers Count, Trigger Distribution Among High-Risk Employees, and Combined Trigger Analysis.</span>'
-                        '</div>',
-                        unsafe_allow_html=True)
-                with col_buttons[4]:
-                    if st.button("V", key="btn_cat_V"):
-                        st.session_state.selected_chart_category = "V"
-                    st.markdown(
-                        '<div class="tooltip" style="text-align:center;">V'
-                        '<span class="tooltiptext">Retention & Industry Analysis: Includes Industry Distribution, Tenure by Industry, Company Type Distribution and Attrition Risk, and Retention Rate by College Tier or Industry.</span>'
-                        '</div>',
-                        unsafe_allow_html=True)
-                with col_buttons[5]:
-                    if st.button("VI", key="btn_cat_VI"):
-                        st.session_state.selected_chart_category = "VI"
-                    st.markdown(
-                        '<div class="tooltip" style="text-align:center;">VI'
-                        '<span class="tooltiptext">Temporal Analysis: Includes Attrition Trend Over Time and Rolling Average Attrition Score.</span>'
-                        '</div>',
-                        unsafe_allow_html=True)
-                
-                # Display charts based on the selected category
-                if st.session_state.selected_chart_category == "I":
-                    st.subheader("Distribution Analysis")
-                    # Attrition Score Distribution
-                    try:
-                        chart1 = alt.Chart(st.session_state.bulk_result).mark_bar(color="#4c78a8").encode(
-                            x=alt.X("Attrition Score:Q", bin=alt.Bin(maxbins=20), title="Attrition Score"),
-                            y=alt.Y("count()", title="Frequency")
-                        )
-                        st.altair_chart(chart1, use_container_width=True)
-                    except Exception as e:
-                        st.write("Attrition Score Distribution chart not available.")
-                    
-                    # Employee Age Distribution
-                    try:
-                        chart2 = alt.Chart(st.session_state.bulk_result).mark_bar(color="#e45756").encode(
-                            x=alt.X("Employee Age:Q", bin=alt.Bin(maxbins=20), title="Employee Age"),
-                            y=alt.Y("count()", title="Frequency")
-                        )
-                        st.altair_chart(chart2, use_container_width=True)
-                    except Exception as e:
-                        st.write("Employee Age Distribution chart not available.")
-                    
-                    # Tenure Distribution
-                    try:
-                        chart3 = alt.Chart(st.session_state.bulk_result).mark_bar(color="#4c78a8").encode(
-                            x=alt.X("Tenure (Months):Q", bin=alt.Bin(maxbins=20), title="Tenure (Months)"),
-                            y=alt.Y("count()", title="Frequency")
-                        )
-                        st.altair_chart(chart3, use_container_width=True)
-                    except Exception as e:
-                        st.write("Tenure Distribution chart not available.")
-                    
-                    # Compa Ratio Distribution
-                    try:
-                        chart4 = alt.Chart(st.session_state.bulk_result).mark_bar(color="#e45756").encode(
-                            x=alt.X("Compa Ratio:Q", bin=alt.Bin(maxbins=20), title="Compa Ratio"),
-                            y=alt.Y("count()", title="Frequency")
-                        )
-                        st.altair_chart(chart4, use_container_width=True)
-                    except Exception as e:
-                        st.write("Compa Ratio Distribution chart not available.")
-                    
-                    # Performance Rating Distribution
-                    try:
-                        chart5 = alt.Chart(st.session_state.bulk_result).mark_bar(color="#4c78a8").encode(
-                            x=alt.X("Last Performance Rating:Q", bin=alt.Bin(maxbins=5), title="Last Performance Rating"),
-                            y=alt.Y("count()", title="Frequency")
-                        )
-                        st.altair_chart(chart5, use_container_width=True)
-                    except Exception as e:
-                        st.write("Performance Rating Distribution chart not available.")
-                
-                elif st.session_state.selected_chart_category == "II":
-                    st.subheader("Comparative Analysis")
-                    # Employee Age vs. Attrition Score
-                    try:
-                        chart1 = alt.Chart(st.session_state.bulk_result).mark_circle(size=60, color="#4c78a8").encode(
-                            x=alt.X("Employee Age:Q", title="Employee Age"),
-                            y=alt.Y("Attrition Score:Q", title="Attrition Score"),
-                            tooltip=["Name", "Employee Age", "Attrition Score"]
-                        )
-                        st.altair_chart(chart1, use_container_width=True)
-                    except Exception as e:
-                        st.write("Employee Age vs. Attrition Score chart not available.")
-                    
-                    # Compa Ratio vs. Attrition Score
-                    try:
-                        chart2 = alt.Chart(st.session_state.bulk_result).mark_circle(size=60, color="#e45756").encode(
-                            x=alt.X("Compa Ratio:Q", title="Compa Ratio"),
-                            y=alt.Y("Attrition Score:Q", title="Attrition Score"),
-                            tooltip=["Name", "Compa Ratio", "Attrition Score"]
-                        )
-                        st.altair_chart(chart2, use_container_width=True)
-                    except Exception as e:
-                        st.write("Compa Ratio vs. Attrition Score chart not available.")
-                    
-                    # Attrition Score by Gender (Box Plot)
-                    try:
-                        chart3 = alt.Chart(st.session_state.bulk_result).mark_boxplot(color="#4c78a8").encode(
-                            x=alt.X("Gender:N", title="Gender"),
-                            y=alt.Y("Attrition Score:Q", title="Attrition Score"),
-                            tooltip=["Gender", "Attrition Score"]
-                        )
-                        st.altair_chart(chart3, use_container_width=True)
-                    except Exception as e:
-                        st.write("Attrition Score by Gender chart not available.")
-                    
-                    # Attrition Score by College Tier (Box Plot)
-                    try:
-                        chart4 = alt.Chart(st.session_state.bulk_result).mark_boxplot(color="#e45756").encode(
-                            x=alt.X("College Tier:N", title="College Tier"),
-                            y=alt.Y("Attrition Score:Q", title="Attrition Score"),
-                            tooltip=["College Tier", "Attrition Score"]
-                        )
-                        st.altair_chart(chart4, use_container_width=True)
-                    except Exception as e:
-                        st.write("Attrition Score by College Tier chart not available.")
-                    
-                    # Tenure vs. Attrition Score by Industry (Scatter Plot)
-                    try:
-                        chart5 = alt.Chart(st.session_state.bulk_result).mark_circle(size=60, color="#4c78a8").encode(
-                            x=alt.X("Tenure (Months):Q", title="Tenure (Months)"),
-                            y=alt.Y("Attrition Score:Q", title="Attrition Score"),
-                            color=alt.Color("Industry:N", title="Industry"),
-                            tooltip=["Industry", "Tenure (Months)", "Attrition Score"]
-                        )
-                        st.altair_chart(chart5, use_container_width=True)
-                    except Exception as e:
-                        st.write("Tenure vs. Attrition Score by Industry chart not available.")
-                
-                elif st.session_state.selected_chart_category == "III":
-                    st.subheader("Correlation & Relationship Analysis")
-                    # Correlation Heatmap
-                    try:
-                        numeric_df = st.session_state.bulk_result.select_dtypes(include=[np.number])
-                        if not numeric_df.empty:
-                            corr = numeric_df.corr().reset_index().melt(id_vars="index")
-                            chart1 = alt.Chart(corr).mark_rect().encode(
-                                x=alt.X("index:N", title=""),
-                                y=alt.Y("variable:N", title=""),
-                                color=alt.Color("value:Q", scale=alt.Scale(scheme='redblue')),
-                                tooltip=["index", "variable", "value"]
-                            )
-                            st.altair_chart(chart1, use_container_width=True)
-                        else:
-                            st.write("No numeric data available for correlation heatmap.")
-                    except Exception as e:
-                        st.write("Correlation Heatmap not available.")
-                    
-                    # Pairwise Scatter Plot Matrix (using Seaborn)
-                    try:
-                        import seaborn as sns
-                        numeric_df = st.session_state.bulk_result.select_dtypes(include=[np.number])
-                        if not numeric_df.empty:
-                            fig = sns.pairplot(numeric_df).fig
-                            st.pyplot(fig)
-                        else:
-                            st.write("No numeric data available for pairwise scatter plot matrix.")
-                    except Exception as e:
-                        st.write("Pairwise Scatter Plot Matrix not available.")
-                
-                elif st.session_state.selected_chart_category == "IV":
-                    st.subheader("Trigger & Factor Analysis")
-                    # Negative Triggers Count
-                    try:
-                        ct = compute_trigger_counts(st.session_state.bulk_result, "Negative Triggers").reset_index()
-                        ct.columns = ["Trigger", "Count"]
-                        chart1 = alt.Chart(ct).mark_bar(color="#e45756").encode(
-                            x=alt.X("Trigger:N", sort='-y', title="Trigger"),
-                            y=alt.Y("Count:Q", title="Count"),
-                            tooltip=["Trigger", "Count"]
-                        )
-                        st.altair_chart(chart1, use_container_width=True)
-                    except Exception as e:
-                        st.write("Negative Triggers Count chart not available.")
-                    
-                    # Trigger Distribution Among High-Risk Employees (Pie Chart)
-                    try:
-                        high_risk_df = st.session_state.bulk_result[st.session_state.bulk_result["Attrition Score"] >= 75]
-                        if not high_risk_df.empty:
-                            ct_high = compute_trigger_counts(high_risk_df, "Negative Triggers").reset_index()
-                            ct_high.columns = ["Trigger", "Count"]
-                            chart2 = alt.Chart(ct_high).mark_arc().encode(
-                                theta=alt.Theta(field="Count", type="quantitative"),
-                                color=alt.Color(field="Trigger", type="nominal"),
-                                tooltip=["Trigger", "Count"]
-                            )
-                            st.altair_chart(chart2, use_container_width=True)
-                        else:
-                            st.write("No high-risk employees data available for trigger distribution.")
-                    except Exception as e:
-                        st.write("Trigger Distribution chart not available.")
-                    
-                    # Combined Trigger Analysis (Placeholder)
-                    try:
-                        st.write("Combined Trigger Analysis chart not implemented. (Placeholder)")
-                    except Exception as e:
-                        st.write("Combined Trigger Analysis chart not available.")
-                
-                elif st.session_state.selected_chart_category == "V":
-                    st.subheader("Retention & Industry Analysis")
-                    # Industry Distribution (Pie Chart)
-                    try:
-                        industry_counts = st.session_state.bulk_result["Industry"].value_counts().reset_index()
-                        industry_counts.columns = ['Industry', 'Count']
-                        chart1 = alt.Chart(industry_counts).mark_arc().encode(
-                            theta=alt.Theta(field="Count", type="quantitative"),
-                            color=alt.Color(field="Industry", type="nominal"),
-                            tooltip=["Industry", "Count"]
-                        )
-                        st.altair_chart(chart1, use_container_width=True)
-                    except Exception as e:
-                        st.write("Industry Distribution chart not available.")
-                    
-                    # Tenure by Industry (Box Plot)
-                    try:
-                        chart2 = alt.Chart(st.session_state.bulk_result).mark_boxplot(color="#4c78a8").encode(
-                            x=alt.X("Industry:N", title="Industry"),
-                            y=alt.Y("Tenure (Months):Q", title="Tenure (Months)"),
-                            tooltip=["Industry", "Tenure (Months)"]
-                        )
-                        st.altair_chart(chart2, use_container_width=True)
-                    except Exception as e:
-                        st.write("Tenure by Industry chart not available.")
-                    
-                    # Company Type Distribution and Attrition Risk (Bar Chart)
-                    try:
-                        if "Company Type" in st.session_state.bulk_result.columns:
-                            compa_df = st.session_state.bulk_result.groupby("Company Type").agg({"Attrition Score": "mean"}).reset_index()
-                            chart3 = alt.Chart(compa_df).mark_bar(color="#e45756").encode(
-                                x=alt.X("Company Type:N", title="Company Type"),
-                                y=alt.Y("Attrition Score:Q", title="Average Attrition Score"),
-                                tooltip=["Company Type", "Attrition Score"]
-                            )
-                            st.altair_chart(chart3, use_container_width=True)
-                        else:
-                            st.write("Company Type data not available.")
-                    except Exception as e:
-                        st.write("Company Type Distribution chart not available.")
-                    
-                    # Retention Rate by College Tier (Bar Chart)
-                    try:
-                        if "College Tier" in st.session_state.bulk_result.columns:
-                            college_df = st.session_state.bulk_result.groupby("College Tier").agg({"Attrition Score": "mean"}).reset_index()
-                            chart4 = alt.Chart(college_df).mark_bar(color="#4c78a8").encode(
-                                x=alt.X("College Tier:N", title="College Tier"),
-                                y=alt.Y("Attrition Score:Q", title="Average Attrition Score"),
-                                tooltip=["College Tier", "Attrition Score"]
-                            )
-                            st.altair_chart(chart4, use_container_width=True)
-                        else:
-                            st.write("College Tier data not available.")
-                    except Exception as e:
-                        st.write("Retention Rate chart not available.")
-                
-                elif st.session_state.selected_chart_category == "VI":
-                    st.subheader("Temporal Analysis")
-                    # Attrition Trend Over Time (Line Chart)
-                    try:
-                        if "Prediction Time" in st.session_state.bulk_result.columns:
-                            df_time = st.session_state.bulk_result.copy()
-                            df_time["Prediction Time"] = pd.to_datetime(df_time["Prediction Time"], errors="coerce")
-                            df_time = df_time.dropna(subset=["Prediction Time"])
-                            if not df_time.empty:
-                                trend_df = df_time.groupby(df_time["Prediction Time"].dt.date).agg({"Attrition Score": "mean"}).reset_index()
-                                trend_df.columns = ["Date", "Average Attrition Score"]
-                                chart1 = alt.Chart(trend_df).mark_line(point=True, color="#e45756").encode(
-                                    x=alt.X("Date:T", title="Date"),
-                                    y=alt.Y("Average Attrition Score:Q", title="Average Attrition Score"),
-                                    tooltip=["Date", "Average Attrition Score"]
-                                )
-                                st.altair_chart(chart1, use_container_width=True)
-                            else:
-                                st.write("No valid Prediction Time data available for trend analysis.")
-                        else:
-                            st.write("Prediction Time data not available.")
-                    except Exception as e:
-                        st.write("Attrition Trend Over Time chart not available.")
-                    
-                    # Rolling Average Attrition Score (Line Chart)
-                    try:
-                        if "Prediction Time" in st.session_state.bulk_result.columns:
-                            df_time = st.session_state.bulk_result.copy()
-                            df_time["Prediction Time"] = pd.to_datetime(df_time["Prediction Time"], errors="coerce")
-                            df_time = df_time.dropna(subset=["Prediction Time"])
-                            if not df_time.empty:
-                                trend_df = df_time.sort_values("Prediction Time").copy()
-                                trend_df["Rolling Avg Attrition Score"] = trend_df["Attrition Score"].rolling(window=3, min_periods=1).mean()
-                                chart2 = alt.Chart(trend_df).mark_line(point=True, color="#4c78a8").encode(
-                                    x=alt.X("Prediction Time:T", title="Prediction Time"),
-                                    y=alt.Y("Rolling Avg Attrition Score:Q", title="Rolling Average Attrition Score"),
-                                    tooltip=["Prediction Time", "Rolling Avg Attrition Score"]
-                                )
-                                st.altair_chart(chart2, use_container_width=True)
-                            else:
-                                st.write("No valid Prediction Time data available for rolling average analysis.")
-                        else:
-                            st.write("Prediction Time data not available.")
-                    except Exception as e:
-                        st.write("Rolling Average Attrition Score chart not available.")
+                            
+                            # ------------- Quick Charts Section in Right Column -------------
+                            st.markdown("### Quick Charts")
+                            quick_chart_options = {
+                                "Distribution Analysis": "These charts help you understand the overall makeup of your data.",
+                                "Comparative Analysis": "These charts compare key variables to uncover potential relationships.",
+                                "Correlation & Relationship Analysis": "These charts assess how numerical variables interact with one another.",
+                                "Trigger & Factor Analysis": "These charts focus on the factors influencing attrition risk.",
+                                "Retention & Industry Analysis": "These charts provide insights into retention factors and industry/company characteristics.",
+                                "Temporal Analysis": "These charts track trends and changes in attrition over time."
+                            }
+                            # Display each quick chart option as a row with a button and description text.
+                            for category, desc in quick_chart_options.items():
+                                col_btn, col_desc = st.columns([1, 4])
+                                with col_btn:
+                                    if st.button(category, key=category):
+                                        st.session_state.selected_chart_category = category
+                                with col_desc:
+                                    st.markdown(desc)
+                            
+                            # Display charts based on the selected category.
+                            if st.session_state.selected_chart_category == "Distribution Analysis":
+                                st.subheader("Distribution Analysis")
+                                # Attrition Score Distribution
+                                try:
+                                    chart1 = alt.Chart(st.session_state.bulk_result).mark_bar(color="#4c78a8").encode(
+                                        x=alt.X("Attrition Score:Q", bin=alt.Bin(maxbins=20), title="Attrition Score"),
+                                        y=alt.Y("count()", title="Frequency")
+                                    )
+                                    st.altair_chart(chart1, use_container_width=True)
+                                except Exception as e:
+                                    st.write("Attrition Score Distribution chart not available.")
+                                
+                                # Employee Age Distribution
+                                try:
+                                    chart2 = alt.Chart(st.session_state.bulk_result).mark_bar(color="#e45756").encode(
+                                        x=alt.X("Employee Age:Q", bin=alt.Bin(maxbins=20), title="Employee Age"),
+                                        y=alt.Y("count()", title="Frequency")
+                                    )
+                                    st.altair_chart(chart2, use_container_width=True)
+                                except Exception as e:
+                                    st.write("Employee Age Distribution chart not available.")
+                                
+                                # Tenure Distribution
+                                try:
+                                    chart3 = alt.Chart(st.session_state.bulk_result).mark_bar(color="#4c78a8").encode(
+                                        x=alt.X("Tenure (Months):Q", bin=alt.Bin(maxbins=20), title="Tenure (Months)"),
+                                        y=alt.Y("count()", title="Frequency")
+                                    )
+                                    st.altair_chart(chart3, use_container_width=True)
+                                except Exception as e:
+                                    st.write("Tenure Distribution chart not available.")
+                                
+                                # Compa Ratio Distribution
+                                try:
+                                    chart4 = alt.Chart(st.session_state.bulk_result).mark_bar(color="#e45756").encode(
+                                        x=alt.X("Compa Ratio:Q", bin=alt.Bin(maxbins=20), title="Compa Ratio"),
+                                        y=alt.Y("count()", title="Frequency")
+                                    )
+                                    st.altair_chart(chart4, use_container_width=True)
+                                except Exception as e:
+                                    st.write("Compa Ratio Distribution chart not available.")
+                                
+                                # Performance Rating Distribution
+                                try:
+                                    chart5 = alt.Chart(st.session_state.bulk_result).mark_bar(color="#4c78a8").encode(
+                                        x=alt.X("Last Performance Rating:Q", bin=alt.Bin(maxbins=5), title="Last Performance Rating"),
+                                        y=alt.Y("count()", title="Frequency")
+                                    )
+                                    st.altair_chart(chart5, use_container_width=True)
+                                except Exception as e:
+                                    st.write("Performance Rating Distribution chart not available.")
+                            
+                            elif st.session_state.selected_chart_category == "Comparative Analysis":
+                                st.subheader("Comparative Analysis")
+                                # Employee Age vs. Attrition Score
+                                try:
+                                    chart1 = alt.Chart(st.session_state.bulk_result).mark_circle(size=60, color="#4c78a8").encode(
+                                        x=alt.X("Employee Age:Q", title="Employee Age"),
+                                        y=alt.Y("Attrition Score:Q", title="Attrition Score"),
+                                        tooltip=["Name", "Employee Age", "Attrition Score"]
+                                    )
+                                    st.altair_chart(chart1, use_container_width=True)
+                                except Exception as e:
+                                    st.write("Employee Age vs. Attrition Score chart not available.")
+                                
+                                # Compa Ratio vs. Attrition Score
+                                try:
+                                    chart2 = alt.Chart(st.session_state.bulk_result).mark_circle(size=60, color="#e45756").encode(
+                                        x=alt.X("Compa Ratio:Q", title="Compa Ratio"),
+                                        y=alt.Y("Attrition Score:Q", title="Attrition Score"),
+                                        tooltip=["Name", "Compa Ratio", "Attrition Score"]
+                                    )
+                                    st.altair_chart(chart2, use_container_width=True)
+                                except Exception as e:
+                                    st.write("Compa Ratio vs. Attrition Score chart not available.")
+                                
+                                # Attrition Score by Gender (Box Plot)
+                                try:
+                                    chart3 = alt.Chart(st.session_state.bulk_result).mark_boxplot(color="#4c78a8").encode(
+                                        x=alt.X("Gender:N", title="Gender"),
+                                        y=alt.Y("Attrition Score:Q", title="Attrition Score"),
+                                        tooltip=["Gender", "Attrition Score"]
+                                    )
+                                    st.altair_chart(chart3, use_container_width=True)
+                                except Exception as e:
+                                    st.write("Attrition Score by Gender chart not available.")
+                                
+                                # Attrition Score by College Tier (Box Plot)
+                                try:
+                                    chart4 = alt.Chart(st.session_state.bulk_result).mark_boxplot(color="#e45756").encode(
+                                        x=alt.X("College Tier:N", title="College Tier"),
+                                        y=alt.Y("Attrition Score:Q", title="Attrition Score"),
+                                        tooltip=["College Tier", "Attrition Score"]
+                                    )
+                                    st.altair_chart(chart4, use_container_width=True)
+                                except Exception as e:
+                                    st.write("Attrition Score by College Tier chart not available.")
+                                
+                                # Tenure vs. Attrition Score by Industry (Scatter Plot)
+                                try:
+                                    chart5 = alt.Chart(st.session_state.bulk_result).mark_circle(size=60, color="#4c78a8").encode(
+                                        x=alt.X("Tenure (Months):Q", title="Tenure (Months)"),
+                                        y=alt.Y("Attrition Score:Q", title="Attrition Score"),
+                                        color=alt.Color("Industry:N", title="Industry"),
+                                        tooltip=["Industry", "Tenure (Months)", "Attrition Score"]
+                                    )
+                                    st.altair_chart(chart5, use_container_width=True)
+                                except Exception as e:
+                                    st.write("Tenure vs. Attrition Score by Industry chart not available.")
+                            
+                            elif st.session_state.selected_chart_category == "Correlation & Relationship Analysis":
+                                st.subheader("Correlation & Relationship Analysis")
+                                # Correlation Heatmap
+                                try:
+                                    numeric_df = st.session_state.bulk_result.select_dtypes(include=[np.number])
+                                    if not numeric_df.empty:
+                                        corr = numeric_df.corr().reset_index().melt(id_vars="index")
+                                        chart1 = alt.Chart(corr).mark_rect().encode(
+                                            x=alt.X("index:N", title=""),
+                                            y=alt.Y("variable:N", title=""),
+                                            color=alt.Color("value:Q", scale=alt.Scale(scheme='redblue')),
+                                            tooltip=["index", "variable", "value"]
+                                        )
+                                        st.altair_chart(chart1, use_container_width=True)
+                                    else:
+                                        st.write("No numeric data available for correlation heatmap.")
+                                except Exception as e:
+                                    st.write("Correlation Heatmap not available.")
+                                
+                                # Pairwise Scatter Plot Matrix (using Seaborn)
+                                try:
+                                    import seaborn as sns
+                                    numeric_df = st.session_state.bulk_result.select_dtypes(include=[np.number])
+                                    if not numeric_df.empty:
+                                        fig = sns.pairplot(numeric_df).fig
+                                        st.pyplot(fig)
+                                    else:
+                                        st.write("No numeric data available for pairwise scatter plot matrix.")
+                                except Exception as e:
+                                    st.write("Pairwise Scatter Plot Matrix not available.")
+                            
+                            elif st.session_state.selected_chart_category == "Trigger & Factor Analysis":
+                                st.subheader("Trigger & Factor Analysis")
+                                # Negative Triggers Count
+                                try:
+                                    ct = compute_trigger_counts(st.session_state.bulk_result, "Negative Triggers").reset_index()
+                                    ct.columns = ["Trigger", "Count"]
+                                    chart1 = alt.Chart(ct).mark_bar(color="#e45756").encode(
+                                        x=alt.X("Trigger:N", sort='-y', title="Trigger"),
+                                        y=alt.Y("Count:Q", title="Count"),
+                                        tooltip=["Trigger", "Count"]
+                                    )
+                                    st.altair_chart(chart1, use_container_width=True)
+                                except Exception as e:
+                                    st.write("Negative Triggers Count chart not available.")
+                                
+                                # Trigger Distribution Among High-Risk Employees (Pie Chart)
+                                try:
+                                    high_risk_df = st.session_state.bulk_result[st.session_state.bulk_result["Attrition Score"] >= 75]
+                                    if not high_risk_df.empty:
+                                        ct_high = compute_trigger_counts(high_risk_df, "Negative Triggers").reset_index()
+                                        ct_high.columns = ["Trigger", "Count"]
+                                        chart2 = alt.Chart(ct_high).mark_arc().encode(
+                                            theta=alt.Theta(field="Count", type="quantitative"),
+                                            color=alt.Color(field="Trigger", type="nominal"),
+                                            tooltip=["Trigger", "Count"]
+                                        )
+                                        st.altair_chart(chart2, use_container_width=True)
+                                    else:
+                                        st.write("No high-risk employees data available for trigger distribution.")
+                                except Exception as e:
+                                    st.write("Trigger Distribution chart not available.")
+                                
+                                # Combined Trigger Analysis (Placeholder)
+                                try:
+                                    st.write("Combined Trigger Analysis chart not implemented. (Placeholder)")
+                                except Exception as e:
+                                    st.write("Combined Trigger Analysis chart not available.")
+                            
+                            elif st.session_state.selected_chart_category == "Retention & Industry Analysis":
+                                st.subheader("Retention & Industry Analysis")
+                                # Industry Distribution (Pie Chart)
+                                try:
+                                    industry_counts = st.session_state.bulk_result["Industry"].value_counts().reset_index()
+                                    industry_counts.columns = ['Industry', 'Count']
+                                    chart1 = alt.Chart(industry_counts).mark_arc().encode(
+                                        theta=alt.Theta(field="Count", type="quantitative"),
+                                        color=alt.Color(field="Industry", type="nominal"),
+                                        tooltip=["Industry", "Count"]
+                                    )
+                                    st.altair_chart(chart1, use_container_width=True)
+                                except Exception as e:
+                                    st.write("Industry Distribution chart not available.")
+                                
+                                # Tenure by Industry (Box Plot)
+                                try:
+                                    chart2 = alt.Chart(st.session_state.bulk_result).mark_boxplot(color="#4c78a8").encode(
+                                        x=alt.X("Industry:N", title="Industry"),
+                                        y=alt.Y("Tenure (Months):Q", title="Tenure (Months)"),
+                                        tooltip=["Industry", "Tenure (Months)"]
+                                    )
+                                    st.altair_chart(chart2, use_container_width=True)
+                                except Exception as e:
+                                    st.write("Tenure by Industry chart not available.")
+                                
+                                # Company Type Distribution and Attrition Risk (Bar Chart)
+                                try:
+                                    if "Company Type" in st.session_state.bulk_result.columns:
+                                        compa_df = st.session_state.bulk_result.groupby("Company Type").agg({"Attrition Score": "mean"}).reset_index()
+                                        chart3 = alt.Chart(compa_df).mark_bar(color="#e45756").encode(
+                                            x=alt.X("Company Type:N", title="Company Type"),
+                                            y=alt.Y("Attrition Score:Q", title="Average Attrition Score"),
+                                            tooltip=["Company Type", "Attrition Score"]
+                                        )
+                                        st.altair_chart(chart3, use_container_width=True)
+                                    else:
+                                        st.write("Company Type data not available.")
+                                except Exception as e:
+                                    st.write("Company Type Distribution chart not available.")
+                                
+                                # Retention Rate by College Tier (Bar Chart)
+                                try:
+                                    if "College Tier" in st.session_state.bulk_result.columns:
+                                        college_df = st.session_state.bulk_result.groupby("College Tier").agg({"Attrition Score": "mean"}).reset_index()
+                                        chart4 = alt.Chart(college_df).mark_bar(color="#4c78a8").encode(
+                                            x=alt.X("College Tier:N", title="College Tier"),
+                                            y=alt.Y("Attrition Score:Q", title="Average Attrition Score"),
+                                            tooltip=["College Tier", "Attrition Score"]
+                                        )
+                                        st.altair_chart(chart4, use_container_width=True)
+                                    else:
+                                        st.write("College Tier data not available.")
+                                except Exception as e:
+                                    st.write("Retention Rate chart not available.")
+                            
+                            elif st.session_state.selected_chart_category == "Temporal Analysis":
+                                st.subheader("Temporal Analysis")
+                                # Attrition Trend Over Time (Line Chart)
+                                try:
+                                    if "Prediction Time" in st.session_state.bulk_result.columns:
+                                        df_time = st.session_state.bulk_result.copy()
+                                        df_time["Prediction Time"] = pd.to_datetime(df_time["Prediction Time"], errors="coerce")
+                                        df_time = df_time.dropna(subset=["Prediction Time"])
+                                        if not df_time.empty:
+                                            trend_df = df_time.groupby(df_time["Prediction Time"].dt.date).agg({"Attrition Score": "mean"}).reset_index()
+                                            trend_df.columns = ["Date", "Average Attrition Score"]
+                                            chart1 = alt.Chart(trend_df).mark_line(point=True, color="#e45756").encode(
+                                                x=alt.X("Date:T", title="Date"),
+                                                y=alt.Y("Average Attrition Score:Q", title="Average Attrition Score"),
+                                                tooltip=["Date", "Average Attrition Score"]
+                                            )
+                                            st.altair_chart(chart1, use_container_width=True)
+                                        else:
+                                            st.write("No valid Prediction Time data available for trend analysis.")
+                                    else:
+                                        st.write("Prediction Time data not available.")
+                                except Exception as e:
+                                    st.write("Attrition Trend Over Time chart not available.")
+                                
+                                # Rolling Average Attrition Score (Line Chart)
+                                try:
+                                    if "Prediction Time" in st.session_state.bulk_result.columns:
+                                        df_time = st.session_state.bulk_result.copy()
+                                        df_time["Prediction Time"] = pd.to_datetime(df_time["Prediction Time"], errors="coerce")
+                                        df_time = df_time.dropna(subset=["Prediction Time"])
+                                        if not df_time.empty:
+                                            trend_df = df_time.sort_values("Prediction Time").copy()
+                                            trend_df["Rolling Avg Attrition Score"] = trend_df["Attrition Score"].rolling(window=3, min_periods=1).mean()
+                                            chart2 = alt.Chart(trend_df).mark_line(point=True, color="#4c78a8").encode(
+                                                x=alt.X("Prediction Time:T", title="Prediction Time"),
+                                                y=alt.Y("Rolling Avg Attrition Score:Q", title="Rolling Average Attrition Score"),
+                                                tooltip=["Prediction Time", "Rolling Avg Attrition Score"]
+                                            )
+                                            st.altair_chart(chart2, use_container_width=True)
+                                        else:
+                                            st.write("No valid Prediction Time data available for rolling average analysis.")
+                                    else:
+                                        st.write("Prediction Time data not available.")
+                                except Exception as e:
+                                    st.write("Rolling Average Attrition Score chart not available.")
