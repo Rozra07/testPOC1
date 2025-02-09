@@ -198,7 +198,6 @@ def train_model(training_df, target_column, industry):
     save_user_event(user["email"], "training", {"action": "Model retrained", "industry": industry})
 
 def update_industry_record(industry, model_file, scaler_file, feature_file):
-    from datetime import datetime
     record = {
         "Industry": industry,
         "Model_File": model_file,
@@ -271,60 +270,6 @@ TRIGGER_DETAILS = {
             ),
             "bureaucratic_structure": (
                 "Streamline decision‑making processes or reduce hierarchical layers to foster agility."
-            )
-        }
-    },
-    "Very low performance rating": {
-        "subproblems": {
-            "misaligned_role": "Job roles or expectations are unclear or mismatched.",
-            "no_feedback": "There is a lack of continuous feedback or one‑on‑one sessions.",
-            "skill_gaps": "Training needs are not being addressed."
-        },
-        "solutions": {
-            "misaligned_role": (
-                "Clarify job responsibilities, set SMART goals, and align roles with employees’ strengths."
-            ),
-            "no_feedback": (
-                "Implement frequent one‑on‑one check‑ins and real‑time performance dashboards."
-            ),
-            "skill_gaps": (
-                "Offer targeted training, certification reimbursements, and peer‑to‑peer learning opportunities."
-            )
-        }
-    },
-    "Low performance rating": {
-        "subproblems": {
-            "misaligned_role": "Job roles or expectations are unclear or mismatched.",
-            "no_feedback": "Continuous feedback is lacking.",
-            "skill_gaps": "Training needs are not addressed."
-        },
-        "solutions": {
-            "misaligned_role": (
-                "Clarify job responsibilities and ensure roles align with employees’ strengths."
-            ),
-            "no_feedback": (
-                "Implement regular one‑on‑one check‑ins and provide ongoing coaching."
-            ),
-            "skill_gaps": (
-                "Offer targeted training sessions and promote cross‑functional learning."
-            )
-        }
-    },
-    "Low compensation competitiveness": {
-        "subproblems": {
-            "below_market": "Base salary is below market rates.",
-            "minimal_bonus": "Bonuses or variable pay are minimal or nonexistent.",
-            "poor_benefits": "The benefits package is insufficient."
-        },
-        "solutions": {
-            "below_market": (
-                "Conduct market benchmarking to adjust salaries to at least median levels."
-            ),
-            "minimal_bonus": (
-                "Introduce performance‑based incentives or profit‑sharing schemes."
-            ),
-            "poor_benefits": (
-                "Offer competitive benefits including health insurance and retirement plans."
             )
         }
     },
@@ -450,7 +395,6 @@ def compute_trigger_counts(df, column_name):
 # Helper function: Graph header with tooltip
 # ---------------------------------------
 def graph_header(title, explanation):
-    # The info icon (ℹ) shows a tooltip when hovered.
     return f'<h4 style="color: white;">{title} <span title="{explanation}" style="cursor: help; color: #ccc;">&#9432;</span></h4>'
 
 # ---------------------------------------
@@ -616,7 +560,7 @@ if st.session_state.nav == "My Account":
     if st.button("Back to Main"):
         st.session_state.nav = "Tabs"
 else:
-    # In Test Mode:
+    # For Test Mode:
     if st.session_state.main_mode == "Test Mode":
         selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=0, key="test_industry")
         st.markdown("""
@@ -746,7 +690,7 @@ else:
                         st.session_state.enable_what_if = st.checkbox("Enable What-If Analysis", key="whatif_toggle")
                 
                 # -------------------------------
-                # What-If Analysis Section (restored from previous design)
+                # What-If Analysis Section (embedded snippet)
                 # -------------------------------
                 if st.session_state.enable_what_if:
                     with st.container():
@@ -827,6 +771,7 @@ else:
                         df_bulk_whatif["What-If Attrition Score"] = new_scores
                         df_bulk_whatif["What-If Negative Triggers"] = new_triggers_list
                         st.dataframe(df_bulk_whatif)
+                        
                         high_risk_w = (df_bulk_whatif["What-If Attrition Score"] >= 75).sum()
                         mod_high_w = ((df_bulk_whatif["What-If Attrition Score"] >= 60) & (df_bulk_whatif["What-If Attrition Score"] < 75)).sum()
                         moderate_w = ((df_bulk_whatif["What-If Attrition Score"] >= 35) & (df_bulk_whatif["What-If Attrition Score"] < 60)).sum()
@@ -842,7 +787,6 @@ else:
                     # Standard Analysis Section
                     # -------------------------------
                     with st.expander("Analysis", expanded=True):
-                        # Layout: LEFT for filters, RIGHT for graphs (all in one vertical column)
                         analysis_col1, analysis_col2 = st.columns([0.35, 0.65])
                         with analysis_col1:
                             st.subheader("Filters")
@@ -870,7 +814,6 @@ else:
                             st.write("Filtered Bulk Predictions")
                             st.dataframe(filtered_df)
                         with analysis_col2:
-                            # --- Custom Graph Builder Section ---
                             st.markdown("<h3 style='color: white;'>Custom Graph Builder</h3>", unsafe_allow_html=True)
                             with st.form("custom_graph_form"):
                                 x_axis = st.selectbox("Select X Axis", options=filtered_df.columns, key="custom_x")
@@ -878,7 +821,6 @@ else:
                                 data_label = st.selectbox("Select Data Label (Optional)", options=["None"] + list(filtered_df.columns), key="custom_label")
                                 submitted_custom = st.form_submit_button("Generate Custom Chart")
                             if submitted_custom:
-                                # Special handling if "Negative Triggers" is selected
                                 if x_axis == "Negative Triggers" or y_axis == "Negative Triggers":
                                     ct = compute_trigger_counts(filtered_df, "Negative Triggers").reset_index()
                                     ct.columns = ["Trigger", "Count"]
@@ -914,7 +856,6 @@ else:
                                             y=alt.Y("count()", title="Count"),
                                             tooltip=[x_axis]
                                         )
-                                # Prepend the new custom chart so the latest appears on top
                                 st.session_state.custom_charts.insert(0, {
                                     "chart": custom_chart,
                                     "title": f"Custom Chart: {x_axis} vs {y_axis}",
@@ -922,14 +863,12 @@ else:
                                 })
                                 st.success("Custom chart generated and added!")
                             
-                            # --- Display all custom charts (if any) ---
                             if st.session_state.custom_charts:
                                 st.markdown("<h3 style='color: white;'>Your Custom Charts</h3>", unsafe_allow_html=True)
                                 for custom in st.session_state.custom_charts:
                                     st.markdown(graph_header(custom["title"], custom["explanation"]), unsafe_allow_html=True)
                                     st.altair_chart(custom["chart"], use_container_width=True)
                             
-                            # --- Standard Default Charts ---
                             st.markdown(graph_header("Employee Age vs Attrition Score", 
                                                        "A scatter plot showing the relationship between employee age and the predicted attrition risk."), 
                                         unsafe_allow_html=True)
