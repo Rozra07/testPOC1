@@ -52,7 +52,7 @@ def safe_rerun():
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "nav" not in st.session_state:
-    st.session_state.nav = "Tabs"  # main UI (i.e. not "My Account")
+    st.session_state.nav = "Tabs"  # main UI (not "My Account")
 if "user" not in st.session_state:
     st.session_state.user = {}
 if "bulk_prediction_complete" not in st.session_state:
@@ -111,7 +111,7 @@ def load_user_history(email):
 # Global: Expanded Industry Options
 # ----------------------------------------------------
 industry_options = [
-    "Tech", "Finance", "Healthcare", "Education", "Manufacturing", 
+    "Tech", "Finance", "Healthcare", "Education", "Manufacturing",
     "Retail", "Energy", "Telecommunications", "Government", "Nonprofit", "Other"
 ]
 
@@ -132,10 +132,6 @@ def save_industry_ctc(data):
         json.dump(data, f, indent=2)
 
 def update_industry_average_ctc(row, industry):
-    """
-    Update the backup industry average joining CTC for a given industry and job level.
-    Expects the row to have keys "Level" and "Joining CTC (INR)".
-    """
     data = load_industry_ctc()
     level = str(row.get("Level", "Unknown"))
     ctc = row.get("Joining CTC (INR)")
@@ -155,9 +151,6 @@ def update_industry_average_ctc(row, industry):
     save_industry_ctc(data)
 
 def get_industry_average_ctc(industry, level):
-    """
-    Retrieve the industry average joining CTC for a given industry and job level.
-    """
     data = load_industry_ctc()
     level = str(level)
     if industry in data and level in data[industry]:
@@ -174,7 +167,6 @@ def train_model(training_df, target_column, industry):
     st.write("Training on data shape:", training_df.shape)
     for idx, row in training_df.iterrows():
         update_industry_average_ctc(row, industry)
-        
     drop_cols = [target_column, "Total Job Experience in years", "Base Location of joining"]
     X = training_df.drop(columns=drop_cols, errors='ignore')
     y = training_df[target_column]
@@ -185,17 +177,14 @@ def train_model(training_df, target_column, industry):
     model = LogisticRegression(solver="liblinear", random_state=42)
     model.fit(X_scaled, y)
     st.write("Model coefficients:", model.coef_)
-    
     from sklearn.metrics import roc_curve, auc, confusion_matrix, classification_report
     preds = model.predict_proba(X_scaled)[:, 1]
     fpr, tpr, thresholds = roc_curve(y, preds)
     roc_auc = auc(fpr, tpr)
     cm = confusion_matrix(y, model.predict(X_scaled))
     report = classification_report(y, model.predict(X_scaled), output_dict=True)
-    
     st.subheader("Model Evaluation Metrics")
     st.write(f"**ROC AUC:** {roc_auc:.2f}")
-    
     fig, ax = plt.subplots()
     ax.plot(fpr, tpr, label=f"ROC curve (area = {roc_auc:.2f})")
     ax.plot([0, 1], [0, 1], 'k--')
@@ -204,13 +193,10 @@ def train_model(training_df, target_column, industry):
     ax.set_title("ROC Curve")
     ax.legend(loc="best")
     st.pyplot(fig)
-    
     st.write("**Confusion Matrix:**")
     st.dataframe(pd.DataFrame(cm, index=["Actual 0", "Actual 1"], columns=["Predicted 0", "Predicted 1"]))
-    
     st.write("**Classification Report:**")
     st.json(report)
-    
     model_filename = f"{industry}_model.pkl"
     scaler_filename = f"{industry}_scaler.pkl"
     features_filename = f"{industry}_feature_columns.pkl"
@@ -223,9 +209,7 @@ def train_model(training_df, target_column, industry):
     st.success("Model trained and saved successfully!")
     training_accuracy = model.score(X_scaled, y) * 100
     st.info(f"Training Accuracy (Confidence): {training_accuracy:.2f}%")
-    
     update_industry_record(industry, model_filename, scaler_filename, features_filename)
-    
     user = st.session_state.user
     user_settings = user.get("settings") or {}
     user_settings["global_avg_age"] = st.session_state.global_avg_age
@@ -346,23 +330,21 @@ def compute_weighted_attrition(employee, return_triggers=False):
         extreme_factors -= 0.5
         triggers.append("Low dissatisfaction (Pulse)")
     
-    # --- New factor: Joining CTC (INR) compared to industry average for the given job level
     if ("Joining CTC (INR)" in employee and "Level" in employee and "Industry" in employee):
         avg_ctc = get_industry_average_ctc(employee["Industry"], employee["Level"])
         if avg_ctc is not None:
             pct_diff = (float(employee["Joining CTC (INR)"]) - avg_ctc) / avg_ctc * 100
             if -20 <= pct_diff <= 20:
-                pass  # within acceptable range, no change
+                pass
             elif -40 <= pct_diff < -20:
-                score -= 10  # moderate deviation
+                score -= 10
                 triggers.append("Below average Joining CTC (moderate)")
             elif pct_diff < -40:
-                extreme_factors += 0.5  # significantly below average
+                extreme_factors += 0.5
                 triggers.append("Below average Joining CTC (severe)")
             elif pct_diff > 40:
-                extreme_factors -= 0.5  # significantly above average
+                extreme_factors -= 0.5
                 triggers.append("Above average Joining CTC")
-    # --- New factor: Increase from last company (assumed percentage increase)
     if "Increase from last company" in employee:
         inc = employee["Increase from last company"]
         if inc < 10:
@@ -371,7 +353,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
         elif inc > 30:
             score -= 5
             triggers.append("High increase from last company")
-
+    
     final_score = score
     if extreme_factors == 2:
         final_score = min(100, score * 1.3)
@@ -382,7 +364,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
     
     final_score = min(100, max(0, final_score))
     
-    # Uncomment for debugging:
+    # Debug: Uncomment the next line to see triggers for each row
     # st.write("Computed triggers:", triggers)
     
     if return_triggers:
@@ -552,7 +534,7 @@ with header_container:
             logout()
 
 # ---------------------------------------
-# Sidebar: Global Settings and Mode Selection
+# Sidebar: Global Settings for Bulk Analysis (global settings remain unchanged)
 # ---------------------------------------
 if st.session_state.nav != "My Account":
     with st.sidebar:
@@ -569,37 +551,9 @@ if st.session_state.nav != "My Account":
             st.session_state.user.get("settings", {}).get("global_female_ratio", 40),
             key="global_female_ratio", disabled=disabled_flag
         )
-        # Only default filters retained: Attrition Score and Base Location
-        st.markdown("### Default Filters")
-        filter_score_min, filter_score_max = st.slider("Attrition Score Range", 0, 100, (0, 100), key="filter_score")
-        selected_locations = st.multiselect(
-            "Base Location", 
-            options=sorted(st.session_state.bulk_result["Base Location of joining"].unique().tolist()) if st.session_state.bulk_result is not None else [],
-            default=sorted(st.session_state.bulk_result["Base Location of joining"].unique().tolist()) if st.session_state.bulk_result is not None else [],
-            key="filter_location"
-        )
-        st.markdown("### Custom Filters")
-        custom_columns = st.multiselect("Select additional columns for filtering", 
-                                        options=st.session_state.bulk_result.columns.tolist() if st.session_state.bulk_result is not None else [], 
-                                        key="custom_filter_columns")
-        custom_filters = {}
-        for col in custom_columns:
-            if st.session_state.bulk_result is not None:
-                if np.issubdtype(st.session_state.bulk_result[col].dtype, np.number):
-                    min_val = float(st.session_state.bulk_result[col].min())
-                    max_val = float(st.session_state.bulk_result[col].max())
-                    selected_range = st.slider(f"Select range for {col}", 
-                                               min_value=min_val, max_value=max_val, 
-                                               value=(min_val, max_val), key=f"custom_filter_{col}")
-                    custom_filters[col] = selected_range
-                else:
-                    unique_vals = sorted(st.session_state.bulk_result[col].dropna().unique().tolist())
-                    selected_vals = st.multiselect(f"Select values for {col}", 
-                                                   options=unique_vals, default=unique_vals, key=f"custom_filter_{col}")
-                    custom_filters[col] = selected_vals
 
 # ---------------------------------------
-# Main Navigation
+# Main Navigation for Train/Test Modes
 # ---------------------------------------
 if st.session_state.nav == "My Account":
     st.markdown("<div style='text-align: center;'><h2>My Account</h2></div>", unsafe_allow_html=True)
@@ -623,6 +577,7 @@ if st.session_state.nav == "My Account":
     if st.button("Back to Main"):
         st.session_state.nav = "Tabs"
 else:
+    # Test Mode
     if st.session_state.main_mode == "Test Mode":
         selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=0, key="test_industry")
         st.markdown("""
@@ -631,7 +586,7 @@ else:
             Ensure you have trained a model in Train Mode.
             <br><br>
             Upload a CSV/Excel file with columns:
-            Name, Employee Age, Gender, Level, Tenure (Months), Pulse, 
+            Name, Employee Age, Gender, Level, Tenure (Months), Pulse,
             Hasn't been promoted, Minimum Promotion Cycle, College Tier, Industry, Company Type,
             Last Performance Rating, Compa Ratio, Joining CTC (INR), Increase from last company,
             Base Location of joining, Number of companies worked in the past,
@@ -718,25 +673,25 @@ else:
                             row_dict["Female Employee Ratio"] = global_female_ratio
                             college_tier = row_dict.get("College Tier")
                             if college_tier == "Tier 1":
-                                row_dict["College Tier Retention"] = bulk_tier1
+                                row_dict["College Tier Retention"] = st.session_state.bulk_tier1
                             elif college_tier == "Tier 2":
-                                row_dict["College Tier Retention"] = bulk_tier2
+                                row_dict["College Tier Retention"] = st.session_state.bulk_tier2
                             elif college_tier == "Tier 3":
-                                row_dict["College Tier Retention"] = bulk_tier3
+                                row_dict["College Tier Retention"] = st.session_state.bulk_tier3
                             else:
                                 st.warning(f"Row {idx}: Unknown College Tier '{college_tier}'. Using default 40%.")
                                 row_dict["College Tier Retention"] = 40
                             ind_val = row_dict.get("Industry")
-                            row_dict["Industry Retention"] = bulk_industry_retention.get(ind_val, 50)
+                            row_dict["Industry Retention"] = st.session_state.bulk_industry_retention.get(ind_val, 50)
                             ctype_val = row_dict.get("Company Type", "Startup")
                             if ctype_val.lower() == "startup":
-                                row_dict["Company Type Retention"] = bulk_startup
+                                row_dict["Company Type Retention"] = st.session_state.bulk_startup
                             elif "small" in ctype_val.lower():
-                                row_dict["Company Type Retention"] = bulk_small
+                                row_dict["Company Type Retention"] = st.session_state.bulk_small
                             elif "mid" in ctype_val.lower():
-                                row_dict["Company Type Retention"] = bulk_mid
+                                row_dict["Company Type Retention"] = st.session_state.bulk_mid
                             elif "mnc" in ctype_val.lower() or "giant" in ctype_val.lower():
-                                row_dict["Company Type Retention"] = bulk_mnc
+                                row_dict["Company Type Retention"] = st.session_state.bulk_mnc
                             else:
                                 row_dict["Company Type Retention"] = 50
                             try:
@@ -761,47 +716,41 @@ else:
                         st.session_state.enable_what_if = st.checkbox("Enable What-If Analysis", key="whatif_toggle")
                 
                 # -------------------------------
-                # Analysis Section with Custom Filters and Map
+                # Analysis Section (shown after bulk prediction)
                 # -------------------------------
                 if st.session_state.bulk_prediction_complete:
                     with st.expander("Analysis", expanded=True):
                         analysis_col1, analysis_col2 = st.columns([0.35, 0.65])
                         
-                        # LEFT COLUMN: Filters and Risk Distribution Chart
+                        # LEFT COLUMN: Filters and Risk Distribution
                         with analysis_col1:
                             st.subheader("Filters")
-                            # Only Attrition Score filter and Location filter remain by default
-                            filter_score_min, filter_score_max = st.slider("Attrition Score Range", 0, 100, (0, 100), key="filter_score")
-                            selected_locations = st.multiselect("Base Location", 
-                                options=sorted(st.session_state.bulk_result["Base Location of joining"].unique().tolist()),
-                                default=sorted(st.session_state.bulk_result["Base Location of joining"].unique().tolist()),
-                                key="filter_location")
-                            
-                            st.markdown("#### Custom Filters")
-                            custom_columns = st.multiselect("Select additional columns for filtering", 
-                                                            options=st.session_state.bulk_result.columns.tolist(),
-                                                            key="custom_filter_columns")
+                            analysis_filter_min, analysis_filter_max = st.slider("Attrition Score Range", 0, 100, (0, 100), key="analysis_filter_score")
+                            # Custom filters toggle
+                            show_custom = st.checkbox("Show Custom Filters", key="show_custom_filters")
                             custom_filters = {}
-                            for col in custom_columns:
-                                if np.issubdtype(st.session_state.bulk_result[col].dtype, np.number):
-                                    min_val = float(st.session_state.bulk_result[col].min())
-                                    max_val = float(st.session_state.bulk_result[col].max())
-                                    selected_range = st.slider(f"Select range for {col}", 
-                                                               min_value=min_val, max_value=max_val, 
-                                                               value=(min_val, max_val), key=f"custom_filter_{col}")
-                                    custom_filters[col] = selected_range
-                                else:
-                                    unique_vals = sorted(st.session_state.bulk_result[col].dropna().unique().tolist())
-                                    selected_vals = st.multiselect(f"Select values for {col}", 
-                                                                   options=unique_vals, default=unique_vals, key=f"custom_filter_{col}")
-                                    custom_filters[col] = selected_vals
+                            if show_custom:
+                                custom_columns = st.multiselect("Select additional columns for filtering", 
+                                                                options=st.session_state.bulk_result.columns.tolist(), 
+                                                                key="custom_filter_columns")
+                                for col in custom_columns:
+                                    if np.issubdtype(st.session_state.bulk_result[col].dtype, np.number):
+                                        min_val = float(st.session_state.bulk_result[col].min())
+                                        max_val = float(st.session_state.bulk_result[col].max())
+                                        selected_range = st.slider(f"Select range for {col}", 
+                                                                   min_value=min_val, max_value=max_val, 
+                                                                   value=(min_val, max_val), key=f"custom_filter_{col}")
+                                        custom_filters[col] = selected_range
+                                    else:
+                                        unique_vals = sorted(st.session_state.bulk_result[col].dropna().unique().tolist())
+                                        selected_vals = st.multiselect(f"Select values for {col}", 
+                                                                       options=unique_vals, default=unique_vals, key=f"custom_filter_{col}")
+                                        custom_filters[col] = selected_vals
                             
                             filtered_df = st.session_state.bulk_result[
-                                (st.session_state.bulk_result["Attrition Score"] >= filter_score_min) &
-                                (st.session_state.bulk_result["Attrition Score"] <= filter_score_max) &
-                                (st.session_state.bulk_result["Base Location of joining"].isin(selected_locations))
+                                (st.session_state.bulk_result["Attrition Score"] >= analysis_filter_min) &
+                                (st.session_state.bulk_result["Attrition Score"] <= analysis_filter_max)
                             ]
-                            
                             for col, condition in custom_filters.items():
                                 if isinstance(condition, tuple):
                                     filtered_df = filtered_df[(filtered_df[col] >= condition[0]) & (filtered_df[col] <= condition[1])]
@@ -833,7 +782,6 @@ else:
                         
                         # RIGHT COLUMN: Map and Custom Graph Builder & Other Charts
                         with analysis_col2:
-                            st.markdown("<h3 style='color: white;'>Map & Charts</h3>", unsafe_allow_html=True)
                             # Map Section
                             location_coords = {
                                 "Bangalore": {"lat": 12.9716, "lon": 77.5946},
