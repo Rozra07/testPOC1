@@ -364,7 +364,7 @@ def compute_weighted_attrition(employee, return_triggers=False):
     
     final_score = min(100, max(0, final_score))
     
-    # Debug: Uncomment the following line to see triggers for each row
+    # Debug: Uncomment to view triggers per row
     # st.write("Computed triggers:", triggers)
     
     if return_triggers:
@@ -625,7 +625,6 @@ if st.session_state.nav == "My Account":
     if st.button("Back to Main"):
         st.session_state.nav = "Tabs"
 else:
-    # Test Mode:
     if st.session_state.main_mode == "Test Mode":
         selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=0, key="test_industry")
         st.markdown("""
@@ -693,6 +692,9 @@ else:
         if uploaded_file is not None:
             try:
                 df_bulk = pd.read_csv(uploaded_file) if uploaded_file.name.endswith(".csv") else pd.read_excel(uploaded_file)
+                # Reset bulk prediction state on new file upload
+                st.session_state.bulk_prediction_complete = False
+                st.session_state.bulk_result = None
             except Exception as e:
                 st.error(f"❌ Error reading file: {e}")
                 st.stop()
@@ -773,10 +775,8 @@ else:
                         # LEFT COLUMN: Filters and Risk Distribution
                         with analysis_col1:
                             st.subheader("Filters")
-                            # Default filter: Attrition Score Range
                             analysis_filter_min, analysis_filter_max = st.slider("Attrition Score Range", 0, 100, (0, 100), key="analysis_filter_score")
                             
-                            # Always show custom filters under the heading "Add Filter"
                             st.markdown("#### Add Filter")
                             custom_columns = st.multiselect("Select additional columns for filtering", 
                                                             options=st.session_state.bulk_result.columns.tolist(), 
@@ -809,7 +809,6 @@ else:
                             st.write("Filtered Bulk Predictions")
                             st.dataframe(filtered_df)
                             
-                            # Risk Distribution Chart
                             risk_counts = {
                                 "High (>=75)": (filtered_df["Attrition Score"] >= 75).sum(),
                                 "Mod-High (60-74)": ((filtered_df["Attrition Score"] >= 60) & (filtered_df["Attrition Score"] < 75)).sum(),
