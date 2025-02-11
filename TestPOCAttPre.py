@@ -145,13 +145,16 @@ def train_model(training_df, target_column, industry):
     st.subheader("Model Evaluation Metrics")
     st.write(f"**ROC AUC:** {roc_auc:.2f}")
     
-    fig, ax = plt.subplots()
-    ax.plot(fpr, tpr, label=f"ROC curve (area = {roc_auc:.2f})")
+    # --- Modified Matplotlib chart with dark background ---
+    fig, ax = plt.subplots(facecolor='black')
+    ax.set_facecolor('black')
+    ax.plot(fpr, tpr, label=f"ROC curve (area = {roc_auc:.2f})", color='cyan')
     ax.plot([0, 1], [0, 1], 'k--')
-    ax.set_xlabel("False Positive Rate")
-    ax.set_ylabel("True Positive Rate")
-    ax.set_title("ROC Curve")
-    ax.legend(loc="best")
+    ax.set_xlabel("False Positive Rate", color='white')
+    ax.set_ylabel("True Positive Rate", color='white')
+    ax.set_title("ROC Curve", color='white')
+    ax.legend(loc="best", facecolor='black', edgecolor='white')
+    ax.tick_params(colors='white')
     st.pyplot(fig)
     
     st.write("**Confusion Matrix:**")
@@ -446,18 +449,20 @@ def horizontal_filters(df):
         score_range = st.slider("Attrition Score", 0, 100, (0, 100), key="filter_attrition_score")
         filter_values["Attrition Score"] = score_range
 
-    # Each custom filter appears in its own column
+    # Each custom filter appears in its own column with aligned remove button
     for i, filter_id in enumerate(st.session_state.custom_filters):
         with cols[i+1]:
-            # A small remove button to delete this filter
-            remove = st.button("❌", key=f"remove_{filter_id}", help="Remove this filter")
-            if remove:
-                st.session_state.custom_filters.remove(filter_id)
-                safe_rerun()
-            # Dropdown to select a column
-            possible_cols = [col for col in df.columns if col not in ["Attrition Score", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]]
-            col_selected = st.selectbox("Select column", options=possible_cols, key=f"custom_filter_col_{filter_id}")
-            filter_values[f"custom_filter_col_{filter_id}"] = col_selected
+            # Create two inner columns: one for the selectbox, one for the remove button.
+            inner_cols = st.columns([3, 0.5])
+            with inner_cols[0]:
+                possible_cols = [col for col in df.columns if col not in ["Attrition Score", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]]
+                col_selected = st.selectbox("Select column", options=possible_cols, key=f"custom_filter_col_{filter_id}")
+                filter_values[f"custom_filter_col_{filter_id}"] = col_selected
+            with inner_cols[1]:
+                remove = st.button("❌", key=f"remove_{filter_id}", help="Remove this filter")
+                if remove:
+                    st.session_state.custom_filters.remove(filter_id)
+                    safe_rerun()
             # If the selected column is numeric, use a slider; otherwise, a multiselect
             if pd.api.types.is_numeric_dtype(df[col_selected]):
                 min_val = float(df[col_selected].min())
@@ -1087,7 +1092,16 @@ else:
                                                 y=alt.Y("count()", title="Count"),
                                                 tooltip=[x_axis]
                                             )
-                                    st.altair_chart(custom_chart, use_container_width=True)
+                                    
+                                    header_text = f"Custom Chart: {x_axis} vs {y_axis}"
+                                    if data_label != "None":
+                                        header_text += f" with {data_label}"
+                                    
+                                    if "custom_charts" not in st.session_state:
+                                        st.session_state.custom_charts = []
+                                    
+                                    # Insert the new chart at the beginning so new ones appear on top
+                                    st.session_state.custom_charts.insert(0, (header_text, custom_chart))
                             
                             with quick_col:
                                 st.markdown("##### Quick Charts")
@@ -1228,3 +1242,10 @@ else:
                                             st.write("No valid Prediction Time data available for trend analysis.")
                                     else:
                                         st.write("No Prediction Time data available.")
+                    
+                    # Display accumulated custom charts (new ones on top)
+                    if "custom_charts" in st.session_state and st.session_state.custom_charts:
+                        st.markdown("### Custom Charts")
+                        for header, chart in st.session_state.custom_charts:
+                            st.markdown(f"#### {header}")
+                            st.altair_chart(chart, use_container_width=True)
