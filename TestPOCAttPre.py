@@ -65,8 +65,7 @@ def colored_metric(value, threshold, higher_better=True, is_lower=False):
 # ----------------------------------------------------
 for key in ["logged_in", "nav", "user", "bulk_prediction_complete", "bulk_result", "enable_what_if", "custom_charts", "custom_filters"]:
     if key not in st.session_state:
-        # For custom charts we store a list of configuration dictionaries
-        st.session_state[key] = [] if key in ["custom_charts", "custom_filters"] else False if key=="logged_in" else ("Tabs" if key=="nav" else None)
+        st.session_state[key] = [] if key in ["custom_charts", "custom_filters"] else (False if key=="logged_in" else ("Tabs" if key=="nav" else None))
 
 # ----------------------------------------------------
 # Helper functions for user storage
@@ -531,7 +530,6 @@ def generate_custom_chart(config, data):
         x_is_numeric = pd.api.types.is_numeric_dtype(data[x_axis])
         y_is_numeric = pd.api.types.is_numeric_dtype(data[y_axis])
         if x_is_numeric and y_is_numeric:
-            # Do not include "Name" in the tooltip.
             chart = alt.Chart(data).mark_circle(size=60, color="#4c78a8").encode(
                 x=alt.X(f"{x_axis}:Q", title=x_axis),
                 y=alt.Y(f"{y_axis}:Q", title=y_axis),
@@ -812,7 +810,6 @@ else:
         </style>
         """, unsafe_allow_html=True)
         
-        # (Optional) Display trust metrics summary here if desired.
         if "trust_metrics" in st.session_state:
             tm = st.session_state.trust_metrics
             trust_line = (f"Trustworthiness Summary: Accuracy: {tm['accuracy']:.2f}, Precision: {tm['precision']:.2f}, "
@@ -961,6 +958,7 @@ else:
                     with col_charts:
                         if st.session_state.enable_what_if:
                             st.markdown("#### What-If Analysis")
+                            # (What-If analysis code remains unchanged.)
                             filtered_whatif_df = filtered_df.copy()
                             trig_series = compute_trigger_counts(filtered_whatif_df, "Negative Triggers")
                             
@@ -1177,7 +1175,6 @@ else:
                             st.bar_chart(risk_df_w.set_index("Risk Category"))
                         else:
                             st.markdown("#### Quick Charts & Custom Graph Builder")
-                            # Create two columns: one for the custom chart builder, one for quick charts.
                             custom_col, quick_col = st.columns([0.5, 0.5])
                             
                             with custom_col:
@@ -1191,7 +1188,6 @@ else:
                                     header_text = f"Custom Chart: {x_axis} vs {y_axis}"
                                     if data_label != "None":
                                         header_text += f" with {data_label}"
-                                    # Instead of storing a static chart object, store the configuration
                                     config = {
                                         "header": header_text,
                                         "x_axis": x_axis,
@@ -1200,7 +1196,6 @@ else:
                                     }
                                     st.session_state.custom_charts.insert(0, config)
                                 
-                                # Filter out any non-dictionary configurations (if any)
                                 st.session_state.custom_charts = [cfg for cfg in st.session_state.custom_charts if isinstance(cfg, dict)]
                                 if st.session_state.custom_charts:
                                     st.markdown("### Custom Charts")
@@ -1213,13 +1208,18 @@ else:
                             with quick_col:
                                 st.markdown("##### Quick Charts")
                                 
+                                # --------------------------
+                                # Distribution Analysis
+                                # --------------------------
                                 with st.expander("Distribution Analysis", expanded=False):
                                     st.markdown("""
-                                    <div>
-                                      <span style="font-size: 18px; font-weight: bold;">Distribution Analysis</span>
-                                      <span style="font-size: 14px;">: Visualizes the overall distribution of key variables (e.g., Attrition Score, Employee Age, Tenure, Compa Ratio, and Performance Rating) using histograms.</span>
-                                    </div>
-                                    <hr>
+                                    **Distribution Analysis:**
+                                    - Histogram of Attrition Score
+                                    - Histogram of Employee Age
+                                    - Histogram of Tenure (Months)
+                                    - Histogram of Compa Ratio
+                                    - Histogram of Last Performance Rating
+                                    - Box Plots for continuous variables (optional)
                                     """, unsafe_allow_html=True)
                                     if "Attrition Score" in filtered_df.columns and not filtered_df.empty:
                                         chart1 = alt.Chart(filtered_df).mark_bar(color="#4c78a8").encode(
@@ -1238,114 +1238,274 @@ else:
                                         st.altair_chart(chart2, use_container_width=True)
                                     else:
                                         st.write("No data for Employee Age Distribution.")
+                                    
+                                    if "Tenure (Months)" in filtered_df.columns and not filtered_df.empty:
+                                        chart3 = alt.Chart(filtered_df).mark_bar(color="#4c78a8").encode(
+                                            x=alt.X("Tenure (Months):Q", bin=alt.Bin(maxbins=20), title="Tenure (Months)"),
+                                            y=alt.Y("count()", title="Frequency")
+                                        )
+                                        st.altair_chart(chart3, use_container_width=True)
+                                    else:
+                                        st.write("No data for Tenure Distribution.")
+                                    
+                                    if "Compa Ratio" in filtered_df.columns and not filtered_df.empty:
+                                        chart4 = alt.Chart(filtered_df).mark_bar(color="#e45756").encode(
+                                            x=alt.X("Compa Ratio:Q", bin=alt.Bin(maxbins=20), title="Compa Ratio"),
+                                            y=alt.Y("count()", title="Frequency")
+                                        )
+                                        st.altair_chart(chart4, use_container_width=True)
+                                    else:
+                                        st.write("No data for Compa Ratio Distribution.")
+                                    
+                                    if "Last Performance Rating" in filtered_df.columns and not filtered_df.empty:
+                                        chart5 = alt.Chart(filtered_df).mark_bar(color="#4c78a8").encode(
+                                            x=alt.X("Last Performance Rating:O", title="Last Performance Rating"),
+                                            y=alt.Y("count()", title="Frequency")
+                                        )
+                                        st.altair_chart(chart5, use_container_width=True)
+                                    else:
+                                        st.write("No data for Performance Rating Distribution.")
                                 
+                                # --------------------------
+                                # Comparative Analysis
+                                # --------------------------
                                 with st.expander("Comparative Analysis", expanded=False):
                                     st.markdown("""
-                                    <div>
-                                      <span style="font-size: 18px; font-weight: bold;">Comparative Analysis</span>
-                                      <span style="font-size: 14px;">: Compares pairs of variables via scatter plots and box plots to reveal relationships.</span>
-                                    </div>
-                                    <hr>
+                                    **Comparative Analysis:**
+                                    - Scatter Plot: Employee Age vs Attrition Score
+                                    - Scatter Plot: Tenure (Months) vs Attrition Score
+                                    - Scatter Plot: Compa Ratio vs Attrition Score
+                                    - Box Plot: Attrition Score by Gender
+                                    - Box Plot: Attrition Score by College Tier
+                                    - Box Plot: Attrition Score by Industry
+                                    - Bar Chart: Average Attrition Score by Company Type
                                     """, unsafe_allow_html=True)
                                     if "Employee Age" in filtered_df.columns and "Attrition Score" in filtered_df.columns and not filtered_df.empty:
-                                        chart1 = alt.Chart(filtered_df).mark_circle(size=60, color="#4c78a8").encode(
+                                        scatter1 = alt.Chart(filtered_df).mark_circle(size=60, color="#4c78a8").encode(
                                             x=alt.X("Employee Age:Q", title="Employee Age"),
                                             y=alt.Y("Attrition Score:Q", title="Attrition Score"),
                                             tooltip=["Employee Age", "Attrition Score"]
                                         )
-                                        st.altair_chart(chart1, use_container_width=True)
-                                    else:
-                                        st.write("No data for Employee Age vs Attrition Score.")
+                                        st.altair_chart(scatter1, use_container_width=True)
+                                    if "Tenure (Months)" in filtered_df.columns and "Attrition Score" in filtered_df.columns and not filtered_df.empty:
+                                        scatter2 = alt.Chart(filtered_df).mark_circle(size=60, color="#e45756").encode(
+                                            x=alt.X("Tenure (Months):Q", title="Tenure (Months)"),
+                                            y=alt.Y("Attrition Score:Q", title="Attrition Score"),
+                                            tooltip=["Tenure (Months)", "Attrition Score"]
+                                        )
+                                        st.altair_chart(scatter2, use_container_width=True)
+                                    if "Compa Ratio" in filtered_df.columns and "Attrition Score" in filtered_df.columns and not filtered_df.empty:
+                                        scatter3 = alt.Chart(filtered_df).mark_circle(size=60, color="#4c78a8").encode(
+                                            x=alt.X("Compa Ratio:Q", title="Compa Ratio"),
+                                            y=alt.Y("Attrition Score:Q", title="Attrition Score"),
+                                            tooltip=["Compa Ratio", "Attrition Score"]
+                                        )
+                                        st.altair_chart(scatter3, use_container_width=True)
+                                    if "Gender" in filtered_df.columns and "Attrition Score" in filtered_df.columns and not filtered_df.empty:
+                                        box1 = alt.Chart(filtered_df).mark_boxplot(color="#e45756").encode(
+                                            x=alt.X("Gender:N", title="Gender"),
+                                            y=alt.Y("Attrition Score:Q", title="Attrition Score")
+                                        )
+                                        st.altair_chart(box1, use_container_width=True)
+                                    if "College Tier" in filtered_df.columns and "Attrition Score" in filtered_df.columns and not filtered_df.empty:
+                                        box2 = alt.Chart(filtered_df).mark_boxplot(color="#4c78a8").encode(
+                                            x=alt.X("College Tier:N", title="College Tier"),
+                                            y=alt.Y("Attrition Score:Q", title="Attrition Score")
+                                        )
+                                        st.altair_chart(box2, use_container_width=True)
+                                    if "Industry" in filtered_df.columns and "Attrition Score" in filtered_df.columns and not filtered_df.empty:
+                                        box3 = alt.Chart(filtered_df).mark_boxplot(color="#e45756").encode(
+                                            x=alt.X("Industry:N", title="Industry"),
+                                            y=alt.Y("Attrition Score:Q", title="Attrition Score")
+                                        )
+                                        st.altair_chart(box3, use_container_width=True)
+                                    if "Company Type" in filtered_df.columns and "Attrition Score" in filtered_df.columns and not filtered_df.empty:
+                                        avg_df = filtered_df.groupby("Company Type")["Attrition Score"].mean().reset_index()
+                                        bar1 = alt.Chart(avg_df).mark_bar().encode(
+                                            x=alt.X("Company Type:N", title="Company Type"),
+                                            y=alt.Y("Attrition Score:Q", title="Average Attrition Score"),
+                                            tooltip=["Company Type", "Attrition Score"]
+                                        )
+                                        st.altair_chart(bar1, use_container_width=True)
                                 
+                                # --------------------------
+                                # Correlation Analysis
+                                # --------------------------
                                 with st.expander("Correlation Analysis", expanded=False):
                                     st.markdown("""
-                                    <div>
-                                      <span style="font-size: 18px; font-weight: bold;">Correlation Analysis</span>
-                                      <span style="font-size: 14px;">: Displays a heatmap and pairwise scatter plots to illustrate how numerical variables correlate.</span>
-                                    </div>
-                                    <hr>
+                                    **Correlation Analysis:**
+                                    - Correlation Heatmap for numeric variables
+                                    - Scatter Plot: Employee Age vs Tenure (Months)
+                                    - Scatter Plot: Employee Age vs Compa Ratio
+                                    - Scatter Plot: Tenure (Months) vs Compa Ratio
                                     """, unsafe_allow_html=True)
                                     try:
                                         numeric_df = filtered_df.select_dtypes(include=[np.number])
                                         if not numeric_df.empty:
                                             corr = numeric_df.corr().reset_index().melt(id_vars="index")
-                                            chart1 = alt.Chart(corr).mark_rect().encode(
+                                            heatmap = alt.Chart(corr).mark_rect().encode(
                                                 x=alt.X("index:N", title=""),
                                                 y=alt.Y("variable:N", title=""),
                                                 color=alt.Color("value:Q", scale=alt.Scale(scheme='redblue')),
                                                 tooltip=["index", "variable", "value"]
                                             )
-                                            st.altair_chart(chart1, use_container_width=True)
+                                            st.altair_chart(heatmap, use_container_width=True)
                                         else:
                                             st.write("No numeric data for correlation heatmap.")
                                     except Exception as e:
                                         st.write("Correlation Heatmap not available.")
+                                    # Fixed pairwise scatter plots
+                                    if "Employee Age" in numeric_df.columns and "Tenure (Months)" in numeric_df.columns:
+                                        scatter_a = alt.Chart(filtered_df).mark_circle(size=40).encode(
+                                            x=alt.X("Employee Age:Q", title="Employee Age"),
+                                            y=alt.Y("Tenure (Months):Q", title="Tenure (Months)"),
+                                            tooltip=["Employee Age", "Tenure (Months)"]
+                                        )
+                                        st.altair_chart(scatter_a, use_container_width=True)
+                                    if "Employee Age" in numeric_df.columns and "Compa Ratio" in numeric_df.columns:
+                                        scatter_b = alt.Chart(filtered_df).mark_circle(size=40).encode(
+                                            x=alt.X("Employee Age:Q", title="Employee Age"),
+                                            y=alt.Y("Compa Ratio:Q", title="Compa Ratio"),
+                                            tooltip=["Employee Age", "Compa Ratio"]
+                                        )
+                                        st.altair_chart(scatter_b, use_container_width=True)
+                                    if "Tenure (Months)" in numeric_df.columns and "Compa Ratio" in numeric_df.columns:
+                                        scatter_c = alt.Chart(filtered_df).mark_circle(size=40).encode(
+                                            x=alt.X("Tenure (Months):Q", title="Tenure (Months)"),
+                                            y=alt.Y("Compa Ratio:Q", title="Compa Ratio"),
+                                            tooltip=["Tenure (Months)", "Compa Ratio"]
+                                        )
+                                        st.altair_chart(scatter_c, use_container_width=True)
                                 
+                                # --------------------------
+                                # Trigger Analysis
+                                # --------------------------
                                 with st.expander("Trigger Analysis", expanded=False):
                                     st.markdown("""
-                                    <div>
-                                      <span style="font-size: 18px; font-weight: bold;">Trigger Analysis</span>
-                                      <span style="font-size: 14px;">: Shows the frequency and breakdown of negative triggers using bar and pie charts.</span>
-                                    </div>
-                                    <hr>
+                                    **Trigger Analysis:**
+                                    - Bar Chart for Negative Trigger Frequencies
+                                    - Pie Chart for Negative Trigger Distribution
                                     """, unsafe_allow_html=True)
                                     if "Negative Triggers" in filtered_df.columns and not filtered_df.empty:
                                         ct = compute_trigger_counts(filtered_df, "Negative Triggers").reset_index()
                                         ct.columns = ["Trigger", "Count"]
-                                        if not ct.empty:
-                                            chart1 = alt.Chart(ct).mark_bar(color="#e45756").encode(
-                                                x=alt.X("Trigger:N", sort='-y', title="Trigger"),
-                                                y=alt.Y("Count:Q", title="Count"),
-                                                tooltip=["Trigger", "Count"]
-                                            )
-                                            st.altair_chart(chart1, use_container_width=True)
-                                        else:
-                                            st.write("No triggers found.")
+                                        bar_trigger = alt.Chart(ct).mark_bar(color="#e45756").encode(
+                                            x=alt.X("Trigger:N", sort='-y', title="Trigger"),
+                                            y=alt.Y("Count:Q", title="Count"),
+                                            tooltip=["Trigger", "Count"]
+                                        )
+                                        st.altair_chart(bar_trigger, use_container_width=True)
+                                        pie_trigger = alt.Chart(ct).mark_arc().encode(
+                                            theta=alt.Theta(field="Count", type="quantitative"),
+                                            color=alt.Color(field="Trigger", type="nominal"),
+                                            tooltip=["Trigger", "Count"]
+                                        )
+                                        st.altair_chart(pie_trigger, use_container_width=True)
                                     else:
-                                        st.write("No data for Negative Triggers Count.")
+                                        st.write("No data for Negative Triggers.")
                                 
+                                # --------------------------
+                                # Industry Analysis
+                                # --------------------------
                                 with st.expander("Industry Analysis", expanded=False):
                                     st.markdown("""
-                                    <div>
-                                      <span style="font-size: 18px; font-weight: bold;">Industry Analysis</span>
-                                      <span style="font-size: 14px;">: Examines industry-related factors using pie and bar charts.</span>
-                                    </div>
-                                    <hr>
+                                    **Industry Analysis:**
+                                    - Pie Chart for Industry Distribution
+                                    - Bar Chart for Industry Distribution
+                                    - Stacked Bar Chart: Industry vs Company Type
+                                    - Bar Chart: Average Attrition Score by Industry
+                                    - Box Plot: Attrition Score by Industry
                                     """, unsafe_allow_html=True)
                                     if "Industry" in filtered_df.columns and not filtered_df.empty:
                                         industry_counts = filtered_df["Industry"].value_counts().reset_index()
                                         industry_counts.columns = ['Industry', 'Count']
-                                        chart1 = alt.Chart(industry_counts).mark_arc().encode(
+                                        pie_ind = alt.Chart(industry_counts).mark_arc().encode(
                                             theta=alt.Theta(field="Count", type="quantitative"),
                                             color=alt.Color(field="Industry", type="nominal"),
                                             tooltip=["Industry", "Count"]
                                         )
-                                        st.altair_chart(chart1, use_container_width=True)
+                                        st.altair_chart(pie_ind, use_container_width=True)
+                                        bar_ind = alt.Chart(industry_counts).mark_bar().encode(
+                                            x=alt.X("Industry:N", title="Industry"),
+                                            y=alt.Y("Count:Q", title="Count"),
+                                            tooltip=["Industry", "Count"]
+                                        )
+                                        st.altair_chart(bar_ind, use_container_width=True)
+                                        if "Company Type" in filtered_df.columns:
+                                            stacked = alt.Chart(filtered_df).mark_bar().encode(
+                                                x=alt.X("Industry:N", title="Industry"),
+                                                y=alt.Y("count()", title="Count"),
+                                                color=alt.Color("Company Type:N", title="Company Type"),
+                                                tooltip=["Industry", "Company Type", "count()"]
+                                            )
+                                            st.altair_chart(stacked, use_container_width=True)
+                                        avg_ind = filtered_df.groupby("Industry")["Attrition Score"].mean().reset_index()
+                                        bar_avg_ind = alt.Chart(avg_ind).mark_bar().encode(
+                                            x=alt.X("Industry:N", title="Industry"),
+                                            y=alt.Y("Attrition Score:Q", title="Average Attrition Score"),
+                                            tooltip=["Industry", "Attrition Score"]
+                                        )
+                                        st.altair_chart(bar_avg_ind, use_container_width=True)
+                                        box_ind = alt.Chart(filtered_df).mark_boxplot(color="#e45756").encode(
+                                            x=alt.X("Industry:N", title="Industry"),
+                                            y=alt.Y("Attrition Score:Q", title="Attrition Score")
+                                        )
+                                        st.altair_chart(box_ind, use_container_width=True)
                                     else:
-                                        st.write("No data for Industry Distribution.")
+                                        st.write("No data for Industry Analysis.")
                                 
+                                # --------------------------
+                                # Temporal Analysis
+                                # --------------------------
                                 with st.expander("Temporal Analysis", expanded=False):
                                     st.markdown("""
-                                    <div>
-                                      <span style="font-size: 18px; font-weight: bold;">Temporal Analysis</span>
-                                      <span style="font-size: 14px;">: Tracks trends over time with line, bar, and area charts.</span>
-                                    </div>
-                                    <hr>
+                                    **Temporal Analysis:**
+                                    - Line Chart: Date vs Average Attrition Score
+                                    - Line Chart: Date vs Rolling Average Attrition Score
+                                    - Bar Chart: Number of Predictions per Day
+                                    - Area Chart: Cumulative Attrition Score Over Time
                                     """, unsafe_allow_html=True)
                                     if "Prediction Time" in filtered_df.columns and not filtered_df.empty:
                                         df_time = filtered_df.copy()
                                         df_time["Prediction Time"] = pd.to_datetime(df_time["Prediction Time"], errors="coerce")
                                         df_time = df_time.dropna(subset=["Prediction Time"])
                                         if not df_time.empty:
-                                            trend_df = df_time.groupby(df_time["Prediction Time"].dt.date).agg({"Attrition Score": "mean"}).reset_index()
-                                            trend_df.columns = ["Date", "Average Attrition Score"]
-                                            chart1 = alt.Chart(trend_df).mark_line(point=True, color="#e45756").encode(
+                                            # Line chart for average attrition score by date
+                                            trend_df = df_time.groupby(df_time["Prediction Time"].dt.date).agg({"Attrition Score": "mean", "Name": "count"}).reset_index()
+                                            trend_df.columns = ["Date", "Average Attrition Score", "Count"]
+                                            line_chart = alt.Chart(trend_df).mark_line(point=True, color="#e45756").encode(
                                                 x=alt.X("Date:T", title="Date"),
                                                 y=alt.Y("Average Attrition Score:Q", title="Average Attrition Score"),
                                                 tooltip=["Date", "Average Attrition Score"]
                                             )
-                                            st.altair_chart(chart1, use_container_width=True)
+                                            st.altair_chart(line_chart, use_container_width=True)
+                                            
+                                            # Rolling average line chart
+                                            trend_df["Rolling Avg"] = trend_df["Average Attrition Score"].rolling(window=2).mean()
+                                            rolling_chart = alt.Chart(trend_df).mark_line(point=True, color="#4c78a8").encode(
+                                                x=alt.X("Date:T", title="Date"),
+                                                y=alt.Y("Rolling Avg:Q", title="Rolling Average Attrition Score"),
+                                                tooltip=["Date", "Rolling Avg"]
+                                            )
+                                            st.altair_chart(rolling_chart, use_container_width=True)
+                                            
+                                            # Bar chart: number of predictions per day
+                                            bar_chart = alt.Chart(trend_df).mark_bar(color="#e45756").encode(
+                                                x=alt.X("Date:T", title="Date"),
+                                                y=alt.Y("Count:Q", title="Number of Predictions"),
+                                                tooltip=["Date", "Count"]
+                                            )
+                                            st.altair_chart(bar_chart, use_container_width=True)
+                                            
+                                            # Area chart: cumulative attrition score over time
+                                            trend_df["Cumulative"] = trend_df["Average Attrition Score"].cumsum()
+                                            area_chart = alt.Chart(trend_df).mark_area(color="#4c78a8", opacity=0.5).encode(
+                                                x=alt.X("Date:T", title="Date"),
+                                                y=alt.Y("Cumulative:Q", title="Cumulative Attrition Score"),
+                                                tooltip=["Date", "Cumulative"]
+                                            )
+                                            st.altair_chart(area_chart, use_container_width=True)
                                         else:
-                                            st.write("No valid Prediction Time data available for trend analysis.")
+                                            st.write("No valid Prediction Time data available for temporal analysis.")
                                     else:
                                         st.write("No Prediction Time data available.")
