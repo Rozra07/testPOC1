@@ -52,7 +52,7 @@ def safe_rerun():
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "nav" not in st.session_state:
-    st.session_state.nav = "Tabs"  # "Tabs" indicates main UI (i.e. not "My Account")
+    st.session_state.nav = "Tabs"  # "Tabs" indicates main UI (not "My Account")
 if "user" not in st.session_state:
     st.session_state.user = {}
 if "bulk_prediction_complete" not in st.session_state:
@@ -62,9 +62,9 @@ if "bulk_result" not in st.session_state:
 if "enable_what_if" not in st.session_state:
     st.session_state.enable_what_if = False
 if "custom_charts" not in st.session_state:
-    st.session_state.custom_charts = []  # list to store custom charts
+    st.session_state.custom_charts = []
 if "custom_filters" not in st.session_state:
-    st.session_state.custom_filters = []  # list to store additional custom filter configs
+    st.session_state.custom_filters = []  # will store additional custom filter configurations
 
 # ----------------------------------------------------
 # Helper functions for user storage
@@ -132,9 +132,7 @@ def train_model(training_df, target_column, industry):
     model.fit(X_scaled, y)
     st.write("Model coefficients:", model.coef_)
     
-    # -------------------------------
-    # Model Evaluation Metrics
-    # -------------------------------
+    # Evaluation
     from sklearn.metrics import roc_curve, auc, confusion_matrix, classification_report
     preds = model.predict_proba(X_scaled)[:, 1]
     fpr, tpr, thresholds = roc_curve(y, preds)
@@ -423,8 +421,8 @@ def graph_header(title, explanation):
     return f'<h4 style="color: white;">{title} <span title="{explanation}" style="cursor: help; color: #ccc;">&#9432;</span></h4>'
 
 # ---------------------------------------
-# Local filtering function placed in the left column
-# Uses one range slider for Attrition Score and allows multiple additional custom filters.
+# Local filtering function (left column)
+# Uses one range slider for Attrition Score and allows adding multiple custom filters.
 # ---------------------------------------
 def local_get_filtered_df(df):
     st.markdown("### Base Filters", unsafe_allow_html=True)
@@ -433,15 +431,15 @@ def local_get_filtered_df(df):
     
     # Button to add a new custom filter
     if st.button("Add New Custom Filter", key="add_custom_filter"):
-        st.session_state.custom_filters.append({})  # append an empty filter config
-        safe_rerun()  # rerun to update
+        st.session_state.custom_filters.append({})
+        safe_rerun()
     
-    # Render all custom filters
     custom_conditions = []
+    # Render each custom filter
     for i, filt in enumerate(st.session_state.custom_filters):
         st.markdown(f"**Custom Filter {i+1}:**", unsafe_allow_html=True)
         possible_cols = [col for col in df.columns if col not in ["Attrition Score", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]]
-        sel_col = st.selectbox(f"Select column for filter {i+1}", possible_cols, key=f"custom_filter_col_{i}")
+        sel_col = st.selectbox(f"Select column (Filter {i+1})", possible_cols, key=f"custom_filter_col_{i}")
         st.session_state.custom_filters[i]['col'] = sel_col
         series = df[sel_col]
         if pd.api.types.is_numeric_dtype(series):
@@ -455,12 +453,10 @@ def local_get_filtered_df(df):
             st.session_state.custom_filters[i]['vals'] = vals
             cond = df[sel_col].isin(vals)
         custom_conditions.append(cond)
-        # Button to remove this custom filter
         if st.button(f"Remove Filter {i+1}", key=f"remove_filter_{i}"):
             st.session_state.custom_filters.pop(i)
             safe_rerun()
     
-    # Combine base condition with all custom filter conditions
     combined_condition = base_condition
     for cond in custom_conditions:
         combined_condition &= cond
@@ -761,8 +757,8 @@ else:
                 
                 # -------------------------------
                 # Analysis Section: Two-Column Layout
-                # Left column: Filters + Filtered Data Table (20% width)
-                # Right column: Charts (custom and quick charts)
+                # Left column (20% width): Filters + Filtered Data Table
+                # Right column (80% width): Charts (Custom & Quick)
                 # -------------------------------
                 if st.session_state.bulk_prediction_complete:
                     st.markdown("### Analysis (Responsive to Filters)")
@@ -996,14 +992,15 @@ else:
                         # End What-If Analysis
                         else:
                             st.markdown("#### Quick Charts & Custom Graph Builder", unsafe_allow_html=True)
+                            # Two sub-columns within the right column for custom chart builder and quick charts
                             custom_col, quick_col = st.columns([0.5, 0.5])
                             
                             with custom_col:
-                                st.markdown("<h4 style='color: white; font-size:18px;'><b>Select X Axis:</b> Choose the column for the X-axis.</h4>", unsafe_allow_html=True)
+                                st.markdown("<h4 style='font-size:18px; color:white;'><b>Select X Axis:</b> Choose the column for the X-axis.</h4>", unsafe_allow_html=True)
                                 x_axis = st.selectbox("", options=filtered_df.columns, key="custom_x")
-                                st.markdown("<h4 style='color: white; font-size:18px;'><b>Select Y Axis:</b> Choose the column for the Y-axis.</h4>", unsafe_allow_html=True)
+                                st.markdown("<h4 style='font-size:18px; color:white;'><b>Select Y Axis:</b> Choose the column for the Y-axis.</h4>", unsafe_allow_html=True)
                                 y_axis = st.selectbox("", options=filtered_df.columns, key="custom_y")
-                                st.markdown("<h4 style='color: white; font-size:18px;'><b>Select Data Label (Optional):</b> Choose a column for data labels (if needed).</h4>", unsafe_allow_html=True)
+                                st.markdown("<h4 style='font-size:18px; color:white;'><b>Select Data Label (Optional):</b> Choose a column for data labels.</h4>", unsafe_allow_html=True)
                                 data_label = st.selectbox("", options=["None"] + list(filtered_df.columns), key="custom_label")
                                 submitted_custom = st.form_submit_button("Generate Custom Chart", key="submit_custom_chart")
                                 if submitted_custom:
@@ -1049,13 +1046,13 @@ else:
                                         "explanation": "This chart was generated based on your selected axes."
                                     })
                                 if st.session_state.custom_charts:
-                                    st.markdown("<h4 style='color: white; font-size:18px;'><b>Your Custom Charts</b></h4>", unsafe_allow_html=True)
+                                    st.markdown("<h4 style='font-size:18px; color:white;'><b>Your Custom Charts</b></h4>", unsafe_allow_html=True)
                                     for custom in st.session_state.custom_charts:
                                         st.markdown(graph_header(custom["title"], custom["explanation"]), unsafe_allow_html=True)
                                         st.altair_chart(custom["chart"], use_container_width=True)
                             
                             with quick_col:
-                                st.markdown("<h4 style='color: white; font-size:18px;'><b>Quick Charts</b></h4>", unsafe_allow_html=True)
+                                st.markdown("<h4 style='font-size:18px; color:white;'><b>Quick Charts</b></h4>", unsafe_allow_html=True)
                                 df_for_charts = filtered_df
                                 
                                 with st.expander("Distribution Analysis"):
