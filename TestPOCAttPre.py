@@ -427,78 +427,75 @@ def graph_header(title, explanation):
 # ---------------------------------------
 def horizontal_filters(df):
     filter_values = {}
-    st.markdown(
-    """
+    # CSS to force horizontal layout and minimal space usage
+    st.markdown("""
     <style>
-    .filter-scroll-container {
-      display: flex;
-      overflow-x: auto;
-      gap: 20px;
-      padding: 10px;
+    .horizontal-container {
+        display: flex;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        gap: 10px;
+        padding: 10px 0;
     }
-    .filter-box {
-      flex: 0 0 auto;
-      min-width: 250px;
-      border: 1px solid #ccc;
-      padding: 10px;
-      position: relative;
-      background-color: #f9f9f9;
-      border-radius: 4px;
+    .horizontal-container > div {
+        flex: 0 0 auto;
+        min-width: 200px;
+        border: 1px solid #ccc;
+        padding: 5px;
+        border-radius: 4px;
     }
     .remove-btn {
-      position: absolute;
-      top: 2px;
-      right: 2px;
-      background: none;
-      border: none;
-      color: red;
-      font-weight: bold;
-      cursor: pointer;
+        float: right;
+        background: none;
+        border: none;
+        color: red;
+        font-size: 16px;
+        cursor: pointer;
     }
     </style>
     """, unsafe_allow_html=True)
     
+    # Total filters = Attrition Score + each custom filter
+    n_custom = len(st.session_state.custom_filters)
+    n_filters = 1 + n_custom
+    
     with st.container():
-        st.markdown('<div class="filter-scroll-container">', unsafe_allow_html=True)
-        
-        # Always include the Attrition Score filter first:
-        with st.container():
-            st.markdown('<div class="filter-box">', unsafe_allow_html=True)
+        st.markdown('<div class="horizontal-container">', unsafe_allow_html=True)
+        # First filter: Attrition Score (dropdown not needed here)
+        col0 = st.container()
+        with col0:
             score_range = st.slider("Attrition Score", 0, 100, (0, 100), key="filter_attrition_score")
             filter_values["Attrition Score"] = score_range
-            st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown(col0._repr_html_(), unsafe_allow_html=True)  # render the container inline
         
-        # Display each custom filter box horizontally
-        for filter_id in st.session_state.custom_filters:
-            with st.container():
-                st.markdown('<div class="filter-box">', unsafe_allow_html=True)
-                # Remove button (cross) at top right
-                if st.button("❌", key=f"remove_{filter_id}", help="Remove this filter"):
-                    st.session_state.custom_filters.remove(filter_id)
-                    safe_rerun()
-                possible_cols = [col for col in df.columns if col not in 
-                    ["Attrition Score", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]]
-                col_selected = st.selectbox("Select column", options=possible_cols, key=f"custom_filter_col_{filter_id}")
-                filter_values[f"custom_filter_col_{filter_id}"] = col_selected
-                if pd.api.types.is_numeric_dtype(df[col_selected]):
-                    min_val = float(df[col_selected].min())
-                    max_val = float(df[col_selected].max())
-                    selected_range = st.slider(f"Range for {col_selected}", min_val, max_val, (min_val, max_val), key=f"custom_filter_range_{filter_id}")
-                    filter_values[f"custom_filter_range_{filter_id}"] = selected_range
-                else:
-                    unique_vals = list(df[col_selected].dropna().unique())
-                    selected_vals = st.multiselect(f"Values for {col_selected}", options=unique_vals, default=unique_vals, key=f"custom_filter_vals_{filter_id}")
-                    filter_values[f"custom_filter_vals_{filter_id}"] = selected_vals
-                st.markdown('</div>', unsafe_allow_html=True)
-        
+        # For each custom filter, add a column (each filter box appears horizontally)
+        if n_custom > 0:
+            cols = st.columns(n_custom)
+            for i, filter_id in enumerate(st.session_state.custom_filters):
+                with cols[i]:
+                    # Remove button in the top right (using st.button)
+                    if st.button("❌", key=f"remove_{filter_id}", help="Remove this filter"):
+                        st.session_state.custom_filters.remove(filter_id)
+                        safe_rerun()
+                    # Dropdown to select the column to filter on
+                    possible_cols = [col for col in df.columns if col not in ["Attrition Score", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]]
+                    col_selected = st.selectbox("Select column", options=possible_cols, key=f"custom_filter_col_{filter_id}")
+                    filter_values[f"custom_filter_col_{filter_id}"] = col_selected
+                    # Depending on the column type, show a range slider or multiselect
+                    if pd.api.types.is_numeric_dtype(df[col_selected]):
+                        min_val = float(df[col_selected].min())
+                        max_val = float(df[col_selected].max())
+                        selected_range = st.slider("Range", min_val, max_val, (min_val, max_val), key=f"custom_filter_range_{filter_id}")
+                        filter_values[f"custom_filter_range_{filter_id}"] = selected_range
+                    else:
+                        unique_vals = list(df[col_selected].dropna().unique())
+                        selected_vals = st.multiselect("Values", options=unique_vals, default=unique_vals, key=f"custom_filter_vals_{filter_id}")
+                        filter_values[f"custom_filter_vals_{filter_id}"] = selected_vals
         st.markdown("</div>", unsafe_allow_html=True)
-        
         if st.button("Add Custom Filter", key="add_custom_filter"):
-            # Use a unique identifier for the new filter (using timestamp)
             new_id = str(datetime.now().timestamp())
             st.session_state.custom_filters.append(new_id)
             safe_rerun()
-    
     return filter_values
 
 def apply_filters(df, filter_values):
