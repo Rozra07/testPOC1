@@ -421,25 +421,84 @@ def graph_header(title, explanation):
     return f'<h4 style="color: white;">{title} <span title="{explanation}" style="cursor: help; color: #ccc;">&#9432;</span></h4>'
 
 # ---------------------------------------
-# Local filtering function to be placed in the left column (above table)
-# Uses one slider for a range.
+# Horizontal Filter Functions for Bulk Analysis
 # ---------------------------------------
-def local_get_filtered_df(df):
-    score_range = st.slider("Filter: Attrition Score", 0, 100, (0, 100), key="local_score_range")
-    possible_cols = [col for col in df.columns if col not in 
-                     ["Attrition Score", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]]
-    custom_col = st.selectbox("Filter: Select column", possible_cols, key="local_custom_col")
-    series = df[custom_col]
-    if pd.api.types.is_numeric_dtype(series):
-        custom_range = st.slider(f"Filter: {custom_col} Range", float(series.min()), float(series.max()),
-                                 (float(series.min()), float(series.max())), key="local_custom_range")
-        condition = (df[custom_col] >= custom_range[0]) & (df[custom_col] <= custom_range[1])
-    else:
-        unique_vals = series.unique().tolist()
-        selected_vals = st.multiselect(f"Filter: {custom_col} values", unique_vals, default=unique_vals, key="local_custom_vals")
-        condition = df[custom_col].isin(selected_vals)
-    filtered = df[(df["Attrition Score"] >= score_range[0]) & (df["Attrition Score"] <= score_range[1]) & condition]
-    return filtered
+def horizontal_filters(df):
+    filter_values = {}
+    st.markdown(
+    """
+    <style>
+    .filter-scroll-container {
+      display: flex;
+      overflow-x: auto;
+      gap: 20px;
+      padding: 10px;
+    }
+    .filter-box {
+      flex: 0 0 auto;
+      min-width: 250px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    with st.container():
+        st.markdown('<div class="filter-scroll-container">', unsafe_allow_html=True)
+        
+        # Attrition Score Filter
+        with st.container():
+            with st.expander("Attrition Score", expanded=True):
+                score_range = st.slider("Attrition Score", 0, 100, (0, 100), key="filter_attrition_score")
+                filter_values["Attrition Score"] = score_range
+        
+        # Custom Filters - dynamic number of filters
+        if "custom_filter_count" not in st.session_state:
+            st.session_state.custom_filter_count = 1
+        
+        for i in range(st.session_state.custom_filter_count):
+            with st.container():
+                with st.expander(f"Custom Filter {i+1}", expanded=True):
+                    possible_cols = [col for col in df.columns if col not in 
+                        ["Attrition Score", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]]
+                    col_selected = st.selectbox(f"Select column for filter {i+1}", options=possible_cols, key=f"custom_filter_col_{i}")
+                    filter_values[f"custom_filter_col_{i}"] = col_selected
+                    if pd.api.types.is_numeric_dtype(df[col_selected]):
+                        min_val = float(df[col_selected].min())
+                        max_val = float(df[col_selected].max())
+                        selected_range = st.slider(f"Select range for {col_selected}", min_val, max_val, (min_val, max_val), key=f"custom_filter_range_{i}")
+                        filter_values[f"custom_filter_range_{i}"] = selected_range
+                    else:
+                        unique_vals = list(df[col_selected].dropna().unique())
+                        selected_vals = st.multiselect(f"Select values for {col_selected}", options=unique_vals, default=unique_vals, key=f"custom_filter_vals_{i}")
+                        filter_values[f"custom_filter_vals_{i}"] = selected_vals
+        
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+        if st.button("Add Custom Filter"):
+            st.session_state.custom_filter_count += 1
+
+    return filter_values
+
+def apply_filters(df, filter_values):
+    filtered_df = df.copy()
+    # Apply Attrition Score filter
+    if "Attrition Score" in filter_values:
+        low, high = filter_values["Attrition Score"]
+        filtered_df = filtered_df[(filtered_df["Attrition Score"] >= low) & (filtered_df["Attrition Score"] <= high)]
+    # Apply custom filters
+    for key in filter_values:
+        if key.startswith("custom_filter_col_"):
+            idx = key.split("_")[-1]
+            col = filter_values[key]
+            range_key = f"custom_filter_range_{idx}"
+            if range_key in filter_values:
+                low_val, high_val = filter_values[range_key]
+                filtered_df = filtered_df[(filtered_df[col] >= low_val) & (filtered_df[col] <= high_val)]
+            else:
+                vals_key = f"custom_filter_vals_{idx}"
+                if vals_key in filter_values:
+                    selected_vals = filter_values[vals_key]
+                    filtered_df = filtered_df[filtered_df[col].isin(selected_vals)]
+    return filtered_df
 
 # ---------------------------------------
 # Login/Sign Up System
@@ -735,15 +794,15 @@ else:
                 
                 # -------------------------------
                 # Bulk Analysis Section:
-                # Compute filtered_df once so that both columns use the same data.
-                # Left column (Filters, Filtered Table & Risk Distribution) occupies 20% width.
-                # Right column (Custom & Quick Charts) occupies 80% width.
                 # -------------------------------
                 if st.session_state.bulk_prediction_complete:
                     st.markdown("### Bulk Analysis")
                     st.markdown("<hr>", unsafe_allow_html=True)
-                    # Compute filtered_df once
-                    filtered_df = local_get_filtered_df(st.session_state.bulk_result)
+                    
+                    # Display horizontal, scrollable filters and then apply them
+                    filter_values = horizontal_filters(st.session_state.bulk_result)
+                    filtered_df = apply_filters(st.session_state.bulk_result, filter_values)
+                    
                     col_table, col_charts = st.columns([0.20, 0.80])
                     
                     with col_table:
@@ -751,7 +810,7 @@ else:
                         st.markdown("<hr>", unsafe_allow_html=True)
                         st.markdown("#### Filtered Data Table")
                         st.dataframe(filtered_df)
-                        # Add Risk Distribution chart below the table
+                        # Risk Distribution Chart
                         if "Attrition Score" in filtered_df.columns:
                             high_risk = (filtered_df["Attrition Score"] >= 75).sum()
                             mod_high = ((filtered_df["Attrition Score"] >= 60) & (filtered_df["Attrition Score"] < 75)).sum()
@@ -770,7 +829,7 @@ else:
                             filtered_whatif_df = filtered_df.copy()
                             trig_series = compute_trigger_counts(filtered_whatif_df, "Negative Triggers")
                             
-                            # Widget configuration for known triggers.
+                            # What-If widget configuration (unchanged)
                             trigger_widget_config = {
                                 "Low gender diversity": {
                                     "widget": "slider",
@@ -1031,21 +1090,10 @@ else:
                                                 tooltip=[x_axis]
                                             )
                                     st.altair_chart(custom_chart, use_container_width=True)
-                                    st.session_state.custom_charts.insert(0, {
-                                        "chart": custom_chart,
-                                        "title": f"Custom Chart: {x_axis} vs {y_axis}",
-                                        "explanation": "This chart was generated based on your selected axes."
-                                    })
-                                if st.session_state.custom_charts:
-                                    st.markdown("##### Your Custom Charts")
-                                    for custom in st.session_state.custom_charts:
-                                        st.markdown(graph_header(custom["title"], custom["explanation"]), unsafe_allow_html=True)
-                                        st.altair_chart(custom["chart"], use_container_width=True)
                             
                             with quick_col:
                                 st.markdown("##### Quick Charts")
                                 
-                                # Distribution Analysis Expander
                                 with st.expander("Distribution Analysis", expanded=False):
                                     st.markdown("""
                                     <div>
@@ -1072,7 +1120,6 @@ else:
                                     else:
                                         st.write("No data for Employee Age Distribution.")
                                 
-                                # Comparative Analysis Expander
                                 with st.expander("Comparative Analysis", expanded=False):
                                     st.markdown("""
                                     <div>
@@ -1091,7 +1138,6 @@ else:
                                     else:
                                         st.write("No data for Employee Age vs Attrition Score.")
                                 
-                                # Correlation Analysis Expander
                                 with st.expander("Correlation Analysis", expanded=False):
                                     st.markdown("""
                                     <div>
@@ -1116,7 +1162,6 @@ else:
                                     except Exception as e:
                                         st.write("Correlation Heatmap not available.")
                                 
-                                # Trigger Analysis Expander
                                 with st.expander("Trigger Analysis", expanded=False):
                                     st.markdown("""
                                     <div>
@@ -1140,7 +1185,6 @@ else:
                                     else:
                                         st.write("No data for Negative Triggers Count.")
                                 
-                                # Industry Analysis Expander
                                 with st.expander("Industry Analysis", expanded=False):
                                     st.markdown("""
                                     <div>
@@ -1161,7 +1205,6 @@ else:
                                     else:
                                         st.write("No data for Industry Distribution.")
                                 
-                                # Temporal Analysis Expander
                                 with st.expander("Temporal Analysis", expanded=False):
                                     st.markdown("""
                                     <div>
