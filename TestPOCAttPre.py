@@ -63,22 +63,10 @@ def colored_metric(value, threshold, higher_better=True, is_lower=False):
 # ----------------------------------------------------
 # Initialize st.session_state keys if not already set
 # ----------------------------------------------------
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "nav" not in st.session_state:
-    st.session_state.nav = "Tabs"  # "Tabs" indicates main UI (i.e. not "My Account")
-if "user" not in st.session_state:
-    st.session_state.user = {}
-if "bulk_prediction_complete" not in st.session_state:
-    st.session_state.bulk_prediction_complete = False
-if "bulk_result" not in st.session_state:
-    st.session_state.bulk_result = None
-if "enable_what_if" not in st.session_state:
-    st.session_state.enable_what_if = False
-if "custom_charts" not in st.session_state:
-    st.session_state.custom_charts = []  # list to store custom charts
-if "custom_filters" not in st.session_state:
-    st.session_state.custom_filters = []  # list to store unique IDs for custom filters
+for key in ["logged_in", "nav", "user", "bulk_prediction_complete", "bulk_result", "enable_what_if", "custom_charts", "custom_filters"]:
+    if key not in st.session_state:
+        # For custom charts we store a list of configuration dictionaries
+        st.session_state[key] = [] if key in ["custom_charts", "custom_filters"] else False if key=="logged_in" else ("Tabs" if key=="nav" else None)
 
 # ----------------------------------------------------
 # Helper functions for user storage
@@ -190,7 +178,6 @@ def train_model(training_df, target_column, industry):
     pr_auc = average_precision_score(y, preds)
     logloss = log_loss(y, model.predict_proba(X_scaled))
     
-    # Store trust metrics in session_state for testing mode summary later.
     st.session_state.trust_metrics = {
         "accuracy": accuracy,
         "precision": precision,
@@ -202,7 +189,6 @@ def train_model(training_df, target_column, industry):
         "logloss": logloss
     }
     
-    # Create an HTML table for Trustworthiness of Model
     trust_table = f"""
     <table style="width:100%; border: 1px solid white; border-collapse: collapse;">
       <tr>
@@ -518,11 +504,64 @@ def graph_header(title, explanation):
     return f'<h4 style="color: white;">{title} <span title="{explanation}" style="cursor: help; color: #ccc;">&#9432;</span></h4>'
 
 # ---------------------------------------
+# Helper: generate a custom chart from a saved configuration and current filtered data
+# ---------------------------------------
+def generate_custom_chart(config, data):
+    x_axis = config.get("x_axis")
+    y_axis = config.get("y_axis")
+    # Check that the chosen columns exist in the current (filtered) DataFrame.
+    missing_cols = [col for col in [x_axis, y_axis] if col not in data.columns]
+    if missing_cols:
+        error_msg = f"Column(s) not found: {', '.join(missing_cols)}"
+        return alt.Chart(pd.DataFrame({'Error': [error_msg]})).mark_text(
+            align='center',
+            baseline='middle',
+            color='red'
+        ).encode(text='Error:N')
+    
+    if x_axis == "Negative Triggers" or y_axis == "Negative Triggers":
+        ct = compute_trigger_counts(data, "Negative Triggers").reset_index()
+        ct.columns = ["Trigger", "Count"]
+        chart = alt.Chart(ct).mark_bar(color="#e45756").encode(
+            x=alt.X("Trigger:N", title="Negative Triggers"),
+            y=alt.Y("Count:Q", title="Count"),
+            tooltip=["Trigger", "Count"]
+        )
+    else:
+        x_is_numeric = pd.api.types.is_numeric_dtype(data[x_axis])
+        y_is_numeric = pd.api.types.is_numeric_dtype(data[y_axis])
+        if x_is_numeric and y_is_numeric:
+            # Do not include "Name" in the tooltip.
+            chart = alt.Chart(data).mark_circle(size=60, color="#4c78a8").encode(
+                x=alt.X(f"{x_axis}:Q", title=x_axis),
+                y=alt.Y(f"{y_axis}:Q", title=y_axis),
+                tooltip=[x_axis, y_axis]
+            )
+        elif not x_is_numeric and y_is_numeric:
+            chart = alt.Chart(data).mark_boxplot(color="#e45756").encode(
+                x=alt.X(f"{x_axis}:N", title=x_axis),
+                y=alt.Y(f"{y_axis}:Q", title=y_axis),
+                tooltip=[x_axis, y_axis]
+            )
+        elif x_is_numeric and not y_is_numeric:
+            chart = alt.Chart(data).mark_boxplot(color="#e45756").encode(
+                x=alt.X(f"{y_axis}:N", title=y_axis),
+                y=alt.Y(f"{x_axis}:Q", title=x_axis),
+                tooltip=[x_axis, y_axis]
+            )
+        else:
+            chart = alt.Chart(data).mark_bar(color="#4c78a8").encode(
+                x=alt.X(f"{x_axis}:N", title=x_axis),
+                y=alt.Y("count()", title="Count"),
+                tooltip=[x_axis]
+            )
+    return chart
+
+# ---------------------------------------
 # Horizontal Filter Functions for Bulk Analysis
 # ---------------------------------------
 def horizontal_filters(df):
     filter_values = {}
-    # Add CSS style to force a minimum width for each column so that filters appear nicely
     st.markdown("""
     <style>
     div[data-testid="column"] {
@@ -531,23 +570,20 @@ def horizontal_filters(df):
     </style>
     """, unsafe_allow_html=True)
     
-    # Determine total number of filters: 1 (Attrition Score) + number of custom filters
+    # Exclude "Name" and other non‐relevant columns.
     num_custom = len(st.session_state.custom_filters)
     total_filters = 1 + num_custom
     cols = st.columns(total_filters)
     
-    # First column: Attrition Score filter
     with cols[0]:
         score_range = st.slider("Attrition Score", 0, 100, (0, 100), key="filter_attrition_score")
         filter_values["Attrition Score"] = score_range
 
-    # Each custom filter appears in its own column with aligned remove button
     for i, filter_id in enumerate(st.session_state.custom_filters):
         with cols[i+1]:
-            # Create two inner columns: one for the selectbox, one for the remove button.
             inner_cols = st.columns([3, 0.5])
             with inner_cols[0]:
-                possible_cols = [col for col in df.columns if col not in ["Attrition Score", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]]
+                possible_cols = [col for col in df.columns if col not in ["Name", "Attrition Score", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]]
                 col_selected = st.selectbox("Select column", options=possible_cols, key=f"custom_filter_col_{filter_id}")
                 filter_values[f"custom_filter_col_{filter_id}"] = col_selected
             with inner_cols[1]:
@@ -555,7 +591,6 @@ def horizontal_filters(df):
                 if remove:
                     st.session_state.custom_filters.remove(filter_id)
                     safe_rerun()
-            # If the selected column is numeric, use a slider; otherwise, a multiselect
             if pd.api.types.is_numeric_dtype(df[col_selected]):
                 min_val = float(df[col_selected].min())
                 max_val = float(df[col_selected].max())
@@ -575,11 +610,9 @@ def horizontal_filters(df):
 
 def apply_filters(df, filter_values):
     filtered_df = df.copy()
-    # Apply Attrition Score filter
     if "Attrition Score" in filter_values:
         low, high = filter_values["Attrition Score"]
         filtered_df = filtered_df[(filtered_df["Attrition Score"] >= low) & (filtered_df["Attrition Score"] <= high)]
-    # Apply each custom filter
     for key in filter_values:
         if key.startswith("custom_filter_col_"):
             filter_id = key.replace("custom_filter_col_", "")
@@ -758,9 +791,6 @@ if st.session_state.nav == "My Account":
     if st.button("Back to Main"):
         st.session_state.nav = "Tabs"
 else:
-    # ---------------------------
-    # Testing Mode: Show Trustworthiness Summary if available
-    # ---------------------------
     if st.session_state.main_mode == "Test Mode":
         selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=0, key="test_industry")
         st.markdown("""
@@ -782,7 +812,7 @@ else:
         </style>
         """, unsafe_allow_html=True)
         
-        # If trust metrics exist from training, display a single summary line:
+        # (Optional) Display trust metrics summary here if desired.
         if "trust_metrics" in st.session_state:
             tm = st.session_state.trust_metrics
             trust_line = (f"Trustworthiness Summary: Accuracy: {tm['accuracy']:.2f}, Precision: {tm['precision']:.2f}, "
@@ -916,7 +946,6 @@ else:
                         st.markdown("<hr>", unsafe_allow_html=True)
                         st.markdown("#### Filtered Data Table")
                         st.dataframe(filtered_df)
-                        # Risk Distribution Chart
                         if "Attrition Score" in filtered_df.columns:
                             high_risk = (filtered_df["Attrition Score"] >= 75).sum()
                             mod_high = ((filtered_df["Attrition Score"] >= 60) & (filtered_df["Attrition Score"] < 75)).sum()
@@ -935,7 +964,6 @@ else:
                             filtered_whatif_df = filtered_df.copy()
                             trig_series = compute_trigger_counts(filtered_whatif_df, "Negative Triggers")
                             
-                            # What-If widget configuration (unchanged)
                             trigger_widget_config = {
                                 "Low gender diversity": {
                                     "widget": "slider",
@@ -1160,61 +1188,27 @@ else:
                                     data_label = st.selectbox("Select Data Label (Optional)", options=["None"] + list(filtered_df.columns), key="custom_label")
                                     submitted_custom = st.form_submit_button("Generate Custom Chart")
                                 if submitted_custom:
-                                    if x_axis == "Negative Triggers" or y_axis == "Negative Triggers":
-                                        ct = compute_trigger_counts(filtered_df, "Negative Triggers").reset_index()
-                                        ct.columns = ["Trigger", "Count"]
-                                        custom_chart = alt.Chart(ct).mark_bar(color="#e45756").encode(
-                                            x=alt.X("Trigger:N", title="Negative Triggers"),
-                                            y=alt.Y("Count:Q", title="Count"),
-                                            tooltip=["Trigger", "Count"]
-                                        )
-                                    else:
-                                        x_is_numeric = pd.api.types.is_numeric_dtype(filtered_df[x_axis])
-                                        y_is_numeric = pd.api.types.is_numeric_dtype(filtered_df[y_axis])
-                                        if x_is_numeric and y_is_numeric:
-                                            custom_chart = alt.Chart(filtered_df).mark_circle(size=60, color="#4c78a8").encode(
-                                                x=alt.X(f"{x_axis}:Q", title=x_axis),
-                                                y=alt.Y(f"{y_axis}:Q", title=y_axis),
-                                                tooltip=["Name", x_axis, y_axis]
-                                            )
-                                        elif not x_is_numeric and y_is_numeric:
-                                            custom_chart = alt.Chart(filtered_df).mark_boxplot(color="#e45756").encode(
-                                                x=alt.X(f"{x_axis}:N", title=x_axis),
-                                                y=alt.Y(f"{y_axis}:Q", title=y_axis),
-                                                tooltip=[x_axis, y_axis]
-                                            )
-                                        elif x_is_numeric and not y_is_numeric:
-                                            custom_chart = alt.Chart(filtered_df).mark_boxplot(color="#e45756").encode(
-                                                x=alt.X(f"{y_axis}:N", title=y_axis),
-                                                y=alt.Y(f"{x_axis}:Q", title=x_axis),
-                                                tooltip=[x_axis, y_axis]
-                                            )
-                                        else:
-                                            custom_chart = alt.Chart(filtered_df).mark_bar(color="#4c78a8").encode(
-                                                x=alt.X(f"{x_axis}:N", title=x_axis),
-                                                y=alt.Y("count()", title="Count"),
-                                                tooltip=[x_axis]
-                                            )
-                                    
                                     header_text = f"Custom Chart: {x_axis} vs {y_axis}"
                                     if data_label != "None":
                                         header_text += f" with {data_label}"
-                                    
-                                    if "custom_charts" not in st.session_state:
-                                        st.session_state.custom_charts = []
-                                    
-                                    # Insert the new chart at the beginning so new ones appear on top
-                                    st.session_state.custom_charts.insert(0, (header_text, custom_chart))
+                                    # Instead of storing a static chart object, store the configuration
+                                    config = {
+                                        "header": header_text,
+                                        "x_axis": x_axis,
+                                        "y_axis": y_axis,
+                                        "data_label": data_label
+                                    }
+                                    st.session_state.custom_charts.insert(0, config)
                                 
-                                # Display accumulated custom charts within the custom column
+                                # Filter out any non-dictionary configurations (if any)
+                                st.session_state.custom_charts = [cfg for cfg in st.session_state.custom_charts if isinstance(cfg, dict)]
                                 if st.session_state.custom_charts:
                                     st.markdown("### Custom Charts")
-                                    for item in st.session_state.custom_charts:
-                                        # Safety check: unpack only if item is a tuple of length 2
-                                        if isinstance(item, tuple) and len(item) == 2:
-                                            header, chart = item
-                                            st.markdown(f"#### {header}")
-                                            st.altair_chart(chart, use_container_width=True)
+                                    for config in st.session_state.custom_charts:
+                                        header_text = config.get("header", f"Custom Chart: {config.get('x_axis', 'X')} vs {config.get('y_axis', 'Y')}")
+                                        st.markdown(f"#### {header_text}")
+                                        chart = generate_custom_chart(config, filtered_df)
+                                        st.altair_chart(chart, use_container_width=True)
                             
                             with quick_col:
                                 st.markdown("##### Quick Charts")
@@ -1249,7 +1243,7 @@ else:
                                     st.markdown("""
                                     <div>
                                       <span style="font-size: 18px; font-weight: bold;">Comparative Analysis</span>
-                                      <span style="font-size: 14px;">: Compares pairs of variables (such as Employee Age vs. Attrition Score or Gender vs. Attrition Score) via scatter plots and box plots to reveal relationships.</span>
+                                      <span style="font-size: 14px;">: Compares pairs of variables via scatter plots and box plots to reveal relationships.</span>
                                     </div>
                                     <hr>
                                     """, unsafe_allow_html=True)
@@ -1257,7 +1251,7 @@ else:
                                         chart1 = alt.Chart(filtered_df).mark_circle(size=60, color="#4c78a8").encode(
                                             x=alt.X("Employee Age:Q", title="Employee Age"),
                                             y=alt.Y("Attrition Score:Q", title="Attrition Score"),
-                                            tooltip=["Name", "Employee Age", "Attrition Score"]
+                                            tooltip=["Employee Age", "Attrition Score"]
                                         )
                                         st.altair_chart(chart1, use_container_width=True)
                                     else:
@@ -1267,7 +1261,7 @@ else:
                                     st.markdown("""
                                     <div>
                                       <span style="font-size: 18px; font-weight: bold;">Correlation Analysis</span>
-                                      <span style="font-size: 14px;">: Displays a heatmap and a pairwise scatter plot matrix to illustrate how numerical variables correlate with one another.</span>
+                                      <span style="font-size: 14px;">: Displays a heatmap and pairwise scatter plots to illustrate how numerical variables correlate.</span>
                                     </div>
                                     <hr>
                                     """, unsafe_allow_html=True)
@@ -1291,7 +1285,7 @@ else:
                                     st.markdown("""
                                     <div>
                                       <span style="font-size: 18px; font-weight: bold;">Trigger Analysis</span>
-                                      <span style="font-size: 14px;">: Shows the frequency and breakdown of negative triggers (e.g., low diversity, stagnant promotions) using bar charts and arc (pie) charts.</span>
+                                      <span style="font-size: 14px;">: Shows the frequency and breakdown of negative triggers using bar and pie charts.</span>
                                     </div>
                                     <hr>
                                     """, unsafe_allow_html=True)
@@ -1314,7 +1308,7 @@ else:
                                     st.markdown("""
                                     <div>
                                       <span style="font-size: 18px; font-weight: bold;">Industry Analysis</span>
-                                      <span style="font-size: 14px;">: Examines industry and company-related factors by presenting distributions (e.g., industry pie charts) and comparisons (e.g., tenure or retention by industry/company type).</span>
+                                      <span style="font-size: 14px;">: Examines industry-related factors using pie and bar charts.</span>
                                     </div>
                                     <hr>
                                     """, unsafe_allow_html=True)
@@ -1334,7 +1328,7 @@ else:
                                     st.markdown("""
                                     <div>
                                       <span style="font-size: 18px; font-weight: bold;">Temporal Analysis</span>
-                                      <span style="font-size: 14px;">: Tracks trends over time with line charts that plot average Attrition Score and its rolling average, revealing temporal patterns.</span>
+                                      <span style="font-size: 14px;">: Tracks trends over time with line, bar, and area charts.</span>
                                     </div>
                                     <hr>
                                     """, unsafe_allow_html=True)
