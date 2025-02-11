@@ -64,7 +64,7 @@ if "enable_what_if" not in st.session_state:
 if "custom_charts" not in st.session_state:
     st.session_state.custom_charts = []
 if "custom_filters" not in st.session_state:
-    st.session_state.custom_filters = []  # will store additional custom filter configurations
+    st.session_state.custom_filters = []  # additional custom filters
 
 # ----------------------------------------------------
 # Helper functions for user storage
@@ -132,7 +132,6 @@ def train_model(training_df, target_column, industry):
     model.fit(X_scaled, y)
     st.write("Model coefficients:", model.coef_)
     
-    # Evaluation
     from sklearn.metrics import roc_curve, auc, confusion_matrix, classification_report
     preds = model.predict_proba(X_scaled)[:, 1]
     fpr, tpr, thresholds = roc_curve(y, preds)
@@ -154,7 +153,6 @@ def train_model(training_df, target_column, industry):
     
     st.write("**Confusion Matrix:**")
     st.dataframe(pd.DataFrame(cm, index=["Actual 0", "Actual 1"], columns=["Predicted 0", "Predicted 1"]))
-    
     st.write("**Classification Report:**")
     st.json(report)
     
@@ -173,7 +171,6 @@ def train_model(training_df, target_column, industry):
     
     update_industry_record(industry, model_filename, scaler_filename, features_filename)
     
-    # Save global settings to user record
     user = st.session_state.user
     user_settings = user.get("settings") or {}
     user_settings["global_avg_age"] = st.session_state.global_avg_age
@@ -435,7 +432,6 @@ def local_get_filtered_df(df):
         safe_rerun()
     
     custom_conditions = []
-    # Render each custom filter
     for i, filt in enumerate(st.session_state.custom_filters):
         st.markdown(f"**Custom Filter {i+1}:**", unsafe_allow_html=True)
         possible_cols = [col for col in df.columns if col not in ["Attrition Score", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]]
@@ -757,7 +753,7 @@ else:
                 
                 # -------------------------------
                 # Analysis Section: Two-Column Layout
-                # Left column (20% width): Filters + Filtered Data Table
+                # Left column (20% width): Filters + Filtered Data Table + Risk Distribution
                 # Right column (80% width): Charts (Custom & Quick)
                 # -------------------------------
                 if st.session_state.bulk_prediction_complete:
@@ -769,15 +765,33 @@ else:
                         filtered_df = local_get_filtered_df(st.session_state.bulk_result)
                         st.markdown("#### Filtered Data Table", unsafe_allow_html=True)
                         st.dataframe(filtered_df)
+                        # Add Risk Distribution Chart below the table
+                        total = len(filtered_df)
+                        if total > 0:
+                            high_risk = (filtered_df["Attrition Score"] >= 75).sum()
+                            mod_high = ((filtered_df["Attrition Score"] >= 60) & (filtered_df["Attrition Score"] < 75)).sum()
+                            moderate = ((filtered_df["Attrition Score"] >= 35) & (filtered_df["Attrition Score"] < 60)).sum()
+                            low = (filtered_df["Attrition Score"] < 35).sum()
+                            risk_df = pd.DataFrame({
+                                "Risk Category": ["High (>=75)", "Moderate High (60-74)", "Moderate (35-59)", "Low (<35)"],
+                                "Percentage": [high_risk/total*100, mod_high/total*100, moderate/total*100, low/total*100]
+                            })
+                            st.markdown("#### Risk Distribution (%)", unsafe_allow_html=True)
+                            risk_chart = alt.Chart(risk_df).mark_bar().encode(
+                                x=alt.X("Risk Category:N", sort=None),
+                                y=alt.Y("Percentage:Q", title="Percentage (%)"),
+                                tooltip=["Risk Category", "Percentage"]
+                            )
+                            st.altair_chart(risk_chart, use_container_width=True)
+                        else:
+                            st.info("No data available for risk distribution.")
                     
                     with col_charts:
-                        # If What-If Analysis is enabled, show its charts; otherwise, show Standard Analysis.
                         if st.session_state.enable_what_if:
                             st.markdown("#### What-If Analysis", unsafe_allow_html=True)
                             filtered_whatif_df = filtered_df.copy()
                             trig_series = compute_trigger_counts(filtered_whatif_df, "Negative Triggers")
                             
-                            # Widget configuration for known triggers.
                             trigger_widget_config = {
                                 "Low gender diversity": {
                                     "widget": "slider",
@@ -992,7 +1006,6 @@ else:
                         # End What-If Analysis
                         else:
                             st.markdown("#### Quick Charts & Custom Graph Builder", unsafe_allow_html=True)
-                            # Two sub-columns within the right column for custom chart builder and quick charts
                             custom_col, quick_col = st.columns([0.5, 0.5])
                             
                             with custom_col:
@@ -1002,7 +1015,7 @@ else:
                                 y_axis = st.selectbox("", options=filtered_df.columns, key="custom_y")
                                 st.markdown("<h4 style='font-size:18px; color:white;'><b>Select Data Label (Optional):</b> Choose a column for data labels.</h4>", unsafe_allow_html=True)
                                 data_label = st.selectbox("", options=["None"] + list(filtered_df.columns), key="custom_label")
-                                submitted_custom = st.form_submit_button("Generate Custom Chart", key="submit_custom_chart")
+                                submitted_custom = st.form_submit_button("Generate Custom Chart")
                                 if submitted_custom:
                                     if x_axis == "Negative Triggers" or y_axis == "Negative Triggers":
                                         ct = compute_trigger_counts(filtered_df, "Negative Triggers").reset_index()
