@@ -402,33 +402,44 @@ def generate_dummy_training_file():
     return csv_buffer.getvalue()
 
 # ----------------------------------------------------
-# New Horizontal Filter Bar Function
+# Function to compute trigger counts from a column with comma-separated triggers
 # ----------------------------------------------------
-def horizontal_filters(df):
-    # A compact horizontal filter bar that returns a filtered DataFrame.
-    attrition_range = st.slider("Attrition Score", 0, 100, (0, 100), key="h_attrition")
-    possible_columns = [col for col in df.columns if col not in ["Attrition Score", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]]
-    selected_columns = st.multiselect("Custom Filters", possible_columns, key="h_custom_select")
-    # Start with attrition score condition
-    filter_conditions = (df["Attrition Score"] >= attrition_range[0]) & (df["Attrition Score"] <= attrition_range[1])
-    if selected_columns:
-        # Create a horizontal row of widgets for each selected column.
-        cols = st.columns(len(selected_columns))
-        for i, col_name in enumerate(selected_columns):
-            if pd.api.types.is_numeric_dtype(df[col_name]):
-                min_val = float(df[col_name].min())
-                max_val = float(df[col_name].max())
-                val_range = cols[i].slider(col_name, min_val, max_val, (min_val, max_val), key=f"h_{col_name}")
-                filter_conditions = filter_conditions & (df[col_name] >= val_range[0]) & (df[col_name] <= val_range[1])
-            else:
-                unique_vals = list(df[col_name].unique())
-                selected_vals = cols[i].multiselect(col_name, unique_vals, default=unique_vals, key=f"h_{col_name}")
-                filter_conditions = filter_conditions & (df[col_name].isin(selected_vals))
-    return df[filter_conditions]
+def compute_trigger_counts(df, column_name):
+    triggers_list = []
+    for val in df[column_name].dropna():
+        if val.strip() != "" and val != "None":
+            triggers_list.extend([x.strip() for x in val.split(",") if x.strip()])
+    if triggers_list:
+        return pd.Series(triggers_list).value_counts()
+    else:
+        return pd.Series(dtype=int)
 
 # ---------------------------------------
-# (Old vertical filter function removed)
+# Helper function: Graph header with tooltip
 # ---------------------------------------
+def graph_header(title, explanation):
+    return f'<h4 style="color: white;">{title} <span title="{explanation}" style="cursor: help; color: #ccc;">&#9432;</span></h4>'
+
+# ---------------------------------------
+# Local filtering function to be placed in the left column (above table)
+# Uses one slider for a range.
+# ---------------------------------------
+def local_get_filtered_df(df):
+    score_range = st.slider("Filter: Attrition Score", 0, 100, (0, 100), key="local_score_range")
+    possible_cols = [col for col in df.columns if col not in 
+                     ["Attrition Score", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]]
+    custom_col = st.selectbox("Filter: Select column", possible_cols, key="local_custom_col")
+    series = df[custom_col]
+    if pd.api.types.is_numeric_dtype(series):
+        custom_range = st.slider(f"Filter: {custom_col} Range", float(series.min()), float(series.max()),
+                                 (float(series.min()), float(series.max())), key="local_custom_range")
+        condition = (df[custom_col] >= custom_range[0]) & (df[custom_col] <= custom_range[1])
+    else:
+        unique_vals = series.unique().tolist()
+        selected_vals = st.multiselect(f"Filter: {custom_col} values", unique_vals, default=unique_vals, key="local_custom_vals")
+        condition = df[custom_col].isin(selected_vals)
+    filtered = df[(df["Attrition Score"] >= score_range[0]) & (df["Attrition Score"] <= score_range[1]) & condition]
+    return filtered
 
 # ---------------------------------------
 # Login/Sign Up System
@@ -724,21 +735,23 @@ else:
                 
                 # -------------------------------
                 # Bulk Analysis Section:
-                # First, display a horizontal filter bar that returns the filtered DataFrame.
-                # Left column (20% width): Filtered Data Table and Risk Distribution.
-                # Right column (80% width): Quick Charts & Custom Chart Builder.
+                # Compute filtered_df once so that both columns use the same data.
+                # Left column (Filters, Filtered Table & Risk Distribution) occupies 20% width.
+                # Right column (Custom & Quick Charts) occupies 80% width.
                 # -------------------------------
                 if st.session_state.bulk_prediction_complete:
                     st.markdown("### Bulk Analysis")
                     st.markdown("<hr>", unsafe_allow_html=True)
-                    # Use the new horizontal filter bar
-                    filtered_df = horizontal_filters(st.session_state.bulk_result)
+                    # Compute filtered_df once
+                    filtered_df = local_get_filtered_df(st.session_state.bulk_result)
                     col_table, col_charts = st.columns([0.20, 0.80])
                     
                     with col_table:
+                        st.markdown("#### Data Filters")
+                        st.markdown("<hr>", unsafe_allow_html=True)
                         st.markdown("#### Filtered Data Table")
                         st.dataframe(filtered_df)
-                        # Risk Distribution Chart
+                        # Add Risk Distribution chart below the table
                         if "Attrition Score" in filtered_df.columns:
                             high_risk = (filtered_df["Attrition Score"] >= 75).sum()
                             mod_high = ((filtered_df["Attrition Score"] >= 60) & (filtered_df["Attrition Score"] < 75)).sum()
