@@ -1149,7 +1149,7 @@ else:
                             st.bar_chart(risk_df_w.set_index("Risk Category"))
                         else:
                             st.markdown("#### Quick Charts & Custom Graph Builder")
-                            # Create two columns: one for custom chart builder, one for quick charts.
+                            # Create two columns: one for the custom chart builder, one for quick charts.
                             custom_col, quick_col = st.columns([0.5, 0.5])
                             
                             with custom_col:
@@ -1205,6 +1205,16 @@ else:
                                     
                                     # Insert the new chart at the beginning so new ones appear on top
                                     st.session_state.custom_charts.insert(0, (header_text, custom_chart))
+                                
+                                # Display accumulated custom charts within the custom column
+                                if st.session_state.custom_charts:
+                                    st.markdown("### Custom Charts")
+                                    for item in st.session_state.custom_charts:
+                                        # Safety check: unpack only if item is a tuple of length 2
+                                        if isinstance(item, tuple) and len(item) == 2:
+                                            header, chart = item
+                                            st.markdown(f"#### {header}")
+                                            st.altair_chart(chart, use_container_width=True)
                             
                             with quick_col:
                                 st.markdown("##### Quick Charts")
@@ -1345,10 +1355,3 @@ else:
                                             st.write("No valid Prediction Time data available for trend analysis.")
                                     else:
                                         st.write("No Prediction Time data available.")
-                        
-                        # BELOW: Display accumulated Custom Charts inside the middle column
-                        if "custom_charts" in st.session_state and st.session_state.custom_charts:
-                            st.markdown("### Custom Charts")
-                            for header, chart in st.session_state.custom_charts:
-                                st.markdown(f"#### {header}")
-                                st.altair_chart(chart, use_container_width=True)
