@@ -536,7 +536,7 @@ def horizontal_filters(df):
         with cols[i+1]:
             inner_cols = st.columns([3, 0.5])
             with inner_cols[0]:
-                # Exclude unhelpful columns like "Name"
+                # Exclude columns like "Name"
                 possible_cols = [col for col in df.columns if col not in ["Name", "Attrition Score", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]]
                 col_selected = st.selectbox("Select column", options=possible_cols, key=f"custom_filter_col_{filter_id}")
                 filter_values[f"custom_filter_col_{filter_id}"] = col_selected
@@ -586,9 +586,9 @@ def apply_filters(df, filter_values):
 # Helper: generate a custom chart from a saved configuration and data
 # ---------------------------------------
 def generate_custom_chart(config, data):
-    x_axis = config["x_axis"]
-    y_axis = config["y_axis"]
-    # We ignore data_label if "None" or not useful.
+    x_axis = config.get("x_axis")
+    y_axis = config.get("y_axis")
+    # For this example, we ignore data_label if it is "None"
     if x_axis == "Negative Triggers" or y_axis == "Negative Triggers":
         ct = compute_trigger_counts(data, "Negative Triggers").reset_index()
         ct.columns = ["Trigger", "Count"]
@@ -601,7 +601,6 @@ def generate_custom_chart(config, data):
         x_is_numeric = pd.api.types.is_numeric_dtype(data[x_axis])
         y_is_numeric = pd.api.types.is_numeric_dtype(data[y_axis])
         if x_is_numeric and y_is_numeric:
-            # Removed "Name" from tooltip
             chart = alt.Chart(data).mark_circle(size=60, color="#4c78a8").encode(
                 x=alt.X(f"{x_axis}:Q", title=x_axis),
                 y=alt.Y(f"{y_axis}:Q", title=y_axis),
@@ -791,7 +790,7 @@ if st.session_state.nav == "My Account":
         st.session_state.nav = "Tabs"
 else:
     # ---------------------------
-    # In Test Mode, we removed the trustworthiness summary line.
+    # In Test Mode, the trustworthiness summary line has been removed.
     if st.session_state.main_mode == "Test Mode":
         selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=0, key="test_industry")
         st.markdown("""
@@ -1188,12 +1187,20 @@ else:
                                     }
                                     st.session_state.custom_charts.insert(0, config)
                                 
-                                # Remove any non-dictionary configurations from session_state
-                                st.session_state.custom_charts = [cfg for cfg in st.session_state.custom_charts if isinstance(cfg, dict)]
+                                # Filter out any non-dictionary configurations and set defaults if missing
+                                st.session_state.custom_charts = [
+                                    cfg if isinstance(cfg, dict) and "header" in cfg else 
+                                    {"header": f"Custom Chart: {cfg.get('x_axis', 'X')} vs {cfg.get('y_axis', 'Y')}",
+                                     "x_axis": cfg.get("x_axis", "X"),
+                                     "y_axis": cfg.get("y_axis", "Y"),
+                                     "data_label": cfg.get("data_label", "None")}
+                                    for cfg in st.session_state.custom_charts if isinstance(cfg, dict)
+                                ]
                                 if st.session_state.custom_charts:
                                     st.markdown("### Custom Charts")
                                     for config in st.session_state.custom_charts:
-                                        st.markdown(f"#### {config['header']}")
+                                        header_text = config.get("header", f"Custom Chart: {config.get('x_axis', 'X')} vs {config.get('y_axis', 'Y')}")
+                                        st.markdown(f"#### {header_text}")
                                         chart = generate_custom_chart(config, filtered_df)
                                         st.altair_chart(chart, use_container_width=True)
                             
@@ -1320,7 +1327,6 @@ else:
                                             tooltip=["index", "variable", "value"]
                                         )
                                         st.altair_chart(heatmap, use_container_width=True)
-                                        # Only use selected key columns (excluding unhelpful ones)
                                         cols = [col for col in ["Attrition Score", "Employee Age", "Tenure (Months)", "Compa Ratio"] if col in numeric_df.columns]
                                         if len(cols) >= 2:
                                             pair_scatter = alt.Chart(filtered_df).mark_circle(size=40).encode(
