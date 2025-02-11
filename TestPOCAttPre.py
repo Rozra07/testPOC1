@@ -716,13 +716,12 @@ else:
                         st.session_state.enable_what_if = st.checkbox("Enable What-If Analysis", key="whatif_toggle")
 
                 # -------------------------------
-                # Only show analysis if bulk prediction has completed
+                # Define Filters Once (used for both What-If and Standard Analysis)
                 # -------------------------------
                 if st.session_state.bulk_prediction_complete:
-                    # Compute filters once and use the same filtered dataframe for all charts
                     st.subheader("Filters")
                     filter_score_min, filter_score_max = st.slider(
-                        "Attrition Score Range", 0, 100, (0, 100), key="filter_score"
+                        "Attrition Score Range", 0, 100, (0, 100), key="filter_score_global"
                     )
                     possible_columns = [
                         col for col in st.session_state.bulk_result.columns 
@@ -731,7 +730,7 @@ else:
                     custom_filter_col = st.selectbox(
                         "Select a column for custom filtering", 
                         options=possible_columns, 
-                        key="custom_filter_col"
+                        key="custom_filter_col_global"
                     )
                     filter_series = st.session_state.bulk_result[custom_filter_col]
                     if pd.api.types.is_numeric_dtype(filter_series):
@@ -740,7 +739,7 @@ else:
                         custom_range = st.slider(
                             f"Select range for {custom_filter_col}", 
                             custom_min, custom_max, (custom_min, custom_max), 
-                            key="custom_filter_range"
+                            key="custom_filter_range_global"
                         )
                         custom_filter_condition = (
                             (st.session_state.bulk_result[custom_filter_col] >= custom_range[0]) &
@@ -752,7 +751,7 @@ else:
                             f"Select value(s) for {custom_filter_col}", 
                             options=unique_values, 
                             default=unique_values, 
-                            key="custom_filter_values"
+                            key="custom_filter_values_global"
                         )
                         custom_filter_condition = st.session_state.bulk_result[custom_filter_col].isin(selected_values)
                     
@@ -766,20 +765,19 @@ else:
                     st.dataframe(filtered_df)
                     
                     # -------------------------------
-                    # What-If Analysis Section
+                    # Analysis Section
                     # -------------------------------
                     if st.session_state.enable_what_if:
+                        # WHAT-IF ANALYSIS
                         with st.container():
                             st.markdown("<h3 style='color: white;'>What-If Analysis</h3>", unsafe_allow_html=True)
                             st.info("Adjust the parameters below to simulate changes in predicted attrition based on the negative triggers present in your data.")
                             
-                            # In what-if analysis, use the filtered_df as the starting point.
+                            # Use filtered_df for what-if analysis
                             filtered_whatif_df = filtered_df.copy()
-                            
-                            # Compute trigger counts from the filtered data
                             trig_series = compute_trigger_counts(filtered_whatif_df, "Negative Triggers")
                             
-                            # Define widget configurations for each known trigger
+                            # Widget configuration for known triggers
                             trigger_widget_config = {
                                 "Low gender diversity": {
                                     "widget": "slider",
@@ -881,9 +879,8 @@ else:
                                     elif config["widget"] == "selectbox":
                                         if config["param"] not in displayed_params:
                                             param_name = config["param"]
-                                            default_val = config["default"]
                                             try:
-                                                default_index = config["options"].index(default_val)
+                                                default_index = config["options"].index(config["default"])
                                             except ValueError:
                                                 default_index = 0
                                             whatif_params[param_name] = st.selectbox(
@@ -993,14 +990,11 @@ else:
                             st.markdown("### What-If Risk Distribution")
                             st.bar_chart(risk_df_w.set_index("Risk Category"))
                     
-                    # -------------------------------
-                    # Standard Analysis Section (if What-If is not enabled)
-                    # -------------------------------
                     else:
+                        # STANDARD ANALYSIS (without What-If)
                         analysis_col1, analysis_col2 = st.columns([0.35, 0.65])
                         with analysis_col1:
                             st.subheader("Filters")
-                            # (Re-use the same filter widgets computed above)
                             st.write("Filtered Bulk Predictions")
                             st.dataframe(filtered_df)
                             
@@ -1086,7 +1080,7 @@ else:
                             
                             st.markdown("## Quick Charts")
                             
-                            # Use filtered_df (the same filtered data) for quick charts
+                            # Use filtered_df for quick charts
                             df_for_charts = filtered_df
                             
                             with st.expander("Distribution Analysis: These charts help you understand the overall makeup of your data."):
@@ -1167,7 +1161,7 @@ else:
                                     st.write("Attrition Score by Gender chart not available or no data.")
                                 
                                 if "College Tier" in df_for_charts.columns and "Attrition Score" in df_for_charts.columns and not df_for_charts.empty:
-                                    chart4 = alt.Chart(df_for_charts).mark_boxplot(color="#e45756").encode(
+                                    chart4 = alt.Chart(df_for_charts).mark_boxplot(color="#4c78a8").encode(
                                         x=alt.X("College Tier:N", title="College Tier"),
                                         y=alt.Y("Attrition Score:Q", title="Attrition Score"),
                                         tooltip=["College Tier", "Attrition Score"]
