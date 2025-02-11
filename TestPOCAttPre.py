@@ -52,7 +52,7 @@ def safe_rerun():
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "nav" not in st.session_state:
-    st.session_state.nav = "Tabs"  # "Tabs" indicates main UI (i.e. not "My Account")
+    st.session_state.nav = "Tabs"  # "Tabs" indicates main UI (not My Account)
 if "user" not in st.session_state:
     st.session_state.user = {}
 if "bulk_prediction_complete" not in st.session_state:
@@ -423,26 +423,22 @@ def graph_header(title, explanation):
     return f'<h4 style="color: white;">{title} <span title="{explanation}" style="cursor: help; color: #ccc;">&#9432;</span></h4>'
 
 # ---------------------------------------
-# Helper: Get the filtered dataframe (all charts use this)
+# Helper: Get the filtered dataframe (placed in the left column)
 # ---------------------------------------
-def get_filtered_df():
-    if not st.session_state.bulk_prediction_complete:
-        return None
-    df = st.session_state.bulk_result.copy()
-    # Use sidebar widgets (with unique keys) to filter the data.
-    score_min = st.sidebar.slider("Filter: Attrition Score (Min)", 0, 100, 0, key="score_min")
-    score_max = st.sidebar.slider("Filter: Attrition Score (Max)", 0, 100, 100, key="score_max")
+def local_get_filtered_df(df):
+    score_min = st.slider("Filter: Attrition Score (Min)", 0, 100, 0, key="local_score_min")
+    score_max = st.slider("Filter: Attrition Score (Max)", 0, 100, 100, key="local_score_max")
     possible_cols = [col for col in df.columns if col not in 
                      ["Attrition Score", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]]
-    custom_col = st.sidebar.selectbox("Filter: Select column", possible_cols, key="custom_col")
+    custom_col = st.selectbox("Filter: Select column", possible_cols, key="local_custom_col")
     series = df[custom_col]
     if pd.api.types.is_numeric_dtype(series):
-        custom_range = st.sidebar.slider(f"Filter: {custom_col} Range", float(series.min()), float(series.max()),
-                                         (float(series.min()), float(series.max())), key="custom_range")
+        custom_range = st.slider(f"Filter: {custom_col} Range", float(series.min()), float(series.max()),
+                                 (float(series.min()), float(series.max())), key="local_custom_range")
         condition = (df[custom_col] >= custom_range[0]) & (df[custom_col] <= custom_range[1])
     else:
         unique_vals = series.unique().tolist()
-        selected_vals = st.sidebar.multiselect(f"Filter: {custom_col} values", unique_vals, default=unique_vals, key="custom_vals")
+        selected_vals = st.multiselect(f"Filter: {custom_col} values", unique_vals, default=unique_vals, key="local_custom_vals")
         condition = df[custom_col].isin(selected_vals)
     filtered = df[(df["Attrition Score"] >= score_min) & (df["Attrition Score"] <= score_max) & condition]
     return filtered
@@ -741,15 +737,17 @@ else:
                 
                 # -------------------------------
                 # Analysis Section: Two-Column Layout
+                # Left column: Filters + Filtered Data Table
+                # Right column: Charts (custom and quick charts)
                 # -------------------------------
                 if st.session_state.bulk_prediction_complete:
                     st.markdown("### Analysis (Responsive to Filters)")
-                    # Get the filtered dataframe from the helper function.
-                    filtered_df = get_filtered_df()
-                    # Create two columns: left for the table, right for charts.
                     col_table, col_charts = st.columns([0.4, 0.6])
                     
                     with col_table:
+                        st.markdown("#### Data Filters")
+                        # Place the filtering widgets here (using local keys)
+                        filtered_df = local_get_filtered_df(st.session_state.bulk_result)
                         st.markdown("#### Filtered Data Table")
                         st.dataframe(filtered_df)
                     
@@ -974,11 +972,11 @@ else:
                             st.bar_chart(risk_df_w.set_index("Risk Category"))
                         # End What-If Analysis
                         #
-                        # Else: Standard Analysis
+                        # Standard Analysis
                         #
                         else:
-                            st.markdown("#### Quick Charts & Custom Graphs")
-                            # Create two sub-columns: left for custom graph builder, right for quick charts.
+                            st.markdown("#### Quick Charts & Custom Graph Builder")
+                            # Create two sub-columns: left for custom chart builder, right for quick charts.
                             custom_col, quick_col = st.columns([0.5, 0.5])
                             
                             with custom_col:
@@ -1038,7 +1036,6 @@ else:
                             
                             with quick_col:
                                 st.markdown("##### Quick Charts")
-                                # Use the same filtered_df for all quick charts.
                                 df_for_charts = filtered_df
                                 
                                 with st.expander("Distribution Analysis"):
@@ -1181,7 +1178,7 @@ else:
                                         else:
                                             st.write("No triggers found.")
                                     else:
-                                        st.write("Negative Triggers Count chart not available or no data.")
+                                        st.write("No data for Negative Triggers Count.")
                                     
                                     high_risk_df = df_for_charts[df_for_charts["Attrition Score"] >= 75]
                                     if not high_risk_df.empty and "Negative Triggers" in high_risk_df.columns:
@@ -1197,7 +1194,7 @@ else:
                                         else:
                                             st.write("No triggers in High-Risk group.")
                                     else:
-                                        st.write("No high-risk employees data available for trigger distribution.")
+                                        st.write("No data for High-Risk trigger distribution.")
                                 
                                 with st.expander("Industry Analysis"):
                                     if "Industry" in df_for_charts.columns and not df_for_charts.empty:
@@ -1210,7 +1207,7 @@ else:
                                         )
                                         st.altair_chart(chart1, use_container_width=True)
                                     else:
-                                        st.write("Industry Distribution chart not available or no data.")
+                                        st.write("No data for Industry Distribution.")
                                     
                                     if all(x in df_for_charts.columns for x in ["Industry", "Tenure (Months)"]) and not df_for_charts.empty:
                                         chart2 = alt.Chart(df_for_charts).mark_boxplot(color="#4c78a8").encode(
@@ -1220,7 +1217,7 @@ else:
                                         )
                                         st.altair_chart(chart2, use_container_width=True)
                                     else:
-                                        st.write("Tenure by Industry chart not available or no data.")
+                                        st.write("No data for Tenure by Industry.")
                                     
                                     if "Company Type" in df_for_charts.columns and "Attrition Score" in df_for_charts.columns and not df_for_charts.empty:
                                         compa_df = df_for_charts.groupby("Company Type").agg({"Attrition Score": "mean"}).reset_index()
@@ -1231,7 +1228,7 @@ else:
                                         )
                                         st.altair_chart(chart3, use_container_width=True)
                                     else:
-                                        st.write("Company Type chart not available or no data.")
+                                        st.write("No data for Company Type analysis.")
                                     
                                     if "College Tier" in df_for_charts.columns and "Attrition Score" in df_for_charts.columns and not df_for_charts.empty:
                                         college_df = df_for_charts.groupby("College Tier").agg({"Attrition Score": "mean"}).reset_index()
@@ -1242,7 +1239,7 @@ else:
                                         )
                                         st.altair_chart(chart4, use_container_width=True)
                                     else:
-                                        st.write("Retention Rate by College Tier chart not available or no data.")
+                                        st.write("No data for College Tier analysis.")
                                 
                                 with st.expander("Temporal Analysis"):
                                     if "Prediction Time" in df_for_charts.columns and not df_for_charts.empty:
@@ -1259,9 +1256,9 @@ else:
                                             )
                                             st.altair_chart(chart1, use_container_width=True)
                                         else:
-                                            st.write("No valid Prediction Time data available for trend analysis.")
+                                            st.write("No valid Prediction Time data for trend analysis.")
                                     else:
-                                        st.write("Prediction Time data not available or no data.")
+                                        st.write("No Prediction Time data available.")
                                     
                                     if "Prediction Time" in df_for_charts.columns and not df_for_charts.empty:
                                         df_time = df_for_charts.copy()
@@ -1277,9 +1274,9 @@ else:
                                             )
                                             st.altair_chart(chart2, use_container_width=True)
                                         else:
-                                            st.write("No valid Prediction Time data available for rolling average analysis.")
+                                            st.write("No valid Prediction Time data for rolling average analysis.")
                                     else:
-                                        st.write("Prediction Time data not available or no data.")
+                                        st.write("No Prediction Time data available.")
                         # End Standard Analysis
                 else:
                     st.info("Run Bulk Prediction to see the analysis.")
