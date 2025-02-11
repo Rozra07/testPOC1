@@ -62,7 +62,7 @@ def colored_metric(value, threshold, higher_better=True, is_lower=False):
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "nav" not in st.session_state:
-    st.session_state.nav = "Tabs"  
+    st.session_state.nav = "Tabs"
 if "user" not in st.session_state:
     st.session_state.user = {}
 if "bulk_prediction_complete" not in st.session_state:
@@ -71,7 +71,7 @@ if "bulk_result" not in st.session_state:
     st.session_state.bulk_result = None
 if "enable_what_if" not in st.session_state:
     st.session_state.enable_what_if = False
-# For custom charts we now store configuration dictionaries.
+# We'll store custom chart configurations as dictionaries
 if "custom_charts" not in st.session_state:
     st.session_state.custom_charts = []
 if "custom_filters" not in st.session_state:
@@ -255,6 +255,26 @@ def train_model(training_df, target_column, industry):
     training_accuracy = model.score(X_scaled, y) * 100
     st.info(f"Training Accuracy (Confidence): {training_accuracy:.2f}%")
     
+    def update_industry_record(industry, model_file, scaler_file, feature_file):
+        record = {
+            "Industry": industry,
+            "Model_File": model_file,
+            "Scaler_File": scaler_file,
+            "Feature_File": feature_file,
+            "Training_Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        csv_filename = "industry_models.csv"
+        if os.path.exists(csv_filename):
+            df = pd.read_csv(csv_filename)
+            if industry in df["Industry"].values:
+                df.loc[df["Industry"] == industry, ["Model_File", "Scaler_File", "Feature_File", "Training_Date"]] = \
+                    [model_file, scaler_file, feature_file, record["Training_Date"]]
+            else:
+                df = pd.concat([df, pd.DataFrame([record])], ignore_index=True)
+        else:
+            df = pd.DataFrame([record])
+        df.to_csv(csv_filename, index=False)
+    
     update_industry_record(industry, model_filename, scaler_filename, features_filename)
     
     user = st.session_state.user
@@ -280,26 +300,6 @@ def train_model(training_df, target_column, industry):
     save_users(users)
     save_user_event(user["email"], "training", {"action": "Model retrained", "industry": industry})
 
-def update_industry_record(industry, model_file, scaler_file, feature_file):
-    record = {
-        "Industry": industry,
-        "Model_File": model_file,
-        "Scaler_File": scaler_file,
-        "Feature_File": feature_file,
-        "Training_Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    }
-    csv_filename = "industry_models.csv"
-    if os.path.exists(csv_filename):
-        df = pd.read_csv(csv_filename)
-        if industry in df["Industry"].values:
-            df.loc[df["Industry"] == industry, ["Model_File", "Scaler_File", "Feature_File", "Training_Date"]] = \
-                [model_file, scaler_file, feature_file, record["Training_Date"]]
-        else:
-            df = pd.concat([df, pd.DataFrame([record])], ignore_index=True)
-    else:
-        df = pd.DataFrame([record])
-    df.to_csv(csv_filename, index=False)
-
 def load_model(industry):
     model_filename = f"{industry}_model.pkl"
     scaler_filename = f"{industry}_scaler.pkl"
@@ -317,7 +317,7 @@ def load_model(industry):
         return None, None, None
 
 # ----------------------------------------------------
-# Trigger Details (for recommended solutions)
+# Trigger Details
 # ----------------------------------------------------
 TRIGGER_DETAILS = {
     "Low gender diversity": {
@@ -504,7 +504,8 @@ def graph_header(title, explanation):
     return f'<h4 style="color: white;">{title} <span title="{explanation}" style="cursor: help; color: #ccc;">&#9432;</span></h4>'
 
 # ---------------------------------------
-# Custom Chart Generation Helper (builds chart from config and current data)
+# Custom Chart Generation Helper
+# Builds a chart based on a configuration dictionary and current filtered data.
 # ---------------------------------------
 def generate_custom_chart(config, df):
     x_axis = config["x_axis"]
@@ -858,7 +859,7 @@ else:
                 btn_cols = st.columns(2)
                 with btn_cols[0]:
                     if st.button("🚀 Run Bulk Prediction"):
-                        scores, triggers_list, _ = [], [], []
+                        scores, triggers_list = [], []
                         for idx, row in df_bulk.iterrows():
                             row_dict = row.to_dict()
                             row_dict["Average Employee Age"] = global_avg_age
@@ -895,8 +896,7 @@ else:
                                 continue
                             scores.append(bulk_score)
                             neg_trigs = [t for t in bulk_trigs if t in TRIGGER_DETAILS]
-                            triggers_str = ", ".join(neg_trigs) if neg_trigs else "None"
-                            triggers_list.append(triggers_str)
+                            triggers_list.append(", ".join(neg_trigs) if neg_trigs else "None")
                         df_bulk["Attrition Score"] = scores
                         df_bulk["Negative Triggers"] = triggers_list
                         st.session_state.bulk_result = df_bulk.copy()
@@ -1133,8 +1133,7 @@ else:
                                 
                                 new_scores.append(new_score)
                                 neg_trigs = [t for t in new_trigs if t in TRIGGER_DETAILS]
-                                triggers_str = ", ".join(neg_trigs) if neg_trigs else "None"
-                                new_triggers_list.append(triggers_str)
+                                new_triggers_list.append(", ".join(neg_trigs) if neg_trigs else "None")
                             
                             df_bulk_whatif["What-If Attrition Score"] = new_scores
                             df_bulk_whatif["What-If Negative Triggers"] = new_triggers_list
@@ -1153,8 +1152,7 @@ else:
                             st.bar_chart(risk_df_w.set_index("Risk Category"))
                         else:
                             st.markdown("#### Quick Charts & Custom Graph Builder")
-                            # In this section, the left column is reserved for custom charts
-                            # and the right column for additional quick charts.
+                            # Reserve the left column for custom chart builder and the right for additional quick charts.
                             custom_col, quick_col = st.columns([0.5, 0.5])
                             
                             with custom_col:
@@ -1172,11 +1170,11 @@ else:
                                         "data_label": data_label
                                     }
                                     st.session_state.custom_charts.insert(0, config)
-                                # Filter out any non-dictionary entries (from previous versions)
-                                st.session_state.custom_charts = [cfg for cfg in st.session_state.custom_charts if isinstance(cfg, dict)]
-                                if st.session_state.custom_charts:
+                                # Filter to only dictionary entries.
+                                custom_configs = [cfg for cfg in st.session_state.custom_charts if isinstance(cfg, dict)]
+                                if custom_configs:
                                     st.markdown("### Custom Charts")
-                                    for config in st.session_state.custom_charts:
+                                    for config in custom_configs:
                                         chart = generate_custom_chart(config, filtered_df)
                                         st.markdown(f"#### {config['header']}")
                                         st.altair_chart(chart, use_container_width=True)
@@ -1247,7 +1245,7 @@ else:
                                     st.altair_chart(alt.Chart(filtered_df).mark_circle(size=60, color="#4c78a8").encode(
                                         x=alt.X("Employee Age:Q", title="Employee Age"),
                                         y=alt.Y("Tenure (Months):Q", title="Tenure (Months)"),
-                                        tooltip=["Employee Age", "Tenure (Months)"]
+                                        tooltip=[ "Employee Age", "Tenure (Months)"]
                                     ), use_container_width=True)
                                 if "Employee Age" in filtered_df.columns and "Compa Ratio" in filtered_df.columns:
                                     st.altair_chart(alt.Chart(filtered_df).mark_circle(size=60, color="#e45756").encode(
