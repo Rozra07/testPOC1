@@ -46,6 +46,20 @@ def safe_rerun():
     else:
         st.warning("Refresh functionality is not available. Please update Streamlit (>=0.65.0).")
 
+# ---------------------------------------
+# Global helper: colored_metric for trustworthiness table
+# ---------------------------------------
+def colored_metric(value, threshold, higher_better=True, is_lower=False):
+    """
+    Return an HTML span with the metric value colored green if ideal, red otherwise.
+    For is_lower==True, lower values are better.
+    """
+    if is_lower:
+        color = "green" if value <= threshold else "red"
+    else:
+        color = "green" if value >= threshold else "red"
+    return f'<span style="color:{color}; font-weight:bold;">{value:.2f}</span>'
+
 # ----------------------------------------------------
 # Initialize st.session_state keys if not already set
 # ----------------------------------------------------
@@ -135,7 +149,7 @@ def train_model(training_df, target_column, industry):
     # -------------------------------
     # Model Evaluation Metrics
     # -------------------------------
-    from sklearn.metrics import roc_curve, auc, confusion_matrix, classification_report
+    from sklearn.metrics import roc_curve, auc, confusion_matrix, classification_report, accuracy_score, precision_score, recall_score, f1_score, log_loss, average_precision_score
     preds = model.predict_proba(X_scaled)[:, 1]
     fpr, tpr, thresholds = roc_curve(y, preds)
     roc_auc = auc(fpr, tpr)
@@ -145,7 +159,7 @@ def train_model(training_df, target_column, industry):
     st.subheader("Model Evaluation Metrics")
     st.write(f"**ROC AUC:** {roc_auc:.2f}")
     
-    # --- Modified Matplotlib chart with dark background ---
+    # --- Matplotlib ROC curve with dark background ---
     fig, ax = plt.subplots(facecolor='black')
     ax.set_facecolor('black')
     ax.plot(fpr, tpr, label=f"ROC curve (area = {roc_auc:.2f})", color='cyan')
@@ -162,6 +176,84 @@ def train_model(training_df, target_column, industry):
     
     st.write("**Classification Report:**")
     st.json(report)
+    
+    # -------------------------------
+    # Compute Trustworthiness Metrics
+    # -------------------------------
+    y_pred = model.predict(X_scaled)
+    accuracy = accuracy_score(y, y_pred)
+    precision = precision_score(y, y_pred)
+    recall = recall_score(y, y_pred)
+    f1 = f1_score(y, y_pred)
+    tn, fp, fn, tp = cm.ravel()
+    specificity = tn / (tn+fp) if (tn+fp) > 0 else 0
+    pr_auc = average_precision_score(y, preds)
+    logloss = log_loss(y, model.predict_proba(X_scaled))
+    
+    # Store trust metrics in session_state for testing mode summary later.
+    st.session_state.trust_metrics = {
+        "accuracy": accuracy,
+        "precision": precision,
+        "recall": recall,
+        "specificity": specificity,
+        "f1": f1,
+        "roc_auc": roc_auc,
+        "pr_auc": pr_auc,
+        "logloss": logloss
+    }
+    
+    # Create an HTML table for Trustworthiness of Model
+    trust_table = f"""
+    <table style="width:100%; border: 1px solid white; border-collapse: collapse;">
+      <tr>
+        <th style="border: 1px solid white; padding: 8px;">Metric</th>
+        <th style="border: 1px solid white; padding: 8px;">Value</th>
+        <th style="border: 1px solid white; padding: 8px;">Ideal</th>
+      </tr>
+      <tr>
+        <td style="border: 1px solid white; padding: 8px;">Accuracy</td>
+        <td style="border: 1px solid white; padding: 8px;">{colored_metric(accuracy, 0.8)}</td>
+        <td style="border: 1px solid white; padding: 8px;">&gt;= 0.8</td>
+      </tr>
+      <tr>
+        <td style="border: 1px solid white; padding: 8px;">Precision</td>
+        <td style="border: 1px solid white; padding: 8px;">{colored_metric(precision, 0.7)}</td>
+        <td style="border: 1px solid white; padding: 8px;">&gt;= 0.7</td>
+      </tr>
+      <tr>
+        <td style="border: 1px solid white; padding: 8px;">Recall (Sensitivity)</td>
+        <td style="border: 1px solid white; padding: 8px;">{colored_metric(recall, 0.7)}</td>
+        <td style="border: 1px solid white; padding: 8px;">&gt;= 0.7</td>
+      </tr>
+      <tr>
+        <td style="border: 1px solid white; padding: 8px;">Specificity</td>
+        <td style="border: 1px solid white; padding: 8px;">{colored_metric(specificity, 0.7)}</td>
+        <td style="border: 1px solid white; padding: 8px;">&gt;= 0.7</td>
+      </tr>
+      <tr>
+        <td style="border: 1px solid white; padding: 8px;">F1 Score</td>
+        <td style="border: 1px solid white; padding: 8px;">{colored_metric(f1, 0.7)}</td>
+        <td style="border: 1px solid white; padding: 8px;">&gt;= 0.7</td>
+      </tr>
+      <tr>
+        <td style="border: 1px solid white; padding: 8px;">ROC AUC</td>
+        <td style="border: 1px solid white; padding: 8px;">{colored_metric(roc_auc, 0.8)}</td>
+        <td style="border: 1px solid white; padding: 8px;">&gt;= 0.8</td>
+      </tr>
+      <tr>
+        <td style="border: 1px solid white; padding: 8px;">Precision-Recall AUC</td>
+        <td style="border: 1px solid white; padding: 8px;">{colored_metric(pr_auc, 0.7)}</td>
+        <td style="border: 1px solid white; padding: 8px;">&gt;= 0.7</td>
+      </tr>
+      <tr>
+        <td style="border: 1px solid white; padding: 8px;">Log Loss</td>
+        <td style="border: 1px solid white; padding: 8px;">{colored_metric(logloss, 0.5, is_lower=True)}</td>
+        <td style="border: 1px solid white; padding: 8px;">&lt;= 0.5</td>
+      </tr>
+    </table>
+    """
+    st.markdown("### Trustworthiness of Model")
+    st.markdown(trust_table, unsafe_allow_html=True)
     
     model_filename = f"{industry}_model.pkl"
     scaler_filename = f"{industry}_scaler.pkl"
@@ -666,6 +758,9 @@ if st.session_state.nav == "My Account":
     if st.button("Back to Main"):
         st.session_state.nav = "Tabs"
 else:
+    # ---------------------------
+    # Testing Mode: Show Trustworthiness Summary if available
+    # ---------------------------
     if st.session_state.main_mode == "Test Mode":
         selected_test_industry = st.selectbox("Select Your Industry", industry_options, index=0, key="test_industry")
         st.markdown("""
@@ -686,6 +781,14 @@ else:
         .tooltip:hover .tooltiptext { visibility: visible; }
         </style>
         """, unsafe_allow_html=True)
+        
+        # If trust metrics exist from training, display a single summary line:
+        if "trust_metrics" in st.session_state:
+            tm = st.session_state.trust_metrics
+            trust_line = (f"Trustworthiness Summary: Accuracy: {tm['accuracy']:.2f}, Precision: {tm['precision']:.2f}, "
+                          f"Recall: {tm['recall']:.2f}, Specificity: {tm['specificity']:.2f}, F1: {tm['f1']:.2f}, "
+                          f"ROC AUC: {tm['roc_auc']:.2f}, PR AUC: {tm['pr_auc']:.2f}, Log Loss: {tm['logloss']:.2f}")
+            st.markdown(f"<div style='text-align:center; font-size:16px; color: white;'>{trust_line}</div>", unsafe_allow_html=True)
     else:
         selected_test_industry = None
 
@@ -1046,7 +1149,7 @@ else:
                             st.bar_chart(risk_df_w.set_index("Risk Category"))
                         else:
                             st.markdown("#### Quick Charts & Custom Graph Builder")
-                            st.markdown("<hr>", unsafe_allow_html=True)
+                            # Create two columns: one for custom chart builder, one for quick charts.
                             custom_col, quick_col = st.columns([0.5, 0.5])
                             
                             with custom_col:
@@ -1242,10 +1345,10 @@ else:
                                             st.write("No valid Prediction Time data available for trend analysis.")
                                     else:
                                         st.write("No Prediction Time data available.")
-                    
-                    # Display accumulated custom charts (new ones on top)
-                    if "custom_charts" in st.session_state and st.session_state.custom_charts:
-                        st.markdown("### Custom Charts")
-                        for header, chart in st.session_state.custom_charts:
-                            st.markdown(f"#### {header}")
-                            st.altair_chart(chart, use_container_width=True)
+                        
+                        # BELOW: Display accumulated Custom Charts inside the middle column
+                        if "custom_charts" in st.session_state and st.session_state.custom_charts:
+                            st.markdown("### Custom Charts")
+                            for header, chart in st.session_state.custom_charts:
+                                st.markdown(f"#### {header}")
+                                st.altair_chart(chart, use_container_width=True)
