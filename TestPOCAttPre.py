@@ -561,6 +561,43 @@ if st.session_state.nav != "My Account":
             )
 
 # ---------------------------------------
+# A helper function to get filtered data based on user selections.
+# ---------------------------------------
+def get_filtered_df():
+    if not st.session_state.bulk_prediction_complete:
+        return None
+    df = st.session_state.bulk_result.copy()
+    # Use unique keys for filter widgets to ensure reactivity.
+    filter_score_min, filter_score_max = st.slider(
+        "Attrition Score Range", 0, 100, (0, 100), key="filter_score_global"
+    )
+    possible_columns = [col for col in df.columns if col not in 
+                        ["Attrition Score", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]]
+    custom_filter_col = st.selectbox(
+        "Select a column for custom filtering", options=possible_columns, key="custom_filter_col_global"
+    )
+    filter_series = df[custom_filter_col]
+    if pd.api.types.is_numeric_dtype(filter_series):
+        custom_min = float(filter_series.min())
+        custom_max = float(filter_series.max())
+        custom_range = st.slider(
+            f"Select range for {custom_filter_col}", custom_min, custom_max, (custom_min, custom_max),
+            key="custom_filter_range_global"
+        )
+        condition = (df[custom_filter_col] >= custom_range[0]) & (df[custom_filter_col] <= custom_range[1])
+    else:
+        unique_values = list(filter_series.unique())
+        selected_values = st.multiselect(
+            f"Select value(s) for {custom_filter_col}", options=unique_values, default=unique_values,
+            key="custom_filter_values_global"
+        )
+        condition = df[custom_filter_col].isin(selected_values)
+    filtered_df = df[(df["Attrition Score"] >= filter_score_min) & 
+                     (df["Attrition Score"] <= filter_score_max) & 
+                     condition]
+    return filtered_df
+
+# ---------------------------------------
 # Main Navigation
 # ---------------------------------------
 if st.session_state.nav == "My Account":
@@ -714,66 +751,24 @@ else:
                 with btn_cols[1]:
                     if st.session_state.bulk_prediction_complete:
                         st.session_state.enable_what_if = st.checkbox("Enable What-If Analysis", key="whatif_toggle")
-
-                # -------------------------------
-                # Define Filters Once (used for both What-If and Standard Analysis)
-                # -------------------------------
+                
+                # Only show analysis when bulk prediction is complete
                 if st.session_state.bulk_prediction_complete:
-                    st.subheader("Filters")
-                    filter_score_min, filter_score_max = st.slider(
-                        "Attrition Score Range", 0, 100, (0, 100), key="filter_score_global"
-                    )
-                    possible_columns = [
-                        col for col in st.session_state.bulk_result.columns 
-                        if col not in ["Attrition Score", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]
-                    ]
-                    custom_filter_col = st.selectbox(
-                        "Select a column for custom filtering", 
-                        options=possible_columns, 
-                        key="custom_filter_col_global"
-                    )
-                    filter_series = st.session_state.bulk_result[custom_filter_col]
-                    if pd.api.types.is_numeric_dtype(filter_series):
-                        custom_min = float(filter_series.min())
-                        custom_max = float(filter_series.max())
-                        custom_range = st.slider(
-                            f"Select range for {custom_filter_col}", 
-                            custom_min, custom_max, (custom_min, custom_max), 
-                            key="custom_filter_range_global"
-                        )
-                        custom_filter_condition = (
-                            (st.session_state.bulk_result[custom_filter_col] >= custom_range[0]) &
-                            (st.session_state.bulk_result[custom_filter_col] <= custom_range[1])
-                        )
-                    else:
-                        unique_values = list(filter_series.unique())
-                        selected_values = st.multiselect(
-                            f"Select value(s) for {custom_filter_col}", 
-                            options=unique_values, 
-                            default=unique_values, 
-                            key="custom_filter_values_global"
-                        )
-                        custom_filter_condition = st.session_state.bulk_result[custom_filter_col].isin(selected_values)
-                    
-                    filtered_df = st.session_state.bulk_result[
-                        (st.session_state.bulk_result["Attrition Score"] >= filter_score_min) &
-                        (st.session_state.bulk_result["Attrition Score"] <= filter_score_max) &
-                        custom_filter_condition
-                    ].copy()
-                    
+                    st.markdown("### Analysis (Responsive to Filters)")
+                    # Get the filtered dataframe (all charts will use this)
+                    filtered_df = get_filtered_df()
                     st.write("Filtered Bulk Predictions")
                     st.dataframe(filtered_df)
                     
                     # -------------------------------
-                    # Analysis Section
+                    # What-If Analysis Section (if enabled)
                     # -------------------------------
                     if st.session_state.enable_what_if:
-                        # WHAT-IF ANALYSIS
                         with st.container():
                             st.markdown("<h3 style='color: white;'>What-If Analysis</h3>", unsafe_allow_html=True)
                             st.info("Adjust the parameters below to simulate changes in predicted attrition based on the negative triggers present in your data.")
                             
-                            # Use filtered_df for what-if analysis
+                            # Use the same filtered_df as a starting point
                             filtered_whatif_df = filtered_df.copy()
                             trig_series = compute_trigger_counts(filtered_whatif_df, "Negative Triggers")
                             
@@ -990,8 +985,10 @@ else:
                             st.markdown("### What-If Risk Distribution")
                             st.bar_chart(risk_df_w.set_index("Risk Category"))
                     
+                    # -------------------------------
+                    # Standard Analysis Section (if What-If is not enabled)
+                    # -------------------------------
                     else:
-                        # STANDARD ANALYSIS (without What-If)
                         analysis_col1, analysis_col2 = st.columns([0.35, 0.65])
                         with analysis_col1:
                             st.subheader("Filters")
@@ -1080,7 +1077,7 @@ else:
                             
                             st.markdown("## Quick Charts")
                             
-                            # Use filtered_df for quick charts
+                            # Quick Charts use the same filtered_df
                             df_for_charts = filtered_df
                             
                             with st.expander("Distribution Analysis: These charts help you understand the overall makeup of your data."):
