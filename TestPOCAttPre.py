@@ -52,7 +52,7 @@ def safe_rerun():
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "nav" not in st.session_state:
-    st.session_state.nav = "Tabs"  # "Tabs" indicates main UI (not My Account)
+    st.session_state.nav = "Tabs"  # "Tabs" indicates main UI (i.e. not "My Account")
 if "user" not in st.session_state:
     st.session_state.user = {}
 if "bulk_prediction_complete" not in st.session_state:
@@ -63,8 +63,6 @@ if "enable_what_if" not in st.session_state:
     st.session_state.enable_what_if = False
 if "custom_charts" not in st.session_state:
     st.session_state.custom_charts = []  # list to store custom charts
-if "selected_chart_category" not in st.session_state:
-    st.session_state.selected_chart_category = None
 
 # ----------------------------------------------------
 # Helper functions for user storage
@@ -423,11 +421,11 @@ def graph_header(title, explanation):
     return f'<h4 style="color: white;">{title} <span title="{explanation}" style="cursor: help; color: #ccc;">&#9432;</span></h4>'
 
 # ---------------------------------------
-# Helper: Get the filtered dataframe (placed in the left column)
+# Local filtering function to be placed in the left column (above table)
+# Uses one slider for a range.
 # ---------------------------------------
 def local_get_filtered_df(df):
-    score_min = st.slider("Filter: Attrition Score (Min)", 0, 100, 0, key="local_score_min")
-    score_max = st.slider("Filter: Attrition Score (Max)", 0, 100, 100, key="local_score_max")
+    score_range = st.slider("Filter: Attrition Score", 0, 100, (0, 100), key="local_score_range")
     possible_cols = [col for col in df.columns if col not in 
                      ["Attrition Score", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]]
     custom_col = st.selectbox("Filter: Select column", possible_cols, key="local_custom_col")
@@ -440,7 +438,7 @@ def local_get_filtered_df(df):
         unique_vals = series.unique().tolist()
         selected_vals = st.multiselect(f"Filter: {custom_col} values", unique_vals, default=unique_vals, key="local_custom_vals")
         condition = df[custom_col].isin(selected_vals)
-    filtered = df[(df["Attrition Score"] >= score_min) & (df["Attrition Score"] <= score_max) & condition]
+    filtered = df[(df["Attrition Score"] >= score_range[0]) & (df["Attrition Score"] <= score_range[1]) & condition]
     return filtered
 
 # ---------------------------------------
@@ -737,16 +735,15 @@ else:
                 
                 # -------------------------------
                 # Analysis Section: Two-Column Layout
-                # Left column: Filters + Filtered Data Table
+                # Left column: Filters + Filtered Data Table (occupies ~25% of width)
                 # Right column: Charts (custom and quick charts)
                 # -------------------------------
                 if st.session_state.bulk_prediction_complete:
                     st.markdown("### Analysis (Responsive to Filters)")
-                    col_table, col_charts = st.columns([0.4, 0.6])
+                    col_table, col_charts = st.columns([0.25, 0.75])
                     
                     with col_table:
                         st.markdown("#### Data Filters")
-                        # Place the filtering widgets here (using local keys)
                         filtered_df = local_get_filtered_df(st.session_state.bulk_result)
                         st.markdown("#### Filtered Data Table")
                         st.dataframe(filtered_df)
@@ -971,12 +968,8 @@ else:
                             st.markdown("##### What-If Risk Distribution")
                             st.bar_chart(risk_df_w.set_index("Risk Category"))
                         # End What-If Analysis
-                        #
-                        # Standard Analysis
-                        #
                         else:
                             st.markdown("#### Quick Charts & Custom Graph Builder")
-                            # Create two sub-columns: left for custom chart builder, right for quick charts.
                             custom_col, quick_col = st.columns([0.5, 0.5])
                             
                             with custom_col:
@@ -1022,12 +1015,12 @@ else:
                                                 y=alt.Y("count()", title="Count"),
                                                 tooltip=[x_axis]
                                             )
+                                    st.altair_chart(custom_chart, use_container_width=True)
                                     st.session_state.custom_charts.insert(0, {
                                         "chart": custom_chart,
                                         "title": f"Custom Chart: {x_axis} vs {y_axis}",
                                         "explanation": "This chart was generated based on your selected axes."
                                     })
-                                    st.success("Custom chart generated and added!")
                                 if st.session_state.custom_charts:
                                     st.markdown("##### Your Custom Charts")
                                     for custom in st.session_state.custom_charts:
@@ -1256,7 +1249,7 @@ else:
                                             )
                                             st.altair_chart(chart1, use_container_width=True)
                                         else:
-                                            st.write("No valid Prediction Time data for trend analysis.")
+                                            st.write("No valid Prediction Time data available for trend analysis.")
                                     else:
                                         st.write("No Prediction Time data available.")
                                     
@@ -1274,7 +1267,7 @@ else:
                                             )
                                             st.altair_chart(chart2, use_container_width=True)
                                         else:
-                                            st.write("No valid Prediction Time data for rolling average analysis.")
+                                            st.write("No valid Prediction Time data available for rolling average analysis.")
                                     else:
                                         st.write("No Prediction Time data available.")
                         # End Standard Analysis
