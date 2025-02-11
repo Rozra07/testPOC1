@@ -735,23 +735,36 @@ else:
                 
                 # -------------------------------
                 # Bulk Analysis Section:
-                # Left column (Filters) occupies 20% width
-                # Right column (Charts) occupies 80% width
+                # Compute filtered_df once so that both columns use the same data.
+                # Left column (Filters, Filtered Table & Risk Distribution) occupies 20% width.
+                # Right column (Custom & Quick Charts) occupies 80% width.
                 # -------------------------------
                 if st.session_state.bulk_prediction_complete:
                     st.markdown("### Bulk Analysis")
                     st.markdown("<hr>", unsafe_allow_html=True)
+                    # Compute filtered_df once
+                    filtered_df = local_get_filtered_df(st.session_state.bulk_result)
                     col_table, col_charts = st.columns([0.20, 0.80])
                     
                     with col_table:
                         st.markdown("#### Data Filters")
                         st.markdown("<hr>", unsafe_allow_html=True)
-                        filtered_df = local_get_filtered_df(st.session_state.bulk_result)
                         st.markdown("#### Filtered Data Table")
                         st.dataframe(filtered_df)
+                        # Add Risk Distribution chart below the table
+                        if "Attrition Score" in filtered_df.columns:
+                            high_risk = (filtered_df["Attrition Score"] >= 75).sum()
+                            mod_high = ((filtered_df["Attrition Score"] >= 60) & (filtered_df["Attrition Score"] < 75)).sum()
+                            moderate = ((filtered_df["Attrition Score"] >= 35) & (filtered_df["Attrition Score"] < 60)).sum()
+                            low = (filtered_df["Attrition Score"] < 35).sum()
+                            risk_df = pd.DataFrame({
+                                "Risk Category": ["High (>=75)", "Mod-High (60-74)", "Moderate (35-59)", "Low (<35)"],
+                                "Count": [high_risk, mod_high, moderate, low]
+                            })
+                            st.markdown("##### Risk Distribution")
+                            st.bar_chart(risk_df.set_index("Risk Category"))
                     
                     with col_charts:
-                        # What-If Analysis section
                         if st.session_state.enable_what_if:
                             st.markdown("#### What-If Analysis")
                             filtered_whatif_df = filtered_df.copy()
@@ -970,7 +983,6 @@ else:
                             st.markdown("##### What-If Risk Distribution")
                             st.bar_chart(risk_df_w.set_index("Risk Category"))
                         else:
-                            # Quick Charts & Custom Graph Builder Section
                             st.markdown("#### Quick Charts & Custom Graph Builder")
                             st.markdown("<hr>", unsafe_allow_html=True)
                             custom_col, quick_col = st.columns([0.5, 0.5])
@@ -1034,13 +1046,14 @@ else:
                                 st.markdown("##### Quick Charts")
                                 
                                 # Distribution Analysis Expander
-                                with st.expander("""
-                                <div>
-                                  <span style="font-size: 18px; font-weight: bold;">Distribution Analysis</span>
-                                  <span style="font-size: 14px;">: Visualizes the overall distribution of key variables (e.g., Attrition Score, Employee Age, Tenure, Compa Ratio, and Performance Rating) using histograms.</span>
-                                </div>
-                                <hr>
-                                """, expanded=False):
+                                with st.expander("Distribution Analysis", expanded=False):
+                                    st.markdown("""
+                                    <div>
+                                      <span style="font-size: 18px; font-weight: bold;">Distribution Analysis</span>
+                                      <span style="font-size: 14px;">: Visualizes the overall distribution of key variables (e.g., Attrition Score, Employee Age, Tenure, Compa Ratio, and Performance Rating) using histograms.</span>
+                                    </div>
+                                    <hr>
+                                    """, unsafe_allow_html=True)
                                     if "Attrition Score" in filtered_df.columns and not filtered_df.empty:
                                         chart1 = alt.Chart(filtered_df).mark_bar(color="#4c78a8").encode(
                                             x=alt.X("Attrition Score:Q", bin=alt.Bin(maxbins=20), title="Attrition Score"),
@@ -1058,16 +1071,16 @@ else:
                                         st.altair_chart(chart2, use_container_width=True)
                                     else:
                                         st.write("No data for Employee Age Distribution.")
-                                    # Additional histograms for Tenure, Compa Ratio, and Performance Rating can be added here.
                                 
                                 # Comparative Analysis Expander
-                                with st.expander("""
-                                <div>
-                                  <span style="font-size: 18px; font-weight: bold;">Comparative Analysis</span>
-                                  <span style="font-size: 14px;">: Compares pairs of variables (such as Employee Age vs. Attrition Score or Gender vs. Attrition Score) via scatter plots and box plots to reveal relationships.</span>
-                                </div>
-                                <hr>
-                                """, expanded=False):
+                                with st.expander("Comparative Analysis", expanded=False):
+                                    st.markdown("""
+                                    <div>
+                                      <span style="font-size: 18px; font-weight: bold;">Comparative Analysis</span>
+                                      <span style="font-size: 14px;">: Compares pairs of variables (such as Employee Age vs. Attrition Score or Gender vs. Attrition Score) via scatter plots and box plots to reveal relationships.</span>
+                                    </div>
+                                    <hr>
+                                    """, unsafe_allow_html=True)
                                     if "Employee Age" in filtered_df.columns and "Attrition Score" in filtered_df.columns and not filtered_df.empty:
                                         chart1 = alt.Chart(filtered_df).mark_circle(size=60, color="#4c78a8").encode(
                                             x=alt.X("Employee Age:Q", title="Employee Age"),
@@ -1079,13 +1092,14 @@ else:
                                         st.write("No data for Employee Age vs Attrition Score.")
                                 
                                 # Correlation Analysis Expander
-                                with st.expander("""
-                                <div>
-                                  <span style="font-size: 18px; font-weight: bold;">Correlation Analysis</span>
-                                  <span style="font-size: 14px;">: Displays a heatmap and a pairwise scatter plot matrix to illustrate how numerical variables correlate with one another.</span>
-                                </div>
-                                <hr>
-                                """, expanded=False):
+                                with st.expander("Correlation Analysis", expanded=False):
+                                    st.markdown("""
+                                    <div>
+                                      <span style="font-size: 18px; font-weight: bold;">Correlation Analysis</span>
+                                      <span style="font-size: 14px;">: Displays a heatmap and a pairwise scatter plot matrix to illustrate how numerical variables correlate with one another.</span>
+                                    </div>
+                                    <hr>
+                                    """, unsafe_allow_html=True)
                                     try:
                                         numeric_df = filtered_df.select_dtypes(include=[np.number])
                                         if not numeric_df.empty:
@@ -1103,13 +1117,14 @@ else:
                                         st.write("Correlation Heatmap not available.")
                                 
                                 # Trigger Analysis Expander
-                                with st.expander("""
-                                <div>
-                                  <span style="font-size: 18px; font-weight: bold;">Trigger Analysis</span>
-                                  <span style="font-size: 14px;">: Shows the frequency and breakdown of negative triggers (e.g., low diversity, stagnant promotions) using bar charts and arc (pie) charts.</span>
-                                </div>
-                                <hr>
-                                """, expanded=False):
+                                with st.expander("Trigger Analysis", expanded=False):
+                                    st.markdown("""
+                                    <div>
+                                      <span style="font-size: 18px; font-weight: bold;">Trigger Analysis</span>
+                                      <span style="font-size: 14px;">: Shows the frequency and breakdown of negative triggers (e.g., low diversity, stagnant promotions) using bar charts and arc (pie) charts.</span>
+                                    </div>
+                                    <hr>
+                                    """, unsafe_allow_html=True)
                                     if "Negative Triggers" in filtered_df.columns and not filtered_df.empty:
                                         ct = compute_trigger_counts(filtered_df, "Negative Triggers").reset_index()
                                         ct.columns = ["Trigger", "Count"]
@@ -1126,13 +1141,14 @@ else:
                                         st.write("No data for Negative Triggers Count.")
                                 
                                 # Industry Analysis Expander
-                                with st.expander("""
-                                <div>
-                                  <span style="font-size: 18px; font-weight: bold;">Industry Analysis</span>
-                                  <span style="font-size: 14px;">: Examines industry and company-related factors by presenting distributions (e.g., industry pie charts) and comparisons (e.g., tenure or retention by industry/company type).</span>
-                                </div>
-                                <hr>
-                                """, expanded=False):
+                                with st.expander("Industry Analysis", expanded=False):
+                                    st.markdown("""
+                                    <div>
+                                      <span style="font-size: 18px; font-weight: bold;">Industry Analysis</span>
+                                      <span style="font-size: 14px;">: Examines industry and company-related factors by presenting distributions (e.g., industry pie charts) and comparisons (e.g., tenure or retention by industry/company type).</span>
+                                    </div>
+                                    <hr>
+                                    """, unsafe_allow_html=True)
                                     if "Industry" in filtered_df.columns and not filtered_df.empty:
                                         industry_counts = filtered_df["Industry"].value_counts().reset_index()
                                         industry_counts.columns = ['Industry', 'Count']
@@ -1146,13 +1162,14 @@ else:
                                         st.write("No data for Industry Distribution.")
                                 
                                 # Temporal Analysis Expander
-                                with st.expander("""
-                                <div>
-                                  <span style="font-size: 18px; font-weight: bold;">Temporal Analysis</span>
-                                  <span style="font-size: 14px;">: Tracks trends over time with line charts that plot average Attrition Score and its rolling average, revealing temporal patterns.</span>
-                                </div>
-                                <hr>
-                                """, expanded=False):
+                                with st.expander("Temporal Analysis", expanded=False):
+                                    st.markdown("""
+                                    <div>
+                                      <span style="font-size: 18px; font-weight: bold;">Temporal Analysis</span>
+                                      <span style="font-size: 14px;">: Tracks trends over time with line charts that plot average Attrition Score and its rolling average, revealing temporal patterns.</span>
+                                    </div>
+                                    <hr>
+                                    """, unsafe_allow_html=True)
                                     if "Prediction Time" in filtered_df.columns and not filtered_df.empty:
                                         df_time = filtered_df.copy()
                                         df_time["Prediction Time"] = pd.to_datetime(df_time["Prediction Time"], errors="coerce")
