@@ -1491,7 +1491,7 @@ else:
                                 # --------------------------
                                 # NEW: Cohort Analysis Section
                                 # --------------------------
-                                st.markdown("### Cohort Analysis")
+                                st.markdown("### Cohort Analysis [Under Development]")
                                 # Use a separate checkbox to enable the cohort analysis section
                                 cohort_enabled = st.checkbox("Enable Cohort Analysis", key="cohort_toggle")
                                 if cohort_enabled:
