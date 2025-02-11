@@ -52,7 +52,7 @@ def safe_rerun():
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "nav" not in st.session_state:
-    st.session_state.nav = "Tabs"  # "Tabs" indicates main UI (not My Account)
+    st.session_state.nav = "Tabs"  # "Tabs" indicates main UI (i.e. not "My Account")
 if "user" not in st.session_state:
     st.session_state.user = {}
 if "bulk_prediction_complete" not in st.session_state:
@@ -63,6 +63,8 @@ if "enable_what_if" not in st.session_state:
     st.session_state.enable_what_if = False
 if "custom_charts" not in st.session_state:
     st.session_state.custom_charts = []  # list to store custom charts
+if "selected_chart_category" not in st.session_state:
+    st.session_state.selected_chart_category = None
 
 # ----------------------------------------------------
 # Helper functions for user storage
@@ -297,6 +299,7 @@ TRIGGER_DETAILS = {
             "poor_benefits": "Offer competitive benefits including health insurance and retirement plans."
         }
     }
+    # Additional trigger details can be added similarly...
 }
 
 # ----------------------------------------------------
@@ -402,31 +405,17 @@ def generate_dummy_training_file():
     return csv_buffer.getvalue()
 
 # ----------------------------------------------------
-# A centralized helper function to get the filtered dataframe.
-# This function is called in the analysis section so that every chart uses the same filters.
-# -----------------------------
-def get_filtered_df():
-    if not st.session_state.bulk_prediction_complete:
-        return None
-    df = st.session_state.bulk_result.copy()
-    # All filter widgets are placed in the sidebar for reactivity.
-    filter_score_min = st.sidebar.slider("Filter: Attrition Score (Min)", 0, 100, 0, key="score_min")
-    filter_score_max = st.sidebar.slider("Filter: Attrition Score (Max)", 0, 100, 100, key="score_max")
-    possible_cols = [col for col in df.columns if col not in 
-                     ["Attrition Score", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]]
-    custom_col = st.sidebar.selectbox("Filter: Select column", possible_cols, key="custom_col")
-    series = df[custom_col]
-    if pd.api.types.is_numeric_dtype(series):
-        custom_range = st.sidebar.slider(f"Filter: {custom_col} Range", float(series.min()), float(series.max()), (float(series.min()), float(series.max())), key="custom_range")
-        condition = (df[custom_col] >= custom_range[0]) & (df[custom_col] <= custom_range[1])
+# Function to compute trigger counts from a column with comma-separated triggers
+# ----------------------------------------------------
+def compute_trigger_counts(df, column_name):
+    triggers_list = []
+    for val in df[column_name].dropna():
+        if val.strip() != "" and val != "None":
+            triggers_list.extend([x.strip() for x in val.split(",") if x.strip()])
+    if triggers_list:
+        return pd.Series(triggers_list).value_counts()
     else:
-        unique_vals = series.unique().tolist()
-        selected_vals = st.sidebar.multiselect(f"Filter: {custom_col} values", unique_vals, default=unique_vals, key="custom_vals")
-        condition = df[custom_col].isin(selected_vals)
-    filtered = df[(df["Attrition Score"] >= filter_score_min) &
-                  (df["Attrition Score"] <= filter_score_max) &
-                  condition]
-    return filtered
+        return pd.Series(dtype=int)
 
 # ---------------------------------------
 # Helper function: Graph header with tooltip
@@ -725,28 +714,72 @@ else:
                 with btn_cols[1]:
                     if st.session_state.bulk_prediction_complete:
                         st.session_state.enable_what_if = st.checkbox("Enable What-If Analysis", key="whatif_toggle")
-                
+
                 # -------------------------------
-                # Analysis Section (filters and charts)
+                # Only show analysis if bulk prediction has completed
                 # -------------------------------
                 if st.session_state.bulk_prediction_complete:
-                    st.markdown("### Analysis (All Charts Respond to Filters)")
+                    # Compute filters once and use the same filtered dataframe for all charts
+                    st.subheader("Filters")
+                    filter_score_min, filter_score_max = st.slider(
+                        "Attrition Score Range", 0, 100, (0, 100), key="filter_score"
+                    )
+                    possible_columns = [
+                        col for col in st.session_state.bulk_result.columns 
+                        if col not in ["Attrition Score", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]
+                    ]
+                    custom_filter_col = st.selectbox(
+                        "Select a column for custom filtering", 
+                        options=possible_columns, 
+                        key="custom_filter_col"
+                    )
+                    filter_series = st.session_state.bulk_result[custom_filter_col]
+                    if pd.api.types.is_numeric_dtype(filter_series):
+                        custom_min = float(filter_series.min())
+                        custom_max = float(filter_series.max())
+                        custom_range = st.slider(
+                            f"Select range for {custom_filter_col}", 
+                            custom_min, custom_max, (custom_min, custom_max), 
+                            key="custom_filter_range"
+                        )
+                        custom_filter_condition = (
+                            (st.session_state.bulk_result[custom_filter_col] >= custom_range[0]) &
+                            (st.session_state.bulk_result[custom_filter_col] <= custom_range[1])
+                        )
+                    else:
+                        unique_values = list(filter_series.unique())
+                        selected_values = st.multiselect(
+                            f"Select value(s) for {custom_filter_col}", 
+                            options=unique_values, 
+                            default=unique_values, 
+                            key="custom_filter_values"
+                        )
+                        custom_filter_condition = st.session_state.bulk_result[custom_filter_col].isin(selected_values)
                     
-                    # Get the filtered dataframe (filters appear in the sidebar)
-                    filtered_df = get_filtered_df()
+                    filtered_df = st.session_state.bulk_result[
+                        (st.session_state.bulk_result["Attrition Score"] >= filter_score_min) &
+                        (st.session_state.bulk_result["Attrition Score"] <= filter_score_max) &
+                        custom_filter_condition
+                    ].copy()
+                    
                     st.write("Filtered Bulk Predictions")
                     st.dataframe(filtered_df)
                     
-                    # If What-If Analysis is enabled, use the filtered_df for recalculations.
+                    # -------------------------------
+                    # What-If Analysis Section
+                    # -------------------------------
                     if st.session_state.enable_what_if:
                         with st.container():
                             st.markdown("<h3 style='color: white;'>What-If Analysis</h3>", unsafe_allow_html=True)
-                            st.info("Adjust parameters below to simulate changes in attrition predictions.")
+                            st.info("Adjust the parameters below to simulate changes in predicted attrition based on the negative triggers present in your data.")
                             
+                            # In what-if analysis, use the filtered_df as the starting point.
                             filtered_whatif_df = filtered_df.copy()
+                            
+                            # Compute trigger counts from the filtered data
                             trig_series = compute_trigger_counts(filtered_whatif_df, "Negative Triggers")
                             
-                            # Define widgets for each known trigger.
+                            # Define widget configurations for each known trigger
                             trigger_widget_config = {
                                 "Low gender diversity": {
                                     "widget": "slider",
@@ -848,8 +881,9 @@ else:
                                     elif config["widget"] == "selectbox":
                                         if config["param"] not in displayed_params:
                                             param_name = config["param"]
+                                            default_val = config["default"]
                                             try:
-                                                default_index = config["options"].index(config["default"])
+                                                default_index = config["options"].index(default_val)
                                             except ValueError:
                                                 default_index = 0
                                             whatif_params[param_name] = st.selectbox(
@@ -959,11 +993,14 @@ else:
                             st.markdown("### What-If Risk Distribution")
                             st.bar_chart(risk_df_w.set_index("Risk Category"))
                     
-                    # Else use Standard Analysis
+                    # -------------------------------
+                    # Standard Analysis Section (if What-If is not enabled)
+                    # -------------------------------
                     else:
                         analysis_col1, analysis_col2 = st.columns([0.35, 0.65])
                         with analysis_col1:
                             st.subheader("Filters")
+                            # (Re-use the same filter widgets computed above)
                             st.write("Filtered Bulk Predictions")
                             st.dataframe(filtered_df)
                             
@@ -1049,10 +1086,10 @@ else:
                             
                             st.markdown("## Quick Charts")
                             
-                            # Quick charts use the same filtered_df
+                            # Use filtered_df (the same filtered data) for quick charts
                             df_for_charts = filtered_df
                             
-                            with st.expander("Distribution Analysis: Overall makeup"):
+                            with st.expander("Distribution Analysis: These charts help you understand the overall makeup of your data."):
                                 if "Attrition Score" in df_for_charts.columns and not df_for_charts.empty:
                                     chart1 = alt.Chart(df_for_charts).mark_bar(color="#4c78a8").encode(
                                         x=alt.X("Attrition Score:Q", bin=alt.Bin(maxbins=20), title="Attrition Score"),
@@ -1060,7 +1097,7 @@ else:
                                     )
                                     st.altair_chart(chart1, use_container_width=True)
                                 else:
-                                    st.write("No data for Attrition Score Distribution.")
+                                    st.write("Attrition Score Distribution chart not available or no data.")
                                 
                                 if "Employee Age" in df_for_charts.columns and not df_for_charts.empty:
                                     chart2 = alt.Chart(df_for_charts).mark_bar(color="#e45756").encode(
@@ -1069,7 +1106,7 @@ else:
                                     )
                                     st.altair_chart(chart2, use_container_width=True)
                                 else:
-                                    st.write("No data for Employee Age Distribution.")
+                                    st.write("Employee Age Distribution chart not available or no data.")
                                 
                                 if "Tenure (Months)" in df_for_charts.columns and not df_for_charts.empty:
                                     chart3 = alt.Chart(df_for_charts).mark_bar(color="#4c78a8").encode(
@@ -1078,7 +1115,7 @@ else:
                                     )
                                     st.altair_chart(chart3, use_container_width=True)
                                 else:
-                                    st.write("No data for Tenure Distribution.")
+                                    st.write("Tenure Distribution chart not available or no data.")
                                 
                                 if "Compa Ratio" in df_for_charts.columns and not df_for_charts.empty:
                                     chart4 = alt.Chart(df_for_charts).mark_bar(color="#e45756").encode(
@@ -1087,7 +1124,7 @@ else:
                                     )
                                     st.altair_chart(chart4, use_container_width=True)
                                 else:
-                                    st.write("No data for Compa Ratio Distribution.")
+                                    st.write("Compa Ratio Distribution chart not available or no data.")
                                 
                                 if "Last Performance Rating" in df_for_charts.columns and not df_for_charts.empty:
                                     chart5 = alt.Chart(df_for_charts).mark_bar(color="#4c78a8").encode(
@@ -1096,9 +1133,9 @@ else:
                                     )
                                     st.altair_chart(chart5, use_container_width=True)
                                 else:
-                                    st.write("No data for Performance Rating Distribution.")
+                                    st.write("Performance Rating Distribution chart not available or no data.")
                             
-                            with st.expander("Comparative Analysis: Relationships"):
+                            with st.expander("Comparative Analysis: These charts compare key variables to uncover potential relationships."):
                                 if "Employee Age" in df_for_charts.columns and "Attrition Score" in df_for_charts.columns and not df_for_charts.empty:
                                     chart1 = alt.Chart(df_for_charts).mark_circle(size=60, color="#4c78a8").encode(
                                         x=alt.X("Employee Age:Q", title="Employee Age"),
@@ -1107,7 +1144,7 @@ else:
                                     )
                                     st.altair_chart(chart1, use_container_width=True)
                                 else:
-                                    st.write("No data for Employee Age vs Attrition Score.")
+                                    st.write("Employee Age vs. Attrition Score chart not available or no data.")
                                 
                                 if "Compa Ratio" in df_for_charts.columns and "Attrition Score" in df_for_charts.columns and not df_for_charts.empty:
                                     chart2 = alt.Chart(df_for_charts).mark_circle(size=60, color="#e45756").encode(
@@ -1117,7 +1154,7 @@ else:
                                     )
                                     st.altair_chart(chart2, use_container_width=True)
                                 else:
-                                    st.write("No data for Compa Ratio vs Attrition Score.")
+                                    st.write("Compa Ratio vs. Attrition Score chart not available or no data.")
                                 
                                 if "Gender" in df_for_charts.columns and "Attrition Score" in df_for_charts.columns and not df_for_charts.empty:
                                     chart3 = alt.Chart(df_for_charts).mark_boxplot(color="#4c78a8").encode(
@@ -1127,17 +1164,17 @@ else:
                                     )
                                     st.altair_chart(chart3, use_container_width=True)
                                 else:
-                                    st.write("No data for Attrition Score by Gender.")
+                                    st.write("Attrition Score by Gender chart not available or no data.")
                                 
                                 if "College Tier" in df_for_charts.columns and "Attrition Score" in df_for_charts.columns and not df_for_charts.empty:
-                                    chart4 = alt.Chart(df_for_charts).mark_boxplot(color="#4c78a8").encode(
+                                    chart4 = alt.Chart(df_for_charts).mark_boxplot(color="#e45756").encode(
                                         x=alt.X("College Tier:N", title="College Tier"),
                                         y=alt.Y("Attrition Score:Q", title="Attrition Score"),
                                         tooltip=["College Tier", "Attrition Score"]
                                     )
                                     st.altair_chart(chart4, use_container_width=True)
                                 else:
-                                    st.write("No data for Attrition Score by College Tier.")
+                                    st.write("Attrition Score by College Tier chart not available or no data.")
                                 
                                 if all(x in df_for_charts.columns for x in ["Tenure (Months)", "Attrition Score", "Industry"]) and not df_for_charts.empty:
                                     chart5 = alt.Chart(df_for_charts).mark_circle(size=60, color="#4c78a8").encode(
@@ -1148,9 +1185,9 @@ else:
                                     )
                                     st.altair_chart(chart5, use_container_width=True)
                                 else:
-                                    st.write("No data for Tenure vs Attrition Score by Industry.")
+                                    st.write("Tenure vs. Attrition Score by Industry chart not available or no data.")
                             
-                            with st.expander("Correlation & Relationship Analysis: Numerical interactions"):
+                            with st.expander("Correlation & Relationship Analysis: These charts assess how numerical variables interact with one another."):
                                 try:
                                     numeric_df = df_for_charts.select_dtypes(include=[np.number])
                                     if not numeric_df.empty:
@@ -1163,7 +1200,7 @@ else:
                                         )
                                         st.altair_chart(chart1, use_container_width=True)
                                     else:
-                                        st.write("No numeric data for correlation heatmap.")
+                                        st.write("No numeric data available for correlation heatmap.")
                                 except Exception as e:
                                     st.write("Correlation Heatmap not available.")
                                 
@@ -1174,11 +1211,11 @@ else:
                                         fig = sns.pairplot(numeric_df).fig
                                         st.pyplot(fig)
                                     else:
-                                        st.write("No numeric data for pairwise scatter plot matrix.")
+                                        st.write("No numeric data available for pairwise scatter plot matrix.")
                                 except Exception as e:
                                     st.write("Pairwise Scatter Plot Matrix not available.")
                             
-                            with st.expander("Trigger & Factor Analysis: Attrition risk factors"):
+                            with st.expander("Trigger & Factor Analysis: These charts focus on the factors influencing attrition risk."):
                                 if "Negative Triggers" in df_for_charts.columns and not df_for_charts.empty:
                                     ct = compute_trigger_counts(df_for_charts, "Negative Triggers").reset_index()
                                     ct.columns = ["Trigger", "Count"]
@@ -1192,7 +1229,7 @@ else:
                                     else:
                                         st.write("No triggers found.")
                                 else:
-                                    st.write("No data for Negative Triggers Count.")
+                                    st.write("Negative Triggers Count chart not available or no data.")
                                 
                                 high_risk_df = df_for_charts[df_for_charts["Attrition Score"] >= 75]
                                 if not high_risk_df.empty and "Negative Triggers" in high_risk_df.columns:
@@ -1208,9 +1245,9 @@ else:
                                     else:
                                         st.write("No triggers in High-Risk group.")
                                 else:
-                                    st.write("No data for High-Risk trigger distribution.")
+                                    st.write("No high-risk employees data available for trigger distribution.")
                             
-                            with st.expander("Retention & Industry Analysis: Industry insights"):
+                            with st.expander("Retention & Industry Analysis: These charts provide insights into retention factors and industry/company characteristics."):
                                 if "Industry" in df_for_charts.columns and not df_for_charts.empty:
                                     industry_counts = df_for_charts["Industry"].value_counts().reset_index()
                                     industry_counts.columns = ['Industry', 'Count']
@@ -1221,7 +1258,7 @@ else:
                                     )
                                     st.altair_chart(chart1, use_container_width=True)
                                 else:
-                                    st.write("No data for Industry Distribution.")
+                                    st.write("Industry Distribution chart not available or no data.")
                                 
                                 if all(x in df_for_charts.columns for x in ["Industry", "Tenure (Months)"]) and not df_for_charts.empty:
                                     chart2 = alt.Chart(df_for_charts).mark_boxplot(color="#4c78a8").encode(
@@ -1231,7 +1268,7 @@ else:
                                     )
                                     st.altair_chart(chart2, use_container_width=True)
                                 else:
-                                    st.write("No data for Tenure by Industry.")
+                                    st.write("Tenure by Industry chart not available or no data.")
                                 
                                 if "Company Type" in df_for_charts.columns and "Attrition Score" in df_for_charts.columns and not df_for_charts.empty:
                                     compa_df = df_for_charts.groupby("Company Type").agg({"Attrition Score": "mean"}).reset_index()
@@ -1242,7 +1279,7 @@ else:
                                     )
                                     st.altair_chart(chart3, use_container_width=True)
                                 else:
-                                    st.write("No data for Company Type analysis.")
+                                    st.write("Company Type chart not available or no data.")
                                 
                                 if "College Tier" in df_for_charts.columns and "Attrition Score" in df_for_charts.columns and not df_for_charts.empty:
                                     college_df = df_for_charts.groupby("College Tier").agg({"Attrition Score": "mean"}).reset_index()
@@ -1253,9 +1290,9 @@ else:
                                     )
                                     st.altair_chart(chart4, use_container_width=True)
                                 else:
-                                    st.write("No data for College Tier analysis.")
+                                    st.write("Retention Rate by College Tier chart not available or no data.")
                             
-                            with st.expander("Temporal Analysis: Trends over time"):
+                            with st.expander("Temporal Analysis: These charts track trends and changes in attrition over time."):
                                 if "Prediction Time" in df_for_charts.columns and not df_for_charts.empty:
                                     df_time = df_for_charts.copy()
                                     df_time["Prediction Time"] = pd.to_datetime(df_time["Prediction Time"], errors="coerce")
@@ -1270,9 +1307,9 @@ else:
                                         )
                                         st.altair_chart(chart1, use_container_width=True)
                                     else:
-                                        st.write("No valid Prediction Time data for trend analysis.")
+                                        st.write("No valid Prediction Time data available for trend analysis.")
                                 else:
-                                    st.write("No Prediction Time data available.")
+                                    st.write("Prediction Time data not available or no data.")
                                 
                                 if "Prediction Time" in df_for_charts.columns and not df_for_charts.empty:
                                     df_time = df_for_charts.copy()
@@ -1288,8 +1325,8 @@ else:
                                         )
                                         st.altair_chart(chart2, use_container_width=True)
                                     else:
-                                        st.write("No valid Prediction Time data for rolling average.")
+                                        st.write("No valid Prediction Time data available for rolling average analysis.")
                                 else:
-                                    st.write("No Prediction Time data available.")
+                                    st.write("Prediction Time data not available or no data.")
                 else:
                     st.info("Run Bulk Prediction to see the analysis.")
