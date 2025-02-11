@@ -63,6 +63,8 @@ if "enable_what_if" not in st.session_state:
     st.session_state.enable_what_if = False
 if "custom_charts" not in st.session_state:
     st.session_state.custom_charts = []  # list to store custom charts
+if "custom_filters" not in st.session_state:
+    st.session_state.custom_filters = []  # list to store additional custom filter configs
 
 # ----------------------------------------------------
 # Helper functions for user storage
@@ -421,25 +423,49 @@ def graph_header(title, explanation):
     return f'<h4 style="color: white;">{title} <span title="{explanation}" style="cursor: help; color: #ccc;">&#9432;</span></h4>'
 
 # ---------------------------------------
-# Local filtering function to be placed in the left column (above table)
-# Uses one slider for a range.
+# Local filtering function placed in the left column
+# Uses one range slider for Attrition Score and allows multiple additional custom filters.
 # ---------------------------------------
 def local_get_filtered_df(df):
+    st.markdown("### Base Filters", unsafe_allow_html=True)
     score_range = st.slider("Filter: Attrition Score", 0, 100, (0, 100), key="local_score_range")
-    possible_cols = [col for col in df.columns if col not in 
-                     ["Attrition Score", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]]
-    custom_col = st.selectbox("Filter: Select column", possible_cols, key="local_custom_col")
-    series = df[custom_col]
-    if pd.api.types.is_numeric_dtype(series):
-        custom_range = st.slider(f"Filter: {custom_col} Range", float(series.min()), float(series.max()),
-                                 (float(series.min()), float(series.max())), key="local_custom_range")
-        condition = (df[custom_col] >= custom_range[0]) & (df[custom_col] <= custom_range[1])
-    else:
-        unique_vals = series.unique().tolist()
-        selected_vals = st.multiselect(f"Filter: {custom_col} values", unique_vals, default=unique_vals, key="local_custom_vals")
-        condition = df[custom_col].isin(selected_vals)
-    filtered = df[(df["Attrition Score"] >= score_range[0]) & (df["Attrition Score"] <= score_range[1]) & condition]
-    return filtered
+    base_condition = (df["Attrition Score"] >= score_range[0]) & (df["Attrition Score"] <= score_range[1])
+    
+    # Button to add a new custom filter
+    if st.button("Add New Custom Filter", key="add_custom_filter"):
+        st.session_state.custom_filters.append({})  # append an empty filter config
+        safe_rerun()  # rerun to update
+    
+    # Render all custom filters
+    custom_conditions = []
+    for i, filt in enumerate(st.session_state.custom_filters):
+        st.markdown(f"**Custom Filter {i+1}:**", unsafe_allow_html=True)
+        possible_cols = [col for col in df.columns if col not in ["Attrition Score", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]]
+        sel_col = st.selectbox(f"Select column for filter {i+1}", possible_cols, key=f"custom_filter_col_{i}")
+        st.session_state.custom_filters[i]['col'] = sel_col
+        series = df[sel_col]
+        if pd.api.types.is_numeric_dtype(series):
+            rng = st.slider(f"Select range for {sel_col} (Filter {i+1})", float(series.min()), float(series.max()),
+                              (float(series.min()), float(series.max())), key=f"custom_filter_range_{i}")
+            st.session_state.custom_filters[i]['range'] = rng
+            cond = (df[sel_col] >= rng[0]) & (df[sel_col] <= rng[1])
+        else:
+            unique_vals = series.unique().tolist()
+            vals = st.multiselect(f"Select values for {sel_col} (Filter {i+1})", unique_vals, default=unique_vals, key=f"custom_filter_vals_{i}")
+            st.session_state.custom_filters[i]['vals'] = vals
+            cond = df[sel_col].isin(vals)
+        custom_conditions.append(cond)
+        # Button to remove this custom filter
+        if st.button(f"Remove Filter {i+1}", key=f"remove_filter_{i}"):
+            st.session_state.custom_filters.pop(i)
+            safe_rerun()
+    
+    # Combine base condition with all custom filter conditions
+    combined_condition = base_condition
+    for cond in custom_conditions:
+        combined_condition &= cond
+    filtered_df = df[combined_condition]
+    return filtered_df
 
 # ---------------------------------------
 # Login/Sign Up System
@@ -735,23 +761,23 @@ else:
                 
                 # -------------------------------
                 # Analysis Section: Two-Column Layout
-                # Left column: Filters + Filtered Data Table (occupies ~25% of width)
+                # Left column: Filters + Filtered Data Table (20% width)
                 # Right column: Charts (custom and quick charts)
                 # -------------------------------
                 if st.session_state.bulk_prediction_complete:
                     st.markdown("### Analysis (Responsive to Filters)")
-                    col_table, col_charts = st.columns([0.25, 0.75])
+                    col_table, col_charts = st.columns([0.20, 0.80])
                     
                     with col_table:
-                        st.markdown("#### Data Filters")
+                        st.markdown("#### Data Filters", unsafe_allow_html=True)
                         filtered_df = local_get_filtered_df(st.session_state.bulk_result)
-                        st.markdown("#### Filtered Data Table")
+                        st.markdown("#### Filtered Data Table", unsafe_allow_html=True)
                         st.dataframe(filtered_df)
                     
                     with col_charts:
                         # If What-If Analysis is enabled, show its charts; otherwise, show Standard Analysis.
                         if st.session_state.enable_what_if:
-                            st.markdown("#### What-If Analysis")
+                            st.markdown("#### What-If Analysis", unsafe_allow_html=True)
                             filtered_whatif_df = filtered_df.copy()
                             trig_series = compute_trigger_counts(filtered_whatif_df, "Negative Triggers")
                             
@@ -901,7 +927,7 @@ else:
                                             whatif_params[p] = values[i]
                                         displayed_params.update(param_names)
                             
-                            st.markdown("##### Recalculated Predictions (What-If)")
+                            st.markdown("##### Recalculated Predictions (What-If)", unsafe_allow_html=True)
                             new_scores = []
                             new_triggers_list = []
                             df_bulk_whatif = filtered_whatif_df.copy()
@@ -965,20 +991,21 @@ else:
                                 "Risk Category": ["High (>=75)", "Mod-High (60-74)", "Moderate (35-59)", "Low (<35)"],
                                 "Count": [high_risk_w, mod_high_w, moderate_w, low_w]
                             })
-                            st.markdown("##### What-If Risk Distribution")
+                            st.markdown("##### What-If Risk Distribution", unsafe_allow_html=True)
                             st.bar_chart(risk_df_w.set_index("Risk Category"))
                         # End What-If Analysis
                         else:
-                            st.markdown("#### Quick Charts & Custom Graph Builder")
+                            st.markdown("#### Quick Charts & Custom Graph Builder", unsafe_allow_html=True)
                             custom_col, quick_col = st.columns([0.5, 0.5])
                             
                             with custom_col:
-                                st.markdown("##### Custom Graph Builder")
-                                with st.form("custom_graph_form"):
-                                    x_axis = st.selectbox("Select X Axis", options=filtered_df.columns, key="custom_x")
-                                    y_axis = st.selectbox("Select Y Axis", options=filtered_df.columns, key="custom_y")
-                                    data_label = st.selectbox("Select Data Label (Optional)", options=["None"] + list(filtered_df.columns), key="custom_label")
-                                    submitted_custom = st.form_submit_button("Generate Custom Chart")
+                                st.markdown("<h4 style='color: white; font-size:18px;'><b>Select X Axis:</b> Choose the column for the X-axis.</h4>", unsafe_allow_html=True)
+                                x_axis = st.selectbox("", options=filtered_df.columns, key="custom_x")
+                                st.markdown("<h4 style='color: white; font-size:18px;'><b>Select Y Axis:</b> Choose the column for the Y-axis.</h4>", unsafe_allow_html=True)
+                                y_axis = st.selectbox("", options=filtered_df.columns, key="custom_y")
+                                st.markdown("<h4 style='color: white; font-size:18px;'><b>Select Data Label (Optional):</b> Choose a column for data labels (if needed).</h4>", unsafe_allow_html=True)
+                                data_label = st.selectbox("", options=["None"] + list(filtered_df.columns), key="custom_label")
+                                submitted_custom = st.form_submit_button("Generate Custom Chart", key="submit_custom_chart")
                                 if submitted_custom:
                                     if x_axis == "Negative Triggers" or y_axis == "Negative Triggers":
                                         ct = compute_trigger_counts(filtered_df, "Negative Triggers").reset_index()
@@ -1022,13 +1049,13 @@ else:
                                         "explanation": "This chart was generated based on your selected axes."
                                     })
                                 if st.session_state.custom_charts:
-                                    st.markdown("##### Your Custom Charts")
+                                    st.markdown("<h4 style='color: white; font-size:18px;'><b>Your Custom Charts</b></h4>", unsafe_allow_html=True)
                                     for custom in st.session_state.custom_charts:
                                         st.markdown(graph_header(custom["title"], custom["explanation"]), unsafe_allow_html=True)
                                         st.altair_chart(custom["chart"], use_container_width=True)
                             
                             with quick_col:
-                                st.markdown("##### Quick Charts")
+                                st.markdown("<h4 style='color: white; font-size:18px;'><b>Quick Charts</b></h4>", unsafe_allow_html=True)
                                 df_for_charts = filtered_df
                                 
                                 with st.expander("Distribution Analysis"):
