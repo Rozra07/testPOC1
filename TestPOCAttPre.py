@@ -790,7 +790,7 @@ else:
             Ensure you have trained a model in Train Mode.
             <br><br>
             Upload a CSV/Excel file with columns: Name, Employee Age, Gender, Tenure (Months),
-            Pulse, Hasn't been promoted, Minimum Promotion Cycle, College Tier, Industry, 
+            Pulse(Chance of leaving, according to survey or manager), Hasn't been promoted, Minimum Promotion Cycle(same for whole organisation or differentiated on level basis or dept. basis), College Tier, Industry, 
             Company Type, Last Performance Rating, Compa Ratio.
             <br><br>
             (No Attrition column needed for testing.)
