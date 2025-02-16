@@ -824,8 +824,7 @@ else:
             st.markdown("""
             Your training file must include:
             - A **target column** (e.g., Attrition; use 0 for active, 1 for non‑active).
-            - **Feature columns:** Employee Age, Gender, Tenure (Months), Pulse, 
-              Hasn't been promoted, Minimum Promotion Cycle, College Tier, Industry, 
+            - **Feature columns:** Employee Age, Gender, Tenure (Months), Pulse(Chance of leaving, according to survey or manager), Hasn't been promoted, Minimum Promotion Cycle(same for whole organisation or differentiated on level basis or dept. basis), College Tier, Industry, 
               Company Type, Last Performance Rating, Compa Ratio.
             """)
             st.download_button(
