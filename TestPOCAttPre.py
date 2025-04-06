@@ -485,7 +485,7 @@ def generate_dummy_training_file():
         "Company Type": ["Startup", "Enterprise", "SME"],
         "Last Performance Rating": [3, 1, 4],
         "Compa Ratio": [90, 65, 100],
-        "Attrition": [0, 1, 0]  # 0=Active, 1=Left
+        "Attrition": [0, 1, 0]
     })
     csv_buffer = io.StringIO()
     dummy_df.to_csv(csv_buffer, index=False)
@@ -505,22 +505,31 @@ def compute_trigger_counts(df, column_name):
         return pd.Series(dtype=int)
 
 # ----------------------------------------------------
-# UPDATED Custom Charting Logic
+# UPDATED: Custom Charting with Debug Info
 # ----------------------------------------------------
 def generate_custom_chart(config, data):
     """
     Creates an Altair chart based on the user's chosen x_axis, y_axis, and optional data_label.
-    Handles numeric vs. categorical differences and includes the data_label as a color encoding if selected.
+    Includes debugging info to help see why a chart might be empty.
     """
     x_axis = config.get("x_axis")
     y_axis = config.get("y_axis")
-    data_label = config.get("data_label")  # <-- NEW: use data label
+    data_label = config.get("data_label", "None")
     
-    # Check if x_axis or y_axis is missing
+    st.write("DEBUG: generate_custom_chart called with:")
+    st.write(" - x_axis:", x_axis, " - y_axis:", y_axis, " - data_label:", data_label)
+    st.write(" - data columns:", data.columns.tolist())
+    st.write(" - data shape:", data.shape)
+    
+    if data.empty:
+        st.warning("Data is empty. No chart will be displayed.")
+        return alt.Chart(pd.DataFrame({"No Data": []})).mark_text().encode(text="No Data:N")
+
+    # Ensure columns exist
     missing_cols = []
-    for col in [x_axis, y_axis]:
-        if col not in data.columns:
-            missing_cols.append(col)
+    for c in [x_axis, y_axis]:
+        if c not in data.columns:
+            missing_cols.append(c)
     if missing_cols:
         error_msg = f"Column(s) not found: {', '.join(missing_cols)}"
         return alt.Chart(pd.DataFrame({'Error': [error_msg]})).mark_text(
@@ -529,110 +538,96 @@ def generate_custom_chart(config, data):
             color='red'
         ).encode(text='Error:N')
     
-    # If user tried Negative Triggers
+    # If user specifically selected "Negative Triggers" on x or y
     if x_axis == "Negative Triggers" or y_axis == "Negative Triggers":
-        # We'll show frequency of triggers only if it's selected as the x_axis
+        # We'll treat that as a frequency chart
         ct = compute_trigger_counts(data, "Negative Triggers").reset_index()
         ct.columns = ["Trigger", "Count"]
+        if ct.empty:
+            return alt.Chart(pd.DataFrame({"No Triggers": []})).mark_text().encode(text="No Triggers:N")
         chart = alt.Chart(ct).mark_bar().encode(
             x=alt.X("Trigger:N", sort='-y', title="Negative Triggers"),
             y=alt.Y("Count:Q", title="Count"),
             tooltip=["Trigger", "Count"]
         )
         return chart
+
+    # See if we have color dimension
+    use_color = (data_label != "None") and (data_label in data.columns)
     
-    # If user wants to color by data_label
-    use_color_encoding = False
-    if data_label and data_label != "None" and data_label in data.columns:
-        use_color_encoding = True
-        color_is_numeric = pd.api.types.is_numeric_dtype(data[data_label])
+    # Check numeric vs categorical
+    x_is_num = pd.api.types.is_numeric_dtype(data[x_axis])
+    y_is_num = pd.api.types.is_numeric_dtype(data[y_axis])
     
-    x_is_numeric = pd.api.types.is_numeric_dtype(data[x_axis])
-    y_is_numeric = pd.api.types.is_numeric_dtype(data[y_axis])
-    
-    # Build a base chart
     base = alt.Chart(data)
-    
-    # Decide chart type
-    if x_is_numeric and y_is_numeric:
-        # Scatter: numeric vs numeric
+    if x_is_num and y_is_num:
+        # numeric vs numeric => scatter
         mark = base.mark_circle(size=60)
         enc = {
             "x": alt.X(f"{x_axis}:Q", title=x_axis),
-            "y": alt.Y(f"{y_axis}:Q", title=y_axis)
+            "y": alt.Y(f"{y_axis}:Q", title=y_axis),
+            "tooltip": [x_axis, y_axis]
         }
-        # Add tooltip
-        tooltip_list = [x_axis, y_axis]
-        # Add color if data_label is valid
-        if use_color_encoding:
+        if use_color:
+            color_is_num = pd.api.types.is_numeric_dtype(data[data_label])
             enc["color"] = alt.Color(
-                f"{data_label}:{'Q' if color_is_numeric else 'N'}",
+                f"{data_label}:{'Q' if color_is_num else 'N'}",
                 title=data_label
             )
-            tooltip_list.append(data_label)
-        enc["tooltip"] = tooltip_list
-        
+            enc["tooltip"].append(data_label)
         chart = mark.encode(**enc)
-        
-    elif not x_is_numeric and y_is_numeric:
-        # Box plot: x=cat, y=num
+    elif (not x_is_num) and (y_is_num):
+        # x = cat, y = num => boxplot
         mark = base.mark_boxplot()
         enc = {
             "x": alt.X(f"{x_axis}:N", title=x_axis),
             "y": alt.Y(f"{y_axis}:Q", title=y_axis)
         }
-        # Add tooltip
-        # Note: boxplot doesn't support direct tooltip as straightforwardly,
-        # but we can still let Altair handle standard boxplot info
-        if use_color_encoding:
+        if use_color:
+            color_is_num = pd.api.types.is_numeric_dtype(data[data_label])
             enc["color"] = alt.Color(
-                f"{data_label}:{'Q' if color_is_numeric else 'N'}",
+                f"{data_label}:{'Q' if color_is_num else 'N'}",
                 title=data_label
             )
         chart = mark.encode(**enc)
-        
-    elif x_is_numeric and not y_is_numeric:
-        # Box plot: y=cat, x=num (just flipped)
+    elif x_is_num and (not y_is_num):
+        # x = num, y = cat => boxplot
         mark = base.mark_boxplot()
         enc = {
-            "y": alt.Y(f"{y_axis}:N", title=y_axis),
-            "x": alt.X(f"{x_axis}:Q", title=x_axis)
+            "x": alt.X(f"{x_axis}:Q", title=x_axis),
+            "y": alt.Y(f"{y_axis}:N", title=y_axis)
         }
-        if use_color_encoding:
+        if use_color:
+            color_is_num = pd.api.types.is_numeric_dtype(data[data_label])
             enc["color"] = alt.Color(
-                f"{data_label}:{'Q' if color_is_numeric else 'N'}",
+                f"{data_label}:{'Q' if color_is_num else 'N'}",
                 title=data_label
             )
         chart = mark.encode(**enc)
-        
     else:
-        # Both x and y are categorical
-        # We'll do a grouped bar chart if y != x, else just count x
+        # both x, y are categorical
         if x_axis != y_axis:
-            # If user wants to do cat vs cat, we can do a stacked or grouped bar
-            # For simplicity, do a stacked bar of x by y
+            # stacked or grouped bar
             mark = base.mark_bar()
             enc = {
                 "x": alt.X(f"{x_axis}:N", title=x_axis),
                 "y": alt.Y("count()", title="Count"),
-                "tooltip": [x_axis, y_axis, alt.Tooltip("count()", title="Count")],
-                "color": alt.Color(f"{y_axis}:N", title=y_axis)
+                "color": alt.Color(f"{y_axis}:N", title=y_axis),
+                "tooltip": [x_axis, y_axis, alt.Tooltip("count()", title="Count")]
             }
-            # If there's a data_label, we could incorporate it differently,
-            # but let's keep it simple. We might use row/column facets or layered color.
-            # For demonstration, let's just do a basic stacked bar by y.
             chart = mark.encode(**enc)
         else:
-            # x_axis == y_axis, so we only have one categorical dimension
+            # x == y, single dimension => simple bar with count
             mark = base.mark_bar()
             enc = {
                 "x": alt.X(f"{x_axis}:N", title=x_axis),
                 "y": alt.Y("count()", title="Count"),
                 "tooltip": [x_axis, alt.Tooltip("count()", title="Count")]
             }
-            if use_color_encoding:
+            if use_color:
+                color_is_num = pd.api.types.is_numeric_dtype(data[data_label])
                 enc["color"] = alt.Color(
-                    f"{data_label}:{'Q' if color_is_numeric else 'N'}",
+                    f"{data_label}:{'Q' if color_is_num else 'N'}",
                     title=data_label
                 )
             chart = mark.encode(**enc)
@@ -640,29 +635,24 @@ def generate_custom_chart(config, data):
     return chart
 
 # ---------------------------------------
-# Horizontal Filter Functions
+# Simpler horizontal_filters with no nested columns
 # ---------------------------------------
 def horizontal_filters(df):
+    """
+    Displays filters in a simple expander. 
+    Removes any nested st.columns to avoid layout conflicts.
+    """
     filter_values = {}
-    st.markdown(
-        """
-        <style>
-        div[data-testid="column"] {
-             min-width: 200px;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-    
-    num_custom = len(st.session_state.custom_filters)
-    total_filters = 1 + num_custom
-    cols = st.columns(total_filters)
-    
-    with cols[0]:
-        score_range = st.slider("Attrition Score", 0, 100, (0, 100), key="filter_attrition_score")
+    with st.expander("Filters", expanded=True):
+        st.write("Use these filters to limit rows in your data.")
+
+        # Attrition Score filter
+        score_range = st.slider("Attrition Score Range", 0, 100, (0, 100))
         filter_values["Attrition Score"] = score_range
 
-    for i, filter_id in enumerate(st.session_state.custom_filters):
-        with cols[i+1]:
+        # Show existing custom filters
+        for filter_id in st.session_state.custom_filters:
+            st.markdown("---")
             possible_cols = [
                 col for col in df.columns 
                 if col not in [
@@ -670,37 +660,48 @@ def horizontal_filters(df):
                     "What-If Negative Triggers", "Prediction Time"
                 ]
             ]
-            col_selected = st.selectbox("Select column", options=possible_cols, key=f"custom_filter_col_{filter_id}")
-            filter_values[f"custom_filter_col_{filter_id}"] = col_selected
-            if st.button("Remove", key=f"remove_{filter_id}"):
-                st.session_state.custom_filters.remove(filter_id)
-                safe_rerun()
+            col_selected = st.selectbox("Select column to filter", possible_cols, key=f"custom_filter_col_{filter_id}")
             if pd.api.types.is_numeric_dtype(df[col_selected]):
                 min_val = float(df[col_selected].min())
                 max_val = float(df[col_selected].max())
-                selected_range = st.slider("Range", min_val, max_val, (min_val, max_val), key=f"custom_filter_range_{filter_id}")
-                filter_values[f"custom_filter_range_{filter_id}"] = selected_range
+                selected_range = st.slider(
+                    f"{col_selected} range", 
+                    min_val, max_val, (min_val, max_val), 
+                    key=f"custom_filter_range_{filter_id}"
+                )
+                filter_values[f"custom_filter_range_{filter_id}"] = (selected_range[0], selected_range[1])
             else:
                 unique_vals = list(df[col_selected].dropna().unique())
-                selected_vals = st.multiselect("Values", options=unique_vals, default=unique_vals, key=f"custom_filter_vals_{filter_id}")
+                selected_vals = st.multiselect(
+                    f"Select {col_selected} values", 
+                    unique_vals, default=unique_vals, 
+                    key=f"custom_filter_vals_{filter_id}"
+                )
                 filter_values[f"custom_filter_vals_{filter_id}"] = selected_vals
+            if st.button("Remove This Filter", key=f"remove_{filter_id}"):
+                st.session_state.custom_filters.remove(filter_id)
+                safe_rerun()
 
-    if st.button("Add Custom Filter", key="add_custom_filter"):
-        new_id = str(datetime.now().timestamp())
-        st.session_state.custom_filters.append(new_id)
-        safe_rerun()
-        
+        if st.button("Add Another Filter"):
+            new_id = str(datetime.now().timestamp())
+            st.session_state.custom_filters.append(new_id)
+            safe_rerun()
+
     return filter_values
 
 def apply_filters(df, filter_values):
     filtered_df = df.copy()
+    # 1) Attrition Score range
     if "Attrition Score" in filter_values:
         low, high = filter_values["Attrition Score"]
         filtered_df = filtered_df[(filtered_df["Attrition Score"] >= low) & (filtered_df["Attrition Score"] <= high)]
+    
+    # 2) Custom filters
     for key in filter_values:
         if key.startswith("custom_filter_col_"):
             filter_id = key.replace("custom_filter_col_", "")
             col = filter_values[key]
+            # Check numeric or categorical sub-keys
             range_key = f"custom_filter_range_{filter_id}"
             if range_key in filter_values:
                 low_val, high_val = filter_values[range_key]
@@ -887,8 +888,6 @@ else:
             Upload a CSV/Excel file with columns: Name, Employee Age, Gender, Tenure (Months),
             Pulse, Hasn't been promoted, Minimum Promotion Cycle, College Tier, Industry,
             Company Type, Last Performance Rating, Compa Ratio.
-            <br><br>
-            (No Attrition column needed for testing.)
           </span>
         </div>
         <style>
@@ -901,9 +900,11 @@ else:
         if "trust_metrics" in st.session_state:
             tm = st.session_state.trust_metrics
             trust_line = (
-                f"Trustworthiness Summary: Accuracy: {tm['accuracy']:.2f}, Precision: {tm['precision']:.2f}, "
-                f"Recall: {tm['recall']:.2f}, Specificity: {tm['specificity']:.2f}, F1: {tm['f1']:.2f}, "
-                f"ROC AUC: {tm['roc_auc']:.2f}, PR AUC: {tm['pr_auc']:.2f}, Log Loss: {tm['logloss']:.2f}"
+                f"Trustworthiness Summary: "
+                f"Accuracy: {tm['accuracy']:.2f}, Precision: {tm['precision']:.2f}, "
+                f"Recall: {tm['recall']:.2f}, Specificity: {tm['specificity']:.2f}, "
+                f"F1: {tm['f1']:.2f}, ROC AUC: {tm['roc_auc']:.2f}, "
+                f"PR AUC: {tm['pr_auc']:.2f}, Log Loss: {tm['logloss']:.2f}"
             )
             st.markdown(f"<div style='text-align:center; font-size:16px; color: white;'>{trust_line}</div>", unsafe_allow_html=True)
     else:
@@ -921,8 +922,9 @@ else:
             st.markdown("""
             Your training file must include:
             - A **target column** (e.g., `Attrition`).
-            - **Feature columns:** Employee Age, Gender, Tenure (Months), Pulse, Hasn't been promoted, 
-              Minimum Promotion Cycle, College Tier, Industry, Company Type, Last Performance Rating, Compa Ratio.
+            - **Feature columns:** Employee Age, Gender, Tenure (Months), Pulse, 
+              Hasn't been promoted, Minimum Promotion Cycle, College Tier, Industry, 
+              Company Type, Last Performance Rating, Compa Ratio.
             """)
             st.download_button(
                 label="Download Dummy Training File",
@@ -933,15 +935,16 @@ else:
         target_column = st.text_input("Enter the target column name", value="Attrition")
         if uploaded_train is not None:
             try:
-                train_df = (pd.read_csv(uploaded_train) if uploaded_train.name.endswith(".csv") 
-                            else pd.read_excel(uploaded_train))
+                if uploaded_train.name.endswith(".csv"):
+                    train_df = pd.read_csv(uploaded_train)
+                else:
+                    train_df = pd.read_excel(uploaded_train)
                 st.write("### Training Data Preview:")
                 st.dataframe(train_df.head())
             except Exception as e:
                 st.error(f"Error reading file: {e}")
             if st.button("Train Model"):
                 train_model(train_df, target_column, selected_train_industry)
-                # Store training data for cohort analysis
                 st.session_state.training_data = train_df.copy()
 
     else:
@@ -949,8 +952,10 @@ else:
         uploaded_file = st.file_uploader("Upload Bulk Data (CSV or Excel)", type=["csv", "xlsx"], key="bulk_file")
         if uploaded_file is not None:
             try:
-                df_bulk = (pd.read_csv(uploaded_file) if uploaded_file.name.endswith(".csv")
-                           else pd.read_excel(uploaded_file))
+                if uploaded_file.name.endswith(".csv"):
+                    df_bulk = pd.read_csv(uploaded_file)
+                else:
+                    df_bulk = pd.read_excel(uploaded_file)
             except Exception as e:
                 st.error(f"❌ Error reading file: {e}")
                 st.stop()
@@ -1030,353 +1035,362 @@ else:
                     filter_values = horizontal_filters(st.session_state.bulk_result)
                     filtered_df = apply_filters(st.session_state.bulk_result, filter_values)
                     
-                    col_table, col_charts = st.columns([0.20, 0.80])
+                    st.markdown("#### Filtered Data Table")
+                    st.dataframe(filtered_df)
                     
-                    with col_table:
-                        st.markdown("#### Data Filters")
-                        st.markdown("<hr>", unsafe_allow_html=True)
-                        st.markdown("#### Filtered Data Table")
-                        st.dataframe(filtered_df)
-                        if "Attrition Score" in filtered_df.columns:
-                            high_risk = (filtered_df["Attrition Score"] >= 75).sum()
-                            mod_high = ((filtered_df["Attrition Score"] >= 60) & (filtered_df["Attrition Score"] < 75)).sum()
-                            moderate = ((filtered_df["Attrition Score"] >= 35) & (filtered_df["Attrition Score"] < 60)).sum()
-                            low = (filtered_df["Attrition Score"] < 35).sum()
-                            risk_df = pd.DataFrame({
-                                "Risk Category": ["High (>=75)", "Mod-High (60-74)", "Moderate (35-59)", "Low (<35)"],
-                                "Count": [high_risk, mod_high, moderate, low]
-                            })
-                            st.markdown("##### Risk Distribution")
-                            st.bar_chart(risk_df.set_index("Risk Category"))
+                    if "Attrition Score" in filtered_df.columns and not filtered_df.empty:
+                        high_risk = (filtered_df["Attrition Score"] >= 75).sum()
+                        mod_high = ((filtered_df["Attrition Score"] >= 60) & (filtered_df["Attrition Score"] < 75)).sum()
+                        moderate = ((filtered_df["Attrition Score"] >= 35) & (filtered_df["Attrition Score"] < 60)).sum()
+                        low = (filtered_df["Attrition Score"] < 35).sum()
+                        risk_df = pd.DataFrame({
+                            "Risk Category": ["High (>=75)", "Mod-High (60-74)", "Moderate (35-59)", "Low (<35)"],
+                            "Count": [high_risk, mod_high, moderate, low]
+                        })
+                        st.markdown("##### Risk Distribution")
+                        st.bar_chart(risk_df.set_index("Risk Category"))
                     
-                    with col_charts:
-                        if st.session_state.enable_what_if:
-                            st.markdown("#### What-If Analysis")
-                            filtered_whatif_df = filtered_df.copy()
-                            trig_series = compute_trigger_counts(filtered_whatif_df, "Negative Triggers")
-                            
-                            trigger_widget_config = {
-                                "Low gender diversity": {
-                                    "widget": "slider",
-                                    "label": "Women % in Organization",
-                                    "min": 0,
-                                    "max": 100,
-                                    "default": global_female_ratio,
-                                    "param": "female_ratio"
-                                },
-                                "Stagnant promotions": {
-                                    "widget": "slider_pair",
-                                    "labels": ["Months Since Last Promotion", "Minimum Promotion Cycle"],
-                                    "min": [0, 12],
-                                    "max": [60, 60],
-                                    "default": [
-                                        int(filtered_whatif_df["Hasn't been promoted"].mean()) if not filtered_whatif_df.empty else 0,
-                                        int(filtered_whatif_df["Minimum Promotion Cycle"].mean()) if not filtered_whatif_df.empty else 24
-                                    ],
-                                    "params": ["not_promoted", "min_cycle"]
-                                },
-                                "Very low performance rating": {
-                                    "widget": "selectbox",
-                                    "label": "Last Performance Rating",
-                                    "options": [1,2,3,4,5],
-                                    "default": 3,
-                                    "param": "rating"
-                                },
-                                "Low performance rating": {
-                                    "widget": "selectbox",
-                                    "label": "Last Performance Rating",
-                                    "options": [1,2,3,4,5],
-                                    "default": 3,
-                                    "param": "rating"
-                                },
-                                "Low compensation competitiveness": {
-                                    "widget": "slider",
-                                    "label": "Compa Ratio (%)",
-                                    "min": 50,
-                                    "max": 150,
-                                    "default": 90,
-                                    "param": "compa_ratio"
-                                },
-                                "High compensation ratio": {
-                                    "widget": "slider",
-                                    "label": "Compa Ratio (%)",
-                                    "min": 50,
-                                    "max": 150,
-                                    "default": 90,
-                                    "param": "compa_ratio"
-                                },
-                                "Low college tier retention": {
-                                    "widget": "slider_group",
-                                    "labels": ["Tier 1 Retention (%)", "Tier 2 Retention (%)", "Tier 3 Retention (%)"],
-                                    "min": [10, 10, 10],
-                                    "max": [100, 100, 100],
-                                    "default": [bulk_tier1, bulk_tier2, bulk_tier3],
-                                    "params": ["tier1", "tier2", "tier3"]
-                                },
-                                "Low industry retention": {
-                                    "widget": "slider",
-                                    "label": "Industry Retention (%)",
-                                    "min": 10,
-                                    "max": 100,
-                                    "default": 50,
-                                    "param": "industry_retention"
-                                },
-                                "Low company type retention": {
-                                    "widget": "slider",
-                                    "label": "Company Type Retention (%)",
-                                    "min": 10,
-                                    "max": 100,
-                                    "default": 60,
-                                    "param": "company_retention"
-                                },
-                                "High dissatisfaction (Pulse)": {
-                                    "widget": "selectbox",
-                                    "label": "Pulse",
-                                    "options": ["High", "Medium", "Low"],
-                                    "default": "High",
-                                    "param": "pulse"
-                                }
+                    if st.session_state.enable_what_if:
+                        st.markdown("#### What-If Analysis")
+                        filtered_whatif_df = filtered_df.copy()
+                        trig_series = compute_trigger_counts(filtered_whatif_df, "Negative Triggers")
+                        
+                        trigger_widget_config = {
+                            "Low gender diversity": {
+                                "widget": "slider",
+                                "label": "Women % in Organization",
+                                "min": 0,
+                                "max": 100,
+                                "default": global_female_ratio,
+                                "param": "female_ratio"
+                            },
+                            "Stagnant promotions": {
+                                "widget": "slider_pair",
+                                "labels": ["Months Since Last Promotion", "Minimum Promotion Cycle"],
+                                "min": [0, 12],
+                                "max": [60, 60],
+                                "default": [
+                                    int(filtered_whatif_df["Hasn't been promoted"].mean()) if not filtered_whatif_df.empty else 0,
+                                    int(filtered_whatif_df["Minimum Promotion Cycle"].mean()) if not filtered_whatif_df.empty else 24
+                                ],
+                                "params": ["not_promoted", "min_cycle"]
+                            },
+                            "Very low performance rating": {
+                                "widget": "selectbox",
+                                "label": "Last Performance Rating",
+                                "options": [1,2,3,4,5],
+                                "default": 3,
+                                "param": "rating"
+                            },
+                            "Low performance rating": {
+                                "widget": "selectbox",
+                                "label": "Last Performance Rating",
+                                "options": [1,2,3,4,5],
+                                "default": 3,
+                                "param": "rating"
+                            },
+                            "Low compensation competitiveness": {
+                                "widget": "slider",
+                                "label": "Compa Ratio (%)",
+                                "min": 50,
+                                "max": 150,
+                                "default": 90,
+                                "param": "compa_ratio"
+                            },
+                            "High compensation ratio": {
+                                "widget": "slider",
+                                "label": "Compa Ratio (%)",
+                                "min": 50,
+                                "max": 150,
+                                "default": 90,
+                                "param": "compa_ratio"
+                            },
+                            "Low college tier retention": {
+                                "widget": "slider_group",
+                                "labels": ["Tier 1 Retention (%)", "Tier 2 Retention (%)", "Tier 3 Retention (%)"],
+                                "min": [10, 10, 10],
+                                "max": [100, 100, 100],
+                                "default": [bulk_tier1, bulk_tier2, bulk_tier3],
+                                "params": ["tier1", "tier2", "tier3"]
+                            },
+                            "Low industry retention": {
+                                "widget": "slider",
+                                "label": "Industry Retention (%)",
+                                "min": 10,
+                                "max": 100,
+                                "default": 50,
+                                "param": "industry_retention"
+                            },
+                            "Low company type retention": {
+                                "widget": "slider",
+                                "label": "Company Type Retention (%)",
+                                "min": 10,
+                                "max": 100,
+                                "default": 60,
+                                "param": "company_retention"
+                            },
+                            "High dissatisfaction (Pulse)": {
+                                "widget": "selectbox",
+                                "label": "Pulse",
+                                "options": ["High", "Medium", "Low"],
+                                "default": "High",
+                                "param": "pulse"
                             }
+                        }
+                        
+                        whatif_params = {}
+                        displayed_params = set()
+                        st.markdown("##### Adjust Potential Triggers")
+                        for trigger, config in trigger_widget_config.items():
+                            if trigger in trig_series.index:
+                                if config["widget"] == "slider":
+                                    if config["param"] not in displayed_params:
+                                        param_name = config["param"]
+                                        whatif_params[param_name] = st.slider(
+                                            config["label"],
+                                            config["min"],
+                                            config["max"],
+                                            config["default"],
+                                            key=f"whatif_{param_name}"
+                                        )
+                                        displayed_params.add(param_name)
+                                elif config["widget"] == "selectbox":
+                                    if config["param"] not in displayed_params:
+                                        param_name = config["param"]
+                                        try:
+                                            default_index = config["options"].index(config["default"])
+                                        except ValueError:
+                                            default_index = 0
+                                        whatif_params[param_name] = st.selectbox(
+                                            config["label"],
+                                            config["options"],
+                                            index=default_index,
+                                            key=f"whatif_{param_name}"
+                                        )
+                                        displayed_params.add(param_name)
+                                elif config["widget"] == "slider_pair":
+                                    param_names = config["params"]
+                                    values = []
+                                    for i, p in enumerate(param_names):
+                                        values.append(
+                                            st.slider(
+                                                config["labels"][i],
+                                                config["min"][i],
+                                                config["max"][i],
+                                                config["default"][i],
+                                                key=f"whatif_{p}"
+                                            )
+                                        )
+                                    for i, p in enumerate(param_names):
+                                        whatif_params[p] = values[i]
+                                    displayed_params.update(param_names)
+                                elif config["widget"] == "slider_group":
+                                    param_names = config["params"]
+                                    values = []
+                                    for i, p in enumerate(param_names):
+                                        values.append(
+                                            st.slider(
+                                                config["labels"][i],
+                                                config["min"][i],
+                                                config["max"][i],
+                                                config["default"][i],
+                                                key=f"whatif_{p}"
+                                            )
+                                        )
+                                    for i, p in enumerate(param_names):
+                                        whatif_params[p] = values[i]
+                                    displayed_params.update(param_names)
+                        
+                        st.markdown("##### Recalculated Predictions (What-If)")
+                        new_scores = []
+                        new_triggers_list = []
+                        df_bulk_whatif = filtered_whatif_df.copy()
+                        for idx, row in df_bulk_whatif.iterrows():
+                            new_row = dict(row)
+                            new_row["Average Employee Age"] = global_avg_age
+                            new_row["Female Employee Ratio"] = whatif_params.get("female_ratio", row.get("Female Employee Ratio", global_female_ratio))
+                            new_row["Hasn't been promoted"] = whatif_params.get("not_promoted", row.get("Hasn't been promoted"))
+                            new_row["Minimum Promotion Cycle"] = whatif_params.get("min_cycle", row.get("Minimum Promotion Cycle"))
+                            new_row["Last Performance Rating"] = whatif_params.get("rating", row.get("Last Performance Rating"))
+                            new_row["Compa Ratio"] = whatif_params.get("compa_ratio", row.get("Compa Ratio"))
                             
-                            whatif_params = {}
-                            displayed_params = set()
-                            for trigger, config in trigger_widget_config.items():
-                                if trigger in trig_series.index:
-                                    if config["widget"] == "slider":
-                                        if config["param"] not in displayed_params:
-                                            param_name = config["param"]
-                                            whatif_params[param_name] = st.slider(
-                                                config["label"],
-                                                config["min"],
-                                                config["max"],
-                                                config["default"],
-                                                key=f"whatif_{param_name}"
-                                            )
-                                            displayed_params.add(param_name)
-                                    elif config["widget"] == "selectbox":
-                                        if config["param"] not in displayed_params:
-                                            param_name = config["param"]
-                                            try:
-                                                default_index = config["options"].index(config["default"])
-                                            except ValueError:
-                                                default_index = 0
-                                            whatif_params[param_name] = st.selectbox(
-                                                config["label"],
-                                                config["options"],
-                                                index=default_index,
-                                                key=f"whatif_{param_name}"
-                                            )
-                                            displayed_params.add(param_name)
-                                    elif config["widget"] == "slider_pair":
-                                        param_names = config["params"]
-                                        values = []
-                                        for i, p in enumerate(param_names):
-                                            values.append(
-                                                st.slider(
-                                                    config["labels"][i],
-                                                    config["min"][i],
-                                                    config["max"][i],
-                                                    config["default"][i],
-                                                    key=f"whatif_{p}"
-                                                )
-                                            )
-                                        for i, p in enumerate(param_names):
-                                            whatif_params[p] = values[i]
-                                        displayed_params.update(param_names)
-                                    elif config["widget"] == "slider_group":
-                                        param_names = config["params"]
-                                        values = []
-                                        for i, p in enumerate(param_names):
-                                            values.append(
-                                                st.slider(
-                                                    config["labels"][i],
-                                                    config["min"][i],
-                                                    config["max"][i],
-                                                    config["default"][i],
-                                                    key=f"whatif_{p}"
-                                                )
-                                            )
-                                        for i, p in enumerate(param_names):
-                                            whatif_params[p] = values[i]
-                                        displayed_params.update(param_names)
+                            college_tier = row.get("College Tier")
+                            if college_tier == "Tier 1":
+                                new_row["College Tier Retention"] = whatif_params.get("tier1", row.get("College Tier Retention", bulk_tier1))
+                            elif college_tier == "Tier 2":
+                                new_row["College Tier Retention"] = whatif_params.get("tier2", row.get("College Tier Retention", bulk_tier2))
+                            elif college_tier == "Tier 3":
+                                new_row["College Tier Retention"] = whatif_params.get("tier3", row.get("College Tier Retention", bulk_tier3))
+                            else:
+                                new_row["College Tier Retention"] = row.get("College Tier Retention", 40)
                             
-                            st.markdown("##### Recalculated Predictions (What-If)")
-                            new_scores = []
-                            new_triggers_list = []
-                            df_bulk_whatif = filtered_whatif_df.copy()
-                            for idx, row in df_bulk_whatif.iterrows():
-                                new_row = dict(row)
-                                new_row["Average Employee Age"] = global_avg_age
-                                new_row["Female Employee Ratio"] = whatif_params.get("female_ratio", row.get("Female Employee Ratio", global_female_ratio))
-                                new_row["Hasn't been promoted"] = whatif_params.get("not_promoted", row.get("Hasn't been promoted"))
-                                new_row["Minimum Promotion Cycle"] = whatif_params.get("min_cycle", row.get("Minimum Promotion Cycle"))
-                                new_row["Last Performance Rating"] = whatif_params.get("rating", row.get("Last Performance Rating"))
-                                new_row["Compa Ratio"] = whatif_params.get("compa_ratio", row.get("Compa Ratio"))
-                                
-                                college_tier = row.get("College Tier")
-                                if college_tier == "Tier 1":
-                                    new_row["College Tier Retention"] = whatif_params.get("tier1", row.get("College Tier Retention", bulk_tier1))
-                                elif college_tier == "Tier 2":
-                                    new_row["College Tier Retention"] = whatif_params.get("tier2", row.get("College Tier Retention", bulk_tier2))
-                                elif college_tier == "Tier 3":
-                                    new_row["College Tier Retention"] = whatif_params.get("tier3", row.get("College Tier Retention", bulk_tier3))
+                            industry_val = row.get("Industry")
+                            new_row["Industry Retention"] = whatif_params.get("industry_retention", row.get("Industry Retention", bulk_industry_retention.get(industry_val, 50)))
+                            
+                            ctype_val = row.get("Company Type", "Startup")
+                            if ctype_val.lower() == "startup":
+                                default_company_retention = bulk_startup
+                            elif "small" in ctype_val.lower():
+                                default_company_retention = bulk_small
+                            elif "mid" in ctype_val.lower():
+                                default_company_retention = bulk_mid
+                            elif "mnc" in ctype_val.lower() or "giant" in ctype_val.lower():
+                                default_company_retention = bulk_mnc
+                            else:
+                                default_company_retention = 50
+                            new_row["Company Type Retention"] = whatif_params.get("company_retention", row.get("Company Type Retention", default_company_retention))
+                            new_row["Pulse"] = whatif_params.get("pulse", row.get("Pulse"))
+                            
+                            try:
+                                new_score, new_trigs, _ = predict_attrition(new_row, selected_test_industry)
+                            except Exception as e:
+                                new_score = None
+                                new_trigs = ["Prediction Failed"]
+                            
+                            new_scores.append(new_score)
+                            neg_trigs = [t for t in new_trigs if t in TRIGGER_DETAILS]
+                            triggers_str = ", ".join(neg_trigs) if neg_trigs else "None"
+                            new_triggers_list.append(triggers_str)
+                        
+                        df_bulk_whatif["What-If Attrition Score"] = new_scores
+                        df_bulk_whatif["What-If Negative Triggers"] = new_triggers_list
+                        
+                        st.dataframe(df_bulk_whatif)
+                        
+                        high_risk_w = (df_bulk_whatif["What-If Attrition Score"] >= 75).sum()
+                        mod_high_w = ((df_bulk_whatif["What-If Attrition Score"] >= 60) & (df_bulk_whatif["What-If Attrition Score"] < 75)).sum()
+                        moderate_w = ((df_bulk_whatif["What-If Attrition Score"] >= 35) & (df_bulk_whatif["What-If Attrition Score"] < 60)).sum()
+                        low_w = (df_bulk_whatif["What-If Attrition Score"] < 35).sum()
+                        risk_df_w = pd.DataFrame({
+                            "Risk Category": ["High (>=75)", "Mod-High (60-74)", "Moderate (35-59)", "Low (<35)"],
+                            "Count": [high_risk_w, mod_high_w, moderate_w, low_w]
+                        })
+                        st.markdown("##### What-If Risk Distribution")
+                        st.bar_chart(risk_df_w.set_index("Risk Category"))
+                    else:
+                        st.markdown("#### Quick Charts & Custom Graph Builder")
+                        custom_col, quick_col = st.columns([0.5, 0.5])
+                        
+                        with custom_col:
+                            st.markdown("##### Custom Graph Builder")
+                            with st.form("custom_graph_form"):
+                                if filtered_df.empty:
+                                    st.warning("Filtered DataFrame is empty; no charts to generate.")
+                                    x_axis = None
+                                    y_axis = None
+                                    data_label = None
+                                    submitted_custom = False
                                 else:
-                                    new_row["College Tier Retention"] = row.get("College Tier Retention", 40)
-                                
-                                industry_val = row.get("Industry")
-                                new_row["Industry Retention"] = whatif_params.get("industry_retention", row.get("Industry Retention", bulk_industry_retention.get(industry_val, 50)))
-                                
-                                ctype_val = row.get("Company Type", "Startup")
-                                if ctype_val.lower() == "startup":
-                                    default_company_retention = bulk_startup
-                                elif "small" in ctype_val.lower():
-                                    default_company_retention = bulk_small
-                                elif "mid" in ctype_val.lower():
-                                    default_company_retention = bulk_mid
-                                elif "mnc" in ctype_val.lower() or "giant" in ctype_val.lower():
-                                    default_company_retention = bulk_mnc
-                                else:
-                                    default_company_retention = 50
-                                new_row["Company Type Retention"] = whatif_params.get("company_retention", row.get("Company Type Retention", default_company_retention))
-                                new_row["Pulse"] = whatif_params.get("pulse", row.get("Pulse"))
-                                
-                                try:
-                                    new_score, new_trigs, _ = predict_attrition(new_row, selected_test_industry)
-                                except Exception as e:
-                                    new_score = None
-                                    new_trigs = ["Prediction Failed"]
-                                
-                                new_scores.append(new_score)
-                                neg_trigs = [t for t in new_trigs if t in TRIGGER_DETAILS]
-                                triggers_str = ", ".join(neg_trigs) if neg_trigs else "None"
-                                new_triggers_list.append(triggers_str)
-                            
-                            df_bulk_whatif["What-If Attrition Score"] = new_scores
-                            df_bulk_whatif["What-If Negative Triggers"] = new_triggers_list
-                            
-                            st.dataframe(df_bulk_whatif)
-                            
-                            high_risk_w = (df_bulk_whatif["What-If Attrition Score"] >= 75).sum()
-                            mod_high_w = ((df_bulk_whatif["What-If Attrition Score"] >= 60) & (df_bulk_whatif["What-If Attrition Score"] < 75)).sum()
-                            moderate_w = ((df_bulk_whatif["What-If Attrition Score"] >= 35) & (df_bulk_whatif["What-If Attrition Score"] < 60)).sum()
-                            low_w = (df_bulk_whatif["What-If Attrition Score"] < 35).sum()
-                            risk_df_w = pd.DataFrame({
-                                "Risk Category": ["High (>=75)", "Mod-High (60-74)", "Moderate (35-59)", "Low (<35)"],
-                                "Count": [high_risk_w, mod_high_w, moderate_w, low_w]
-                            })
-                            st.markdown("##### What-If Risk Distribution")
-                            st.bar_chart(risk_df_w.set_index("Risk Category"))
-                        else:
-                            st.markdown("#### Quick Charts & Custom Graph Builder")
-                            custom_col, quick_col = st.columns([0.5, 0.5])
-                            
-                            with custom_col:
-                                st.markdown("##### Custom Graph Builder")
-                                with st.form("custom_graph_form"):
                                     x_axis = st.selectbox("Select X Axis", options=filtered_df.columns, key="custom_x")
                                     y_axis = st.selectbox("Select Y Axis", options=filtered_df.columns, key="custom_y")
                                     data_label = st.selectbox("Select Data Label (Optional)", options=["None"] + list(filtered_df.columns), key="custom_label")
                                     submitted_custom = st.form_submit_button("Generate Custom Chart")
-                                if submitted_custom:
-                                    header_text = f"Custom Chart: {x_axis} vs {y_axis}"
-                                    if data_label != "None":
-                                        header_text += f" with {data_label}"
-                                    config = {
-                                        "header": header_text,
-                                        "x_axis": x_axis,
-                                        "y_axis": y_axis,
-                                        "data_label": data_label
-                                    }
-                                    # Insert new config at front
-                                    st.session_state.custom_charts.insert(0, config)
-                                
-                                # Render any stored custom charts
-                                st.session_state.custom_charts = [cfg for cfg in st.session_state.custom_charts if isinstance(cfg, dict)]
-                                if st.session_state.custom_charts:
-                                    st.markdown("### Custom Charts")
-                                    for cfg in st.session_state.custom_charts:
-                                        header_text = cfg.get("header", f"Custom Chart: {cfg.get('x_axis', 'X')} vs {cfg.get('y_axis', 'Y')}")
-                                        st.markdown(f"#### {header_text}")
-                                        chart = generate_custom_chart(cfg, filtered_df)
-                                        st.altair_chart(chart, use_container_width=True)
+
+                            if submitted_custom and x_axis and y_axis:
+                                header_text = f"Custom Chart: {x_axis} vs {y_axis}"
+                                if data_label != "None":
+                                    header_text += f" with {data_label}"
+                                config = {
+                                    "header": header_text,
+                                    "x_axis": x_axis,
+                                    "y_axis": y_axis,
+                                    "data_label": data_label
+                                }
+                                st.session_state.custom_charts.insert(0, config)
                             
-                            with quick_col:
-                                st.markdown("##### Quick Charts")
-                                
-                                # Various expanders for common charts
-                                with st.expander("Distribution Analysis", expanded=False):
-                                    if "Attrition Score" in filtered_df.columns and not filtered_df.empty:
+                            st.session_state.custom_charts = [cfg for cfg in st.session_state.custom_charts if isinstance(cfg, dict)]
+                            if st.session_state.custom_charts:
+                                st.markdown("### Custom Charts")
+                                for cfg in st.session_state.custom_charts:
+                                    header_text = cfg.get("header", f"Custom Chart: {cfg.get('x_axis', 'X')} vs {cfg.get('y_axis', 'Y')}")
+                                    st.markdown(f"#### {header_text}")
+                                    chart = generate_custom_chart(cfg, filtered_df)
+                                    st.altair_chart(chart, use_container_width=True)
+                        
+                        with quick_col:
+                            st.markdown("##### Quick Charts")
+                            
+                            # Distribution Analysis
+                            with st.expander("Distribution Analysis", expanded=False):
+                                if filtered_df.empty:
+                                    st.warning("No data available for distribution charts.")
+                                else:
+                                    if "Attrition Score" in filtered_df.columns:
                                         chart1 = alt.Chart(filtered_df).mark_bar().encode(
                                             x=alt.X("Attrition Score:Q", bin=alt.Bin(maxbins=20), title="Attrition Score"),
                                             y=alt.Y("count()", title="Frequency")
                                         )
                                         st.altair_chart(chart1, use_container_width=True)
-                                    if "Employee Age" in filtered_df.columns and not filtered_df.empty:
+                                    if "Employee Age" in filtered_df.columns:
                                         chart2 = alt.Chart(filtered_df).mark_bar().encode(
                                             x=alt.X("Employee Age:Q", bin=alt.Bin(maxbins=20), title="Employee Age"),
                                             y=alt.Y("count()", title="Frequency")
                                         )
                                         st.altair_chart(chart2, use_container_width=True)
-                                    if "Tenure (Months)" in filtered_df.columns and not filtered_df.empty:
+                                    if "Tenure (Months)" in filtered_df.columns:
                                         chart3 = alt.Chart(filtered_df).mark_bar().encode(
                                             x=alt.X("Tenure (Months):Q", bin=alt.Bin(maxbins=20), title="Tenure (Months)"),
                                             y=alt.Y("count()", title="Frequency")
                                         )
                                         st.altair_chart(chart3, use_container_width=True)
-                                    if "Compa Ratio" in filtered_df.columns and not filtered_df.empty:
+                                    if "Compa Ratio" in filtered_df.columns:
                                         chart4 = alt.Chart(filtered_df).mark_bar().encode(
                                             x=alt.X("Compa Ratio:Q", bin=alt.Bin(maxbins=20), title="Compa Ratio"),
                                             y=alt.Y("count()", title="Frequency")
                                         )
                                         st.altair_chart(chart4, use_container_width=True)
-                                    if "Last Performance Rating" in filtered_df.columns and not filtered_df.empty:
+                                    if "Last Performance Rating" in filtered_df.columns:
                                         chart5 = alt.Chart(filtered_df).mark_bar().encode(
                                             x=alt.X("Last Performance Rating:O", title="Last Performance Rating"),
                                             y=alt.Y("count()", title="Frequency")
                                         )
                                         st.altair_chart(chart5, use_container_width=True)
-                                
-                                with st.expander("Comparative Analysis", expanded=False):
-                                    if "Employee Age" in filtered_df.columns and "Attrition Score" in filtered_df.columns and not filtered_df.empty:
+                            
+                            # Comparative Analysis
+                            with st.expander("Comparative Analysis", expanded=False):
+                                if filtered_df.empty:
+                                    st.warning("No data for comparative charts.")
+                                else:
+                                    if "Employee Age" in filtered_df.columns and "Attrition Score" in filtered_df.columns:
                                         scatter1 = alt.Chart(filtered_df).mark_circle(size=60).encode(
                                             x=alt.X("Employee Age:Q", title="Employee Age"),
                                             y=alt.Y("Attrition Score:Q", title="Attrition Score"),
                                             tooltip=["Employee Age", "Attrition Score"]
                                         )
                                         st.altair_chart(scatter1, use_container_width=True)
-                                    if "Tenure (Months)" in filtered_df.columns and "Attrition Score" in filtered_df.columns and not filtered_df.empty:
+                                    if "Tenure (Months)" in filtered_df.columns and "Attrition Score" in filtered_df.columns:
                                         scatter2 = alt.Chart(filtered_df).mark_circle(size=60).encode(
                                             x=alt.X("Tenure (Months):Q", title="Tenure (Months)"),
                                             y=alt.Y("Attrition Score:Q", title="Attrition Score"),
                                             tooltip=["Tenure (Months)", "Attrition Score"]
                                         )
                                         st.altair_chart(scatter2, use_container_width=True)
-                                    if "Compa Ratio" in filtered_df.columns and "Attrition Score" in filtered_df.columns and not filtered_df.empty:
+                                    if "Compa Ratio" in filtered_df.columns and "Attrition Score" in filtered_df.columns:
                                         scatter3 = alt.Chart(filtered_df).mark_circle(size=60).encode(
                                             x=alt.X("Compa Ratio:Q", title="Compa Ratio"),
                                             y=alt.Y("Attrition Score:Q", title="Attrition Score"),
                                             tooltip=["Compa Ratio", "Attrition Score"]
                                         )
                                         st.altair_chart(scatter3, use_container_width=True)
-                                    if "Gender" in filtered_df.columns and "Attrition Score" in filtered_df.columns and not filtered_df.empty:
+                                    if "Gender" in filtered_df.columns and "Attrition Score" in filtered_df.columns:
                                         box1 = alt.Chart(filtered_df).mark_boxplot().encode(
                                             x=alt.X("Gender:N", title="Gender"),
                                             y=alt.Y("Attrition Score:Q", title="Attrition Score")
                                         )
                                         st.altair_chart(box1, use_container_width=True)
-                                    if "College Tier" in filtered_df.columns and "Attrition Score" in filtered_df.columns and not filtered_df.empty:
+                                    if "College Tier" in filtered_df.columns and "Attrition Score" in filtered_df.columns:
                                         box2 = alt.Chart(filtered_df).mark_boxplot().encode(
                                             x=alt.X("College Tier:N", title="College Tier"),
                                             y=alt.Y("Attrition Score:Q", title="Attrition Score")
                                         )
                                         st.altair_chart(box2, use_container_width=True)
-                                    if "Industry" in filtered_df.columns and "Attrition Score" in filtered_df.columns and not filtered_df.empty:
+                                    if "Industry" in filtered_df.columns and "Attrition Score" in filtered_df.columns:
                                         box3 = alt.Chart(filtered_df).mark_boxplot().encode(
                                             x=alt.X("Industry:N", title="Industry"),
                                             y=alt.Y("Attrition Score:Q", title="Attrition Score")
                                         )
                                         st.altair_chart(box3, use_container_width=True)
-                                    if "Company Type" in filtered_df.columns and "Attrition Score" in filtered_df.columns and not filtered_df.empty:
+                                    if "Company Type" in filtered_df.columns and "Attrition Score" in filtered_df.columns:
                                         avg_df = filtered_df.groupby("Company Type")["Attrition Score"].mean().reset_index()
                                         bar1 = alt.Chart(avg_df).mark_bar().encode(
                                             x=alt.X("Company Type:N", title="Company Type"),
@@ -1384,21 +1398,22 @@ else:
                                             tooltip=["Company Type", "Attrition Score"]
                                         )
                                         st.altair_chart(bar1, use_container_width=True)
-                                
-                                with st.expander("Correlation Analysis", expanded=False):
-                                    try:
-                                        numeric_df = filtered_df.select_dtypes(include=[np.number])
-                                        if not numeric_df.empty:
-                                            corr = numeric_df.corr().reset_index().melt(id_vars="index")
-                                            heatmap = alt.Chart(corr).mark_rect().encode(
-                                                x=alt.X("index:N", title=""),
-                                                y=alt.Y("variable:N", title=""),
-                                                color=alt.Color("value:Q", scale=alt.Scale(scheme='redblue')),
-                                                tooltip=["index", "variable", "value"]
-                                            )
-                                            st.altair_chart(heatmap, use_container_width=True)
-                                    except Exception as e:
-                                        st.write("Correlation Heatmap not available.")
+                            
+                            # Correlation Analysis
+                            with st.expander("Correlation Analysis", expanded=False):
+                                if filtered_df.empty:
+                                    st.warning("No data for correlation heatmap.")
+                                else:
+                                    numeric_df = filtered_df.select_dtypes(include=[np.number])
+                                    if not numeric_df.empty:
+                                        corr = numeric_df.corr().reset_index().melt(id_vars="index")
+                                        heatmap = alt.Chart(corr).mark_rect().encode(
+                                            x=alt.X("index:N", title=""),
+                                            y=alt.Y("variable:N", title=""),
+                                            color=alt.Color("value:Q", scale=alt.Scale(scheme='redblue')),
+                                            tooltip=["index", "variable", "value"]
+                                        )
+                                        st.altair_chart(heatmap, use_container_width=True)
                                     if "Employee Age" in numeric_df.columns and "Tenure (Months)" in numeric_df.columns:
                                         scatter_a = alt.Chart(filtered_df).mark_circle(size=40).encode(
                                             x=alt.X("Employee Age:Q", title="Employee Age"),
@@ -1420,11 +1435,17 @@ else:
                                             tooltip=["Tenure (Months)", "Compa Ratio"]
                                         )
                                         st.altair_chart(scatter_c, use_container_width=True)
-                                
-                                with st.expander("Trigger Analysis", expanded=False):
-                                    if "Negative Triggers" in filtered_df.columns and not filtered_df.empty:
-                                        ct = compute_trigger_counts(filtered_df, "Negative Triggers").reset_index()
-                                        ct.columns = ["Trigger", "Count"]
+                            
+                            # Trigger Analysis
+                            with st.expander("Trigger Analysis", expanded=False):
+                                if filtered_df.empty or "Negative Triggers" not in filtered_df.columns:
+                                    st.warning("No negative triggers data available.")
+                                else:
+                                    ct = compute_trigger_counts(filtered_df, "Negative Triggers").reset_index()
+                                    ct.columns = ["Trigger", "Count"]
+                                    if ct.empty:
+                                        st.warning("No triggers found in filtered data.")
+                                    else:
                                         bar_trigger = alt.Chart(ct).mark_bar().encode(
                                             x=alt.X("Trigger:N", sort='-y', title="Trigger"),
                                             y=alt.Y("Count:Q", title="Count"),
@@ -1437,202 +1458,205 @@ else:
                                             tooltip=["Trigger", "Count"]
                                         )
                                         st.altair_chart(pie_trigger, use_container_width=True)
-                                
-                                with st.expander("Industry Analysis", expanded=False):
-                                    if "Industry" in filtered_df.columns and not filtered_df.empty:
-                                        industry_counts = filtered_df["Industry"].value_counts().reset_index()
-                                        industry_counts.columns = ['Industry', 'Count']
-                                        pie_ind = alt.Chart(industry_counts).mark_arc().encode(
-                                            theta=alt.Theta(field="Count", type="quantitative"),
-                                            color=alt.Color(field="Industry", type="nominal"),
-                                            tooltip=["Industry", "Count"]
-                                        )
-                                        st.altair_chart(pie_ind, use_container_width=True)
-                                        bar_ind = alt.Chart(industry_counts).mark_bar().encode(
+                            
+                            # Industry Analysis
+                            with st.expander("Industry Analysis", expanded=False):
+                                if filtered_df.empty or "Industry" not in filtered_df.columns:
+                                    st.warning("No industry data available.")
+                                else:
+                                    industry_counts = filtered_df["Industry"].value_counts().reset_index()
+                                    industry_counts.columns = ['Industry', 'Count']
+                                    pie_ind = alt.Chart(industry_counts).mark_arc().encode(
+                                        theta=alt.Theta(field="Count", type="quantitative"),
+                                        color=alt.Color(field="Industry", type="nominal"),
+                                        tooltip=["Industry", "Count"]
+                                    )
+                                    st.altair_chart(pie_ind, use_container_width=True)
+                                    bar_ind = alt.Chart(industry_counts).mark_bar().encode(
+                                        x=alt.X("Industry:N", title="Industry"),
+                                        y=alt.Y("Count:Q", title="Count"),
+                                        tooltip=["Industry", "Count"]
+                                    )
+                                    st.altair_chart(bar_ind, use_container_width=True)
+                                    if "Company Type" in filtered_df.columns:
+                                        stacked = alt.Chart(filtered_df).mark_bar().encode(
                                             x=alt.X("Industry:N", title="Industry"),
-                                            y=alt.Y("Count:Q", title="Count"),
-                                            tooltip=["Industry", "Count"]
+                                            y=alt.Y("count()", title="Count"),
+                                            color=alt.Color("Company Type:N", title="Company Type"),
+                                            tooltip=["Industry", "Company Type", "count()"]
                                         )
-                                        st.altair_chart(bar_ind, use_container_width=True)
-                                        if "Company Type" in filtered_df.columns:
-                                            stacked = alt.Chart(filtered_df).mark_bar().encode(
-                                                x=alt.X("Industry:N", title="Industry"),
-                                                y=alt.Y("count()", title="Count"),
-                                                color=alt.Color("Company Type:N", title="Company Type"),
-                                                tooltip=["Industry", "Company Type", "count()"]
-                                            )
-                                            st.altair_chart(stacked, use_container_width=True)
-                                        avg_ind = filtered_df.groupby("Industry")["Attrition Score"].mean().reset_index()
-                                        bar_avg_ind = alt.Chart(avg_ind).mark_bar().encode(
-                                            x=alt.X("Industry:N", title="Industry"),
-                                            y=alt.Y("Attrition Score:Q", title="Average Attrition Score"),
-                                            tooltip=["Industry", "Attrition Score"]
-                                        )
-                                        st.altair_chart(bar_avg_ind, use_container_width=True)
-                                        box_ind = alt.Chart(filtered_df).mark_boxplot().encode(
-                                            x=alt.X("Industry:N", title="Industry"),
-                                            y=alt.Y("Attrition Score:Q", title="Attrition Score")
-                                        )
-                                        st.altair_chart(box_ind, use_container_width=True)
-                                
-                                with st.expander("Temporal Analysis", expanded=False):
-                                    if "Prediction Time" in filtered_df.columns and not filtered_df.empty:
-                                        df_time = filtered_df.copy()
-                                        df_time["Prediction Time"] = pd.to_datetime(df_time["Prediction Time"], errors="coerce")
-                                        df_time = df_time.dropna(subset=["Prediction Time"])
-                                        if not df_time.empty:
-                                            trend_df = df_time.groupby(df_time["Prediction Time"].dt.date).agg(
-                                                {"Attrition Score": "mean", "Name": "count"}
-                                            ).reset_index()
-                                            trend_df.columns = ["Date", "Average Attrition Score", "Count"]
-                                            line_chart = alt.Chart(trend_df).mark_line(point=True).encode(
-                                                x=alt.X("Date:T", title="Date"),
-                                                y=alt.Y("Average Attrition Score:Q", title="Average Attrition Score"),
-                                                tooltip=["Date", "Average Attrition Score"]
-                                            )
-                                            st.altair_chart(line_chart, use_container_width=True)
-                                            
-                                            trend_df["Rolling Avg"] = trend_df["Average Attrition Score"].rolling(window=2).mean()
-                                            rolling_chart = alt.Chart(trend_df).mark_line(point=True).encode(
-                                                x=alt.X("Date:T", title="Date"),
-                                                y=alt.Y("Rolling Avg:Q", title="Rolling Average Attrition Score"),
-                                                tooltip=["Date", "Rolling Avg"]
-                                            )
-                                            st.altair_chart(rolling_chart, use_container_width=True)
-                                            
-                                            bar_chart = alt.Chart(trend_df).mark_bar().encode(
-                                                x=alt.X("Date:T", title="Date"),
-                                                y=alt.Y("Count:Q", title="Number of Predictions"),
-                                                tooltip=["Date", "Count"]
-                                            )
-                                            st.altair_chart(bar_chart, use_container_width=True)
-                                            
-                                            trend_df["Cumulative"] = trend_df["Average Attrition Score"].cumsum()
-                                            area_chart = alt.Chart(trend_df).mark_area(opacity=0.5).encode(
-                                                x=alt.X("Date:T", title="Date"),
-                                                y=alt.Y("Cumulative:Q", title="Cumulative Attrition Score"),
-                                                tooltip=["Date", "Cumulative"]
-                                            )
-                                            st.altair_chart(area_chart, use_container_width=True)
-                                        else:
-                                            st.write("No valid Prediction Time data available for temporal analysis.")
+                                        st.altair_chart(stacked, use_container_width=True)
+                                    avg_ind = filtered_df.groupby("Industry")["Attrition Score"].mean().reset_index()
+                                    bar_avg_ind = alt.Chart(avg_ind).mark_bar().encode(
+                                        x=alt.X("Industry:N", title="Industry"),
+                                        y=alt.Y("Attrition Score:Q", title="Average Attrition Score"),
+                                        tooltip=["Industry", "Attrition Score"]
+                                    )
+                                    st.altair_chart(bar_avg_ind, use_container_width=True)
+                                    box_ind = alt.Chart(filtered_df).mark_boxplot().encode(
+                                        x=alt.X("Industry:N", title="Industry"),
+                                        y=alt.Y("Attrition Score:Q", title="Attrition Score")
+                                    )
+                                    st.altair_chart(box_ind, use_container_width=True)
+                            
+                            # Temporal Analysis
+                            with st.expander("Temporal Analysis", expanded=False):
+                                if "Prediction Time" not in filtered_df.columns or filtered_df.empty:
+                                    st.warning("No prediction time data available.")
+                                else:
+                                    df_time = filtered_df.copy()
+                                    df_time["Prediction Time"] = pd.to_datetime(df_time["Prediction Time"], errors="coerce")
+                                    df_time = df_time.dropna(subset=["Prediction Time"])
+                                    if df_time.empty:
+                                        st.warning("No valid Prediction Time data after conversion.")
                                     else:
-                                        st.write("No Prediction Time data available.")
-                                
-                                # --------------------------
-                                # IMPROVED: Cohort Analysis Section
-                                # --------------------------
-                                st.markdown("### Cohort Analysis [Improved]")
-                                cohort_enabled = st.checkbox("Enable Cohort Analysis", key="cohort_toggle")
-                                if cohort_enabled:
-                                    if st.session_state.training_data is None:
-                                        st.error("No training data available. Please train your model first.")
-                                    else:
-                                        cohort_df = st.session_state.training_data.copy()
-                                        st.markdown("#### Training Data (First 10 Rows)")
-                                        st.dataframe(cohort_df.head(10))
-                                        
-                                        # Allow filtering of the training data
-                                        st.markdown("#### Filter your training data if desired:")
-                                        train_filter_values = horizontal_filters(cohort_df)
-                                        filtered_cohort_df = apply_filters(cohort_df, train_filter_values)
-                                        st.markdown("#### Filtered Training Data")
-                                        st.dataframe(filtered_cohort_df)
-                                        
-                                        possible_cohort_columns = [
-                                            col for col in filtered_cohort_df.columns
-                                            if col not in [
-                                                "Name", "Attrition Score", "Attrition", 
-                                                "What-If Attrition Score", "What-If Negative Triggers", 
-                                                "Prediction Time"
-                                            ]
-                                        ]
-                                        cohort_column = st.selectbox(
-                                            "Select a column to define cohorts",
-                                            options=possible_cohort_columns,
-                                            key="cohort_column"
+                                        trend_df = df_time.groupby(df_time["Prediction Time"].dt.date).agg(
+                                            {"Attrition Score": "mean", "Name": "count"}
+                                        ).reset_index()
+                                        trend_df.columns = ["Date", "Average Attrition Score", "Count"]
+                                        line_chart = alt.Chart(trend_df).mark_line(point=True).encode(
+                                            x=alt.X("Date:T", title="Date"),
+                                            y=alt.Y("Average Attrition Score:Q", title="Average Attrition Score"),
+                                            tooltip=["Date", "Average Attrition Score"]
                                         )
+                                        st.altair_chart(line_chart, use_container_width=True)
                                         
-                                        # Decide if it's numeric or categorical
-                                        if pd.api.types.is_numeric_dtype(filtered_cohort_df[cohort_column]):
-                                            bin_option = st.checkbox("Bin numeric column?", key="cohort_bin_option")
-                                            if bin_option:
-                                                bin_size = st.number_input("Bin size (integer)", min_value=1, value=5)
-                                                min_val = int(filtered_cohort_df[cohort_column].min())
-                                                max_val = int(filtered_cohort_df[cohort_column].max())
-                                                bins = list(range(min_val, max_val + bin_size, bin_size))
-                                                filtered_cohort_df["Cohort"] = pd.cut(filtered_cohort_df[cohort_column], bins=bins)
-                                            else:
-                                                # If not binning, convert numeric to string categories
-                                                filtered_cohort_df["Cohort"] = filtered_cohort_df[cohort_column].astype(str)
-                                        else:
-                                            # If it's categorical, just rename it to "Cohort"
-                                            filtered_cohort_df["Cohort"] = filtered_cohort_df[cohort_column]
+                                        trend_df["Rolling Avg"] = trend_df["Average Attrition Score"].rolling(window=2).mean()
+                                        rolling_chart = alt.Chart(trend_df).mark_line(point=True).encode(
+                                            x=alt.X("Date:T", title="Date"),
+                                            y=alt.Y("Rolling Avg:Q", title="Rolling Average Attrition Score"),
+                                            tooltip=["Date", "Rolling Avg"]
+                                        )
+                                        st.altair_chart(rolling_chart, use_container_width=True)
                                         
-                                        metric_options = [
-                                            "Count", 
-                                            "Average Employee Age", 
-                                            "Average Tenure (Months)", 
-                                            "Average Compa Ratio", 
-                                            "Average Last Performance Rating"
-                                        ]
-                                        # If we have an "Attrition" column, allow "Attrition Rate"
-                                        if "Attrition" in filtered_cohort_df.columns:
-                                            metric_options.append("Attrition Rate")
+                                        bar_chart = alt.Chart(trend_df).mark_bar().encode(
+                                            x=alt.X("Date:T", title="Date"),
+                                            y=alt.Y("Count:Q", title="Number of Predictions"),
+                                            tooltip=["Date", "Count"]
+                                        )
+                                        st.altair_chart(bar_chart, use_container_width=True)
                                         
-                                        selected_metric = st.selectbox("Select Metric for Cohort Analysis", metric_options)
-                                        
-                                        # Compute aggregated data
-                                        if selected_metric == "Count":
-                                            cohort_data = filtered_cohort_df.groupby("Cohort").size().reset_index(name="Metric")
-                                        elif selected_metric == "Average Employee Age":
-                                            cohort_data = filtered_cohort_df.groupby("Cohort")["Employee Age"].mean().reset_index(name="Metric")
-                                        elif selected_metric == "Average Tenure (Months)":
-                                            cohort_data = filtered_cohort_df.groupby("Cohort")["Tenure (Months)"].mean().reset_index(name="Metric")
-                                        elif selected_metric == "Average Compa Ratio":
-                                            cohort_data = filtered_cohort_df.groupby("Cohort")["Compa Ratio"].mean().reset_index(name="Metric")
-                                        elif selected_metric == "Average Last Performance Rating":
-                                            cohort_data = filtered_cohort_df.groupby("Cohort")["Last Performance Rating"].mean().reset_index(name="Metric")
-                                        elif selected_metric == "Attrition Rate":
-                                            # 0 or 1, so mean is the rate
-                                            cohort_data = filtered_cohort_df.groupby("Cohort")["Attrition"].mean().reset_index(name="Metric")
-                                        else:
-                                            st.warning("Please select a valid metric.")
-                                            cohort_data = pd.DataFrame(columns=["Cohort", "Metric"])
-                                        
-                                        # Visualization
-                                        st.markdown("#### Cohort Metric Visualization")
+                                        trend_df["Cumulative"] = trend_df["Average Attrition Score"].cumsum()
+                                        area_chart = alt.Chart(trend_df).mark_area(opacity=0.5).encode(
+                                            x=alt.X("Date:T", title="Date"),
+                                            y=alt.Y("Cumulative:Q", title="Cumulative Attrition Score"),
+                                            tooltip=["Date", "Cumulative"]
+                                        )
+                                        st.altair_chart(area_chart, use_container_width=True)
+                    
+                    # --------------------------
+                    # Cohort Analysis 
+                    # --------------------------
+                    st.markdown("### Cohort Analysis")
+                    cohort_enabled = st.checkbox("Enable Cohort Analysis", key="cohort_toggle")
+                    if cohort_enabled:
+                        if st.session_state.training_data is None:
+                            st.error("No training data available. Please train your model first.")
+                        else:
+                            cohort_df = st.session_state.training_data.copy()
+                            st.markdown("#### Training Data (First 10 Rows)")
+                            st.dataframe(cohort_df.head(10))
+                            
+                            st.markdown("#### Filter Training Data for Cohort")
+                            train_filter_values = horizontal_filters(cohort_df)
+                            filtered_cohort_df = apply_filters(cohort_df, train_filter_values)
+                            st.markdown("#### Filtered Training Data")
+                            st.dataframe(filtered_cohort_df)
+                            
+                            possible_cohort_columns = [
+                                col for col in filtered_cohort_df.columns
+                                if col not in [
+                                    "Name", "Attrition Score", "Attrition", 
+                                    "What-If Attrition Score", "What-If Negative Triggers",
+                                    "Prediction Time"
+                                ]
+                            ]
+                            if len(possible_cohort_columns) == 0:
+                                st.warning("No columns available for cohort grouping.")
+                            else:
+                                cohort_column = st.selectbox(
+                                    "Select a column to define cohorts",
+                                    options=possible_cohort_columns,
+                                    key="cohort_column"
+                                )
+                                
+                                # Decide numeric or cat
+                                if pd.api.types.is_numeric_dtype(filtered_cohort_df[cohort_column]):
+                                    bin_option = st.checkbox("Bin numeric column?", key="cohort_bin_option")
+                                    if bin_option:
+                                        bin_size = st.number_input("Bin size (integer)", min_value=1, value=5)
+                                        min_val = int(filtered_cohort_df[cohort_column].min())
+                                        max_val = int(filtered_cohort_df[cohort_column].max())
+                                        bins = list(range(min_val, max_val + bin_size, bin_size))
+                                        filtered_cohort_df["Cohort"] = pd.cut(filtered_cohort_df[cohort_column], bins=bins)
+                                    else:
+                                        filtered_cohort_df["Cohort"] = filtered_cohort_df[cohort_column].astype(str)
+                                else:
+                                    filtered_cohort_df["Cohort"] = filtered_cohort_df[cohort_column]
+                                
+                                metric_options = [
+                                    "Count", 
+                                    "Average Employee Age", 
+                                    "Average Tenure (Months)", 
+                                    "Average Compa Ratio", 
+                                    "Average Last Performance Rating"
+                                ]
+                                if "Attrition" in filtered_cohort_df.columns:
+                                    metric_options.append("Attrition Rate")
+                                
+                                selected_metric = st.selectbox("Select Metric for Cohort Analysis", metric_options)
+                                
+                                if filtered_cohort_df["Cohort"].isnull().all():
+                                    st.warning("All Cohort values are NaN. Check your data or bin ranges.")
+                                else:
+                                    # Compute aggregated data
+                                    if selected_metric == "Count":
+                                        cohort_data = filtered_cohort_df.groupby("Cohort").size().reset_index(name="Metric")
+                                    elif selected_metric == "Average Employee Age":
+                                        cohort_data = filtered_cohort_df.groupby("Cohort")["Employee Age"].mean().reset_index(name="Metric")
+                                    elif selected_metric == "Average Tenure (Months)":
+                                        cohort_data = filtered_cohort_df.groupby("Cohort")["Tenure (Months)"].mean().reset_index(name="Metric")
+                                    elif selected_metric == "Average Compa Ratio":
+                                        cohort_data = filtered_cohort_df.groupby("Cohort")["Compa Ratio"].mean().reset_index(name="Metric")
+                                    elif selected_metric == "Average Last Performance Rating":
+                                        cohort_data = filtered_cohort_df.groupby("Cohort")["Last Performance Rating"].mean().reset_index(name="Metric")
+                                    elif selected_metric == "Attrition Rate":
+                                        cohort_data = filtered_cohort_df.groupby("Cohort")["Attrition"].mean().reset_index(name="Metric")
+                                    else:
+                                        st.warning("Please select a valid metric.")
+                                        cohort_data = pd.DataFrame(columns=["Cohort", "Metric"])
+                                    
+                                    st.markdown("#### Cohort Metric Visualization")
+                                    if not cohort_data.empty:
                                         viz_options = ["Bar Chart", "Line Chart", "Pie Chart", "Area Chart"]
                                         selected_viz = st.selectbox("Select Visualization Type", options=viz_options)
-                                        
-                                        if not cohort_data.empty:
-                                            if selected_viz == "Bar Chart":
-                                                chart = alt.Chart(cohort_data).mark_bar().encode(
-                                                    x=alt.X("Cohort:N", title="Cohort"),
-                                                    y=alt.Y("Metric:Q", title=selected_metric),
-                                                    tooltip=["Cohort", alt.Tooltip("Metric:Q", title=selected_metric)]
-                                                )
-                                                st.altair_chart(chart, use_container_width=True)
-                                            elif selected_viz == "Line Chart":
-                                                chart = alt.Chart(cohort_data).mark_line(point=True).encode(
-                                                    x=alt.X("Cohort:N", title="Cohort"),
-                                                    y=alt.Y("Metric:Q", title=selected_metric),
-                                                    tooltip=["Cohort", alt.Tooltip("Metric:Q", title=selected_metric)]
-                                                )
-                                                st.altair_chart(chart, use_container_width=True)
-                                            elif selected_viz == "Pie Chart":
-                                                chart = alt.Chart(cohort_data).mark_arc().encode(
-                                                    theta=alt.Theta(field="Metric", type="quantitative"),
-                                                    color=alt.Color(field="Cohort", type="nominal"),
-                                                    tooltip=["Cohort", "Metric"]
-                                                )
-                                                st.altair_chart(chart, use_container_width=True)
-                                            elif selected_viz == "Area Chart":
-                                                chart = alt.Chart(cohort_data).mark_area(opacity=0.5).encode(
-                                                    x=alt.X("Cohort:N", title="Cohort"),
-                                                    y=alt.Y("Metric:Q", title=selected_metric),
-                                                    tooltip=["Cohort", alt.Tooltip("Metric:Q", title=selected_metric)]
-                                                )
-                                                st.altair_chart(chart, use_container_width=True)
-                                        else:
-                                            st.warning("No data available for the selected cohort or metric.")
+                                        if selected_viz == "Bar Chart":
+                                            chart = alt.Chart(cohort_data).mark_bar().encode(
+                                                x=alt.X("Cohort:N", title="Cohort"),
+                                                y=alt.Y("Metric:Q", title=selected_metric),
+                                                tooltip=["Cohort", alt.Tooltip("Metric:Q", title=selected_metric)]
+                                            )
+                                            st.altair_chart(chart, use_container_width=True)
+                                        elif selected_viz == "Line Chart":
+                                            chart = alt.Chart(cohort_data).mark_line(point=True).encode(
+                                                x=alt.X("Cohort:N", title="Cohort"),
+                                                y=alt.Y("Metric:Q", title=selected_metric),
+                                                tooltip=["Cohort", alt.Tooltip("Metric:Q", title=selected_metric)]
+                                            )
+                                            st.altair_chart(chart, use_container_width=True)
+                                        elif selected_viz == "Pie Chart":
+                                            chart = alt.Chart(cohort_data).mark_arc().encode(
+                                                theta=alt.Theta(field="Metric", type="quantitative"),
+                                                color=alt.Color(field="Cohort", type="nominal"),
+                                                tooltip=["Cohort", "Metric"]
+                                            )
+                                            st.altair_chart(chart, use_container_width=True)
+                                        elif selected_viz == "Area Chart":
+                                            chart = alt.Chart(cohort_data).mark_area(opacity=0.5).encode(
+                                                x=alt.X("Cohort:N", title="Cohort"),
+                                                y=alt.Y("Metric:Q", title=selected_metric),
+                                                tooltip=["Cohort", alt.Tooltip("Metric:Q", title=selected_metric)]
+                                            )
+                                            st.altair_chart(chart, use_container_width=True)
+                                    else:
+                                        st.warning("No data in the aggregated cohort table.")
