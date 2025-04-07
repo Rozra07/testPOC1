@@ -556,10 +556,9 @@ def generate_custom_chart(config, data):
     return chart
 
 # ---------------------------------------
-# Horizontal Filter Functions for Bulk/ Cohort Analysis with Unique Keys
+# Horizontal Filter Functions for Bulk/Cohort Analysis with Unique Keys
 # ---------------------------------------
 def horizontal_filters(df, prefix="", custom_filters_state=None):
-    # Use the passed custom_filters_state list; if None, default to st.session_state.custom_filters
     if custom_filters_state is None:
         custom_filters_state = st.session_state.custom_filters
 
@@ -574,21 +573,25 @@ def horizontal_filters(df, prefix="", custom_filters_state=None):
         """,
         unsafe_allow_html=True
     )
-    
+    # Only add the Attrition Score filter if the column exists
     num_custom = len(custom_filters_state)
-    total_filters = 1 + num_custom
+    if "Attrition Score" in df.columns:
+        total_filters = 1 + num_custom
+    else:
+        total_filters = num_custom
     cols = st.columns(total_filters)
-    
-    with cols[0]:
-        score_range = st.slider(
-            "Attrition Score",
-            0, 100, (0, 100),
-            key=f"{prefix}filter_attrition_score"
-        )
-        filter_values["Attrition Score"] = score_range
-
+    col_index = 0
+    if "Attrition Score" in df.columns:
+        with cols[0]:
+            score_range = st.slider(
+                "Attrition Score",
+                0, 100, (0, 100),
+                key=f"{prefix}filter_attrition_score"
+            )
+            filter_values["Attrition Score"] = score_range
+        col_index = 1
     for i, filter_id in enumerate(custom_filters_state):
-        with cols[i + 1]:
+        with cols[i + col_index]:
             possible_cols = [col for col in df.columns if col not in ["Name", "Attrition Score", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]]
             col_selected = st.selectbox(
                 "Select column",
@@ -628,7 +631,7 @@ def horizontal_filters(df, prefix="", custom_filters_state=None):
 
 def apply_filters(df, filter_values):
     filtered_df = df.copy()
-    if "Attrition Score" in filter_values:
+    if "Attrition Score" in filter_values and "Attrition Score" in df.columns:
         low, high = filter_values["Attrition Score"]
         filtered_df = filtered_df[(filtered_df["Attrition Score"] >= low) & (filtered_df["Attrition Score"] <= high)]
     for key in filter_values:
@@ -818,8 +821,8 @@ else:
             Ensure you have trained a model in Train Mode.
             <br><br>
             Upload a CSV/Excel file with columns: Name, Employee Age, Gender, Tenure (Months),
-            Pulse(Chance of leaving, according to survey or manager), Hasn't been promoted, Minimum Promotion Cycle(same for whole organisation or differentiated on level basis or dept. basis), College Tier, Industry, 
-            Company Type, Last Performance Rating, Compa Ratio.
+            Pulse(Chance of leaving, according to survey or manager), Hasn't been promoted, Minimum Promotion Cycle,
+            College Tier, Industry, Company Type, Last Performance Rating, Compa Ratio.
             <br><br>
             (No Attrition column needed for testing.)
           </span>
@@ -852,8 +855,8 @@ else:
             st.markdown("""
             Your training file must include:
             - A **target column** (e.g., Attrition; use 0 for active, 1 for non‑active).
-            - **Feature columns:** Employee Age, Gender, Tenure (Months), Pulse(Chance of leaving, according to survey or manager), Hasn't been promoted, Minimum Promotion Cycle(same for whole organisation or differentiated on level basis or dept. basis), College Tier, Industry, 
-              Company Type, Last Performance Rating, Compa Ratio.
+            - **Feature columns:** Employee Age, Gender, Tenure (Months), Pulse(Chance of leaving), Hasn't been promoted,
+              Minimum Promotion Cycle, College Tier, Industry, Company Type, Last Performance Rating, Compa Ratio.
             """)
             st.download_button(
                 label="Download Dummy Training File",
@@ -955,10 +958,10 @@ else:
                     cohort_toggle = st.checkbox("Enable Cohort Analysis", key="cohort_toggle_top")
                     if cohort_toggle:
                         st.markdown("### Enhanced Cohort Analysis")
-                        # Use a unique prefix and custom filters for cohort analysis
                         if st.session_state.training_data is None:
                             st.error("No training data available. Please train your model first.")
                         else:
+                            # For training data, do not add the Attrition Score slider if not present.
                             cohort_filter_values = horizontal_filters(st.session_state.training_data, prefix="cohort_", custom_filters_state=st.session_state.cohort_custom_filters)
                             cohort_df = st.session_state.training_data.copy()
                             filtered_cohort_df = apply_filters(cohort_df, cohort_filter_values)
@@ -976,7 +979,6 @@ else:
                             else:
                                 secondary_cohort_col = None
                             
-                            # Process primary cohort column
                             if pd.api.types.is_numeric_dtype(filtered_cohort_df[primary_cohort_col]):
                                 bin_option = st.checkbox("Bin numeric column?", key="cohort_bin_option")
                                 if bin_option:
@@ -1067,7 +1069,7 @@ else:
                                     tooltip=[cohort_group_col, selected_metric]
                                 )
                             st.altair_chart(cohort_chart, use_container_width=True)
-                # End of TOP-LEVEL Cohort Analysis
+                # End TOP-LEVEL Cohort Analysis
                 
                 # -------------------------------
                 # Bulk Analysis Charts and What-If Analysis (remain below)
