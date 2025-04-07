@@ -63,6 +63,12 @@ for key in ["logged_in", "nav", "user", "bulk_prediction_complete", "bulk_result
     if key not in st.session_state:
         st.session_state[key] = [] if key in ["custom_charts", "custom_filters"] else (False if key=="logged_in" else ("Tabs" if key=="nav" else None))
 
+# Initialize separate custom filters for bulk and cohort analysis
+if "bulk_custom_filters" not in st.session_state:
+    st.session_state.bulk_custom_filters = []
+if "cohort_custom_filters" not in st.session_state:
+    st.session_state.cohort_custom_filters = []
+
 # ----------------------------------------------------
 # Helper functions for user storage
 # ----------------------------------------------------
@@ -550,9 +556,13 @@ def generate_custom_chart(config, data):
     return chart
 
 # ---------------------------------------
-# Horizontal Filter Functions for Bulk Analysis with a prefix for unique keys
+# Horizontal Filter Functions for Bulk/ Cohort Analysis with Unique Keys
 # ---------------------------------------
-def horizontal_filters(df, prefix=""):
+def horizontal_filters(df, prefix="", custom_filters_state=None):
+    # Use the passed custom_filters_state list; if None, default to st.session_state.custom_filters
+    if custom_filters_state is None:
+        custom_filters_state = st.session_state.custom_filters
+
     filter_values = {}
     st.markdown(
         """
@@ -565,7 +575,7 @@ def horizontal_filters(df, prefix=""):
         unsafe_allow_html=True
     )
     
-    num_custom = len(st.session_state.custom_filters)
+    num_custom = len(custom_filters_state)
     total_filters = 1 + num_custom
     cols = st.columns(total_filters)
     
@@ -573,22 +583,22 @@ def horizontal_filters(df, prefix=""):
         score_range = st.slider(
             "Attrition Score",
             0, 100, (0, 100),
-            key=f"{prefix}filter_attrition_score"  # Unique key with prefix
+            key=f"{prefix}filter_attrition_score"
         )
         filter_values["Attrition Score"] = score_range
 
-    for i, filter_id in enumerate(st.session_state.custom_filters):
+    for i, filter_id in enumerate(custom_filters_state):
         with cols[i + 1]:
             possible_cols = [col for col in df.columns if col not in ["Name", "Attrition Score", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]]
             col_selected = st.selectbox(
                 "Select column",
                 options=possible_cols,
-                key=f"{prefix}custom_filter_col_{filter_id}"  # Unique key with prefix
+                key=f"{prefix}custom_filter_col_{filter_id}"
             )
             filter_values[f"custom_filter_col_{filter_id}"] = col_selected
             
             if st.button("Remove", key=f"{prefix}remove_{filter_id}"):
-                st.session_state.custom_filters.remove(filter_id)
+                custom_filters_state.remove(filter_id)
                 safe_rerun()
             if pd.api.types.is_numeric_dtype(df[col_selected]):
                 min_val = float(df[col_selected].min())
@@ -596,7 +606,7 @@ def horizontal_filters(df, prefix=""):
                 selected_range = st.slider(
                     "Range",
                     min_val, max_val, (min_val, max_val),
-                    key=f"{prefix}custom_filter_range_{filter_id}"  # Unique key with prefix
+                    key=f"{prefix}custom_filter_range_{filter_id}"
                 )
                 filter_values[f"custom_filter_range_{filter_id}"] = selected_range
             else:
@@ -605,13 +615,13 @@ def horizontal_filters(df, prefix=""):
                     "Values",
                     options=unique_vals,
                     default=unique_vals,
-                    key=f"{prefix}custom_filter_vals_{filter_id}"  # Unique key with prefix
+                    key=f"{prefix}custom_filter_vals_{filter_id}"
                 )
                 filter_values[f"custom_filter_vals_{filter_id}"] = selected_vals
 
     if st.button("Add Custom Filter", key=f"{prefix}add_custom_filter"):
         new_id = str(datetime.now().timestamp())
-        st.session_state.custom_filters.append(new_id)
+        custom_filters_state.append(new_id)
         safe_rerun()
         
     return filter_values
@@ -939,133 +949,133 @@ else:
                         st.session_state.enable_what_if = st.checkbox("Enable What-If Analysis", key="whatif_toggle")
                 
                 # -------------------------------
-                # Top-Level Cohort Analysis Toggle (moved above bulk charts)
+                # TOP-LEVEL Cohort Analysis (Moved to top)
                 # -------------------------------
                 if st.session_state.bulk_prediction_complete:
                     cohort_toggle = st.checkbox("Enable Cohort Analysis", key="cohort_toggle_top")
                     if cohort_toggle:
                         st.markdown("### Enhanced Cohort Analysis")
-                        # Use a unique prefix for cohort filters
-                        cohort_filter_values = horizontal_filters(st.session_state.training_data, prefix="cohort_")
-                        cohort_df = st.session_state.training_data.copy()
-                        filtered_cohort_df = apply_filters(cohort_df, cohort_filter_values)
-                        st.markdown("#### Filtered Training Data for Cohort Analysis")
-                        st.dataframe(filtered_cohort_df)
-                        
-                        st.markdown("#### Define Cohorts")
-                        possible_cohort_columns = [col for col in filtered_cohort_df.columns if col not in ["Name", "Attrition Score", "Attrition", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]]
-                        primary_cohort_col = st.selectbox("Select Primary Cohort Column", options=possible_cohort_columns, key="primary_cohort")
-                        
-                        # Optional secondary dimension
-                        secondary_cohort_option = st.checkbox("Enable Secondary Cohort Dimension", key="enable_secondary_cohort")
-                        if secondary_cohort_option:
-                            secondary_possible = [col for col in possible_cohort_columns if col != primary_cohort_col]
-                            secondary_cohort_col = st.selectbox("Select Secondary Cohort Column", options=secondary_possible, key="secondary_cohort")
+                        # Use a unique prefix and custom filters for cohort analysis
+                        if st.session_state.training_data is None:
+                            st.error("No training data available. Please train your model first.")
                         else:
-                            secondary_cohort_col = None
-                        
-                        # Process primary cohort column
-                        if pd.api.types.is_numeric_dtype(filtered_cohort_df[primary_cohort_col]):
-                            bin_option = st.checkbox("Bin numeric column?", key="cohort_bin_option")
-                            if bin_option:
-                                bin_size = st.number_input("Bin size", min_value=1, value=5, key="cohort_bin_size")
-                                min_val = int(filtered_cohort_df[primary_cohort_col].min())
-                                max_val = int(filtered_cohort_df[primary_cohort_col].max())
-                                bins = list(range(min_val, max_val + bin_size, bin_size))
-                                filtered_cohort_df["Cohort_Primary"] = pd.cut(filtered_cohort_df[primary_cohort_col], bins=bins)
+                            cohort_filter_values = horizontal_filters(st.session_state.training_data, prefix="cohort_", custom_filters_state=st.session_state.cohort_custom_filters)
+                            cohort_df = st.session_state.training_data.copy()
+                            filtered_cohort_df = apply_filters(cohort_df, cohort_filter_values)
+                            st.markdown("#### Filtered Training Data for Cohort Analysis")
+                            st.dataframe(filtered_cohort_df)
+                            
+                            st.markdown("#### Define Cohorts")
+                            possible_cohort_columns = [col for col in filtered_cohort_df.columns if col not in ["Name", "Attrition Score", "Attrition", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]]
+                            primary_cohort_col = st.selectbox("Select Primary Cohort Column", options=possible_cohort_columns, key="primary_cohort")
+                            
+                            secondary_cohort_option = st.checkbox("Enable Secondary Cohort Dimension", key="enable_secondary_cohort")
+                            if secondary_cohort_option:
+                                secondary_possible = [col for col in possible_cohort_columns if col != primary_cohort_col]
+                                secondary_cohort_col = st.selectbox("Select Secondary Cohort Column", options=secondary_possible, key="secondary_cohort")
+                            else:
+                                secondary_cohort_col = None
+                            
+                            # Process primary cohort column
+                            if pd.api.types.is_numeric_dtype(filtered_cohort_df[primary_cohort_col]):
+                                bin_option = st.checkbox("Bin numeric column?", key="cohort_bin_option")
+                                if bin_option:
+                                    bin_size = st.number_input("Bin size", min_value=1, value=5, key="cohort_bin_size")
+                                    min_val = int(filtered_cohort_df[primary_cohort_col].min())
+                                    max_val = int(filtered_cohort_df[primary_cohort_col].max())
+                                    bins = list(range(min_val, max_val + bin_size, bin_size))
+                                    filtered_cohort_df["Cohort_Primary"] = pd.cut(filtered_cohort_df[primary_cohort_col], bins=bins)
+                                else:
+                                    filtered_cohort_df["Cohort_Primary"] = filtered_cohort_df[primary_cohort_col]
+                            elif pd.api.types.is_datetime64_any_dtype(filtered_cohort_df[primary_cohort_col]):
+                                time_window = st.selectbox("Select Time Window", ["Daily", "Weekly", "Monthly", "Quarterly"], key="time_window")
+                                if time_window == "Daily":
+                                    filtered_cohort_df["Cohort_Primary"] = filtered_cohort_df[primary_cohort_col].dt.date
+                                elif time_window == "Weekly":
+                                    filtered_cohort_df["Cohort_Primary"] = filtered_cohort_df[primary_cohort_col].dt.to_period("W").astype(str)
+                                elif time_window == "Monthly":
+                                    filtered_cohort_df["Cohort_Primary"] = filtered_cohort_df[primary_cohort_col].dt.to_period("M").astype(str)
+                                elif time_window == "Quarterly":
+                                    filtered_cohort_df["Cohort_Primary"] = filtered_cohort_df[primary_cohort_col].dt.to_period("Q").astype(str)
                             else:
                                 filtered_cohort_df["Cohort_Primary"] = filtered_cohort_df[primary_cohort_col]
-                        elif pd.api.types.is_datetime64_any_dtype(filtered_cohort_df[primary_cohort_col]):
-                            time_window = st.selectbox("Select Time Window", ["Daily", "Weekly", "Monthly", "Quarterly"], key="time_window")
-                            if time_window == "Daily":
-                                filtered_cohort_df["Cohort_Primary"] = filtered_cohort_df[primary_cohort_col].dt.date
-                            elif time_window == "Weekly":
-                                filtered_cohort_df["Cohort_Primary"] = filtered_cohort_df[primary_cohort_col].dt.to_period("W").astype(str)
-                            elif time_window == "Monthly":
-                                filtered_cohort_df["Cohort_Primary"] = filtered_cohort_df[primary_cohort_col].dt.to_period("M").astype(str)
-                            elif time_window == "Quarterly":
-                                filtered_cohort_df["Cohort_Primary"] = filtered_cohort_df[primary_cohort_col].dt.to_period("Q").astype(str)
-                        else:
-                            filtered_cohort_df["Cohort_Primary"] = filtered_cohort_df[primary_cohort_col]
-                        
-                        # Process secondary cohort column if enabled
-                        if secondary_cohort_col is not None:
-                            filtered_cohort_df["Cohort_Secondary"] = filtered_cohort_df[secondary_cohort_col]
-                            filtered_cohort_df["Cohort_Combined"] = filtered_cohort_df["Cohort_Primary"].astype(str) + " | " + filtered_cohort_df["Cohort_Secondary"].astype(str)
-                            cohort_group_col = "Cohort_Combined"
-                        else:
-                            cohort_group_col = "Cohort_Primary"
-                        
-                        st.markdown(f"#### Cohort Grouping Based on: {cohort_group_col}")
-                        st.dataframe(filtered_cohort_df[[cohort_group_col]].drop_duplicates())
-                        
-                        st.markdown("#### Cohort Metrics and KPIs")
-                        metric_options = ["Count", "Average Employee Age", "Average Tenure (Months)", "Average Compa Ratio", "Average Last Performance Rating"]
-                        if "Attrition" in filtered_cohort_df.columns:
-                            metric_options.append("Attrition Rate")
-                        selected_metric = st.selectbox("Select Primary Metric for Cohort Analysis", options=metric_options, key="cohort_metric")
-                        
-                        sort_option = st.selectbox("Sort Cohorts By", options=["Cohort", selected_metric], key="cohort_sort")
-                        
-                        if selected_metric == "Count":
-                            cohort_data = filtered_cohort_df.groupby(cohort_group_col).size().reset_index(name="Count")
-                        elif selected_metric == "Average Employee Age":
-                            cohort_data = filtered_cohort_df.groupby(cohort_group_col)["Employee Age"].mean().reset_index(name="Average Employee Age")
-                        elif selected_metric == "Average Tenure (Months)":
-                            cohort_data = filtered_cohort_df.groupby(cohort_group_col)["Tenure (Months)"].mean().reset_index(name="Average Tenure (Months)")
-                        elif selected_metric == "Average Compa Ratio":
-                            cohort_data = filtered_cohort_df.groupby(cohort_group_col)["Compa Ratio"].mean().reset_index(name="Average Compa Ratio")
-                        elif selected_metric == "Average Last Performance Rating":
-                            cohort_data = filtered_cohort_df.groupby(cohort_group_col)["Last Performance Rating"].mean().reset_index(name="Average Last Performance Rating")
-                        elif selected_metric == "Attrition Rate":
-                            cohort_data = filtered_cohort_df.groupby(cohort_group_col)["Attrition"].mean().reset_index(name="Attrition Rate")
-                        
-                        if sort_option == selected_metric:
-                            cohort_data = cohort_data.sort_values(by=selected_metric, ascending=False)
-                        else:
-                            cohort_data = cohort_data.sort_values(by=cohort_group_col)
-                        
-                        st.markdown("##### Cohort KPI Table")
-                        st.dataframe(cohort_data)
-                        
-                        st.markdown("#### Visualization Options for Cohort KPIs")
-                        viz_options = ["Bar Chart", "Line Chart", "Pie Chart", "Area Chart"]
-                        selected_viz = st.selectbox("Select Visualization Type", options=viz_options, key="cohort_viz")
-                        if selected_viz == "Bar Chart":
-                            cohort_chart = alt.Chart(cohort_data).mark_bar().encode(
-                                x=alt.X(f"{cohort_group_col}:N", title="Cohort"),
-                                y=alt.Y(f"{selected_metric}:Q", title=selected_metric),
-                                tooltip=[cohort_group_col, selected_metric]
-                            )
-                        elif selected_viz == "Line Chart":
-                            cohort_chart = alt.Chart(cohort_data).mark_line(point=True).encode(
-                                x=alt.X(f"{cohort_group_col}:N", title="Cohort"),
-                                y=alt.Y(f"{selected_metric}:Q", title=selected_metric),
-                                tooltip=[cohort_group_col, selected_metric]
-                            )
-                        elif selected_viz == "Pie Chart":
-                            cohort_chart = alt.Chart(cohort_data).mark_arc().encode(
-                                theta=alt.Theta(field=selected_metric, type="quantitative"),
-                                color=alt.Color(field=cohort_group_col, type="nominal"),
-                                tooltip=[cohort_group_col, selected_metric]
-                            )
-                        elif selected_viz == "Area Chart":
-                            cohort_chart = alt.Chart(cohort_data).mark_area(opacity=0.5).encode(
-                                x=alt.X(f"{cohort_group_col}:N", title="Cohort"),
-                                y=alt.Y(f"{selected_metric}:Q", title=selected_metric),
-                                tooltip=[cohort_group_col, selected_metric]
-                            )
-                        st.altair_chart(cohort_chart, use_container_width=True)
-                # End Top-Level Cohort Analysis Toggle
+                            
+                            if secondary_cohort_col is not None:
+                                filtered_cohort_df["Cohort_Secondary"] = filtered_cohort_df[secondary_cohort_col]
+                                filtered_cohort_df["Cohort_Combined"] = filtered_cohort_df["Cohort_Primary"].astype(str) + " | " + filtered_cohort_df["Cohort_Secondary"].astype(str)
+                                cohort_group_col = "Cohort_Combined"
+                            else:
+                                cohort_group_col = "Cohort_Primary"
+                            
+                            st.markdown(f"#### Cohort Grouping Based on: {cohort_group_col}")
+                            st.dataframe(filtered_cohort_df[[cohort_group_col]].drop_duplicates())
+                            
+                            st.markdown("#### Cohort Metrics and KPIs")
+                            metric_options = ["Count", "Average Employee Age", "Average Tenure (Months)", "Average Compa Ratio", "Average Last Performance Rating"]
+                            if "Attrition" in filtered_cohort_df.columns:
+                                metric_options.append("Attrition Rate")
+                            selected_metric = st.selectbox("Select Primary Metric for Cohort Analysis", options=metric_options, key="cohort_metric")
+                            
+                            sort_option = st.selectbox("Sort Cohorts By", options=["Cohort", selected_metric], key="cohort_sort")
+                            
+                            if selected_metric == "Count":
+                                cohort_data = filtered_cohort_df.groupby(cohort_group_col).size().reset_index(name="Count")
+                            elif selected_metric == "Average Employee Age":
+                                cohort_data = filtered_cohort_df.groupby(cohort_group_col)["Employee Age"].mean().reset_index(name="Average Employee Age")
+                            elif selected_metric == "Average Tenure (Months)":
+                                cohort_data = filtered_cohort_df.groupby(cohort_group_col)["Tenure (Months)"].mean().reset_index(name="Average Tenure (Months)")
+                            elif selected_metric == "Average Compa Ratio":
+                                cohort_data = filtered_cohort_df.groupby(cohort_group_col)["Compa Ratio"].mean().reset_index(name="Average Compa Ratio")
+                            elif selected_metric == "Average Last Performance Rating":
+                                cohort_data = filtered_cohort_df.groupby(cohort_group_col)["Last Performance Rating"].mean().reset_index(name="Average Last Performance Rating")
+                            elif selected_metric == "Attrition Rate":
+                                cohort_data = filtered_cohort_df.groupby(cohort_group_col)["Attrition"].mean().reset_index(name="Attrition Rate")
+                            
+                            if sort_option == selected_metric:
+                                cohort_data = cohort_data.sort_values(by=selected_metric, ascending=False)
+                            else:
+                                cohort_data = cohort_data.sort_values(by=cohort_group_col)
+                            
+                            st.markdown("##### Cohort KPI Table")
+                            st.dataframe(cohort_data)
+                            
+                            st.markdown("#### Visualization Options for Cohort KPIs")
+                            viz_options = ["Bar Chart", "Line Chart", "Pie Chart", "Area Chart"]
+                            selected_viz = st.selectbox("Select Visualization Type", options=viz_options, key="cohort_viz")
+                            if selected_viz == "Bar Chart":
+                                cohort_chart = alt.Chart(cohort_data).mark_bar().encode(
+                                    x=alt.X(f"{cohort_group_col}:N", title="Cohort"),
+                                    y=alt.Y(f"{selected_metric}:Q", title=selected_metric),
+                                    tooltip=[cohort_group_col, selected_metric]
+                                )
+                            elif selected_viz == "Line Chart":
+                                cohort_chart = alt.Chart(cohort_data).mark_line(point=True).encode(
+                                    x=alt.X(f"{cohort_group_col}:N", title="Cohort"),
+                                    y=alt.Y(f"{selected_metric}:Q", title=selected_metric),
+                                    tooltip=[cohort_group_col, selected_metric]
+                                )
+                            elif selected_viz == "Pie Chart":
+                                cohort_chart = alt.Chart(cohort_data).mark_arc().encode(
+                                    theta=alt.Theta(field=selected_metric, type="quantitative"),
+                                    color=alt.Color(field=cohort_group_col, type="nominal"),
+                                    tooltip=[cohort_group_col, selected_metric]
+                                )
+                            elif selected_viz == "Area Chart":
+                                cohort_chart = alt.Chart(cohort_data).mark_area(opacity=0.5).encode(
+                                    x=alt.X(f"{cohort_group_col}:N", title="Cohort"),
+                                    y=alt.Y(f"{selected_metric}:Q", title=selected_metric),
+                                    tooltip=[cohort_group_col, selected_metric]
+                                )
+                            st.altair_chart(cohort_chart, use_container_width=True)
+                # End of TOP-LEVEL Cohort Analysis
                 
                 # -------------------------------
-                # Bulk Analysis Charts and What-If Analysis
+                # Bulk Analysis Charts and What-If Analysis (remain below)
                 # -------------------------------
                 st.markdown("### Bulk Analysis")
                 st.markdown("<hr>", unsafe_allow_html=True)
                 
-                # Bulk filters using a unique prefix for bulk filters
-                filter_values = horizontal_filters(st.session_state.bulk_result, prefix="bulk_")
+                filter_values = horizontal_filters(st.session_state.bulk_result, prefix="bulk_", custom_filters_state=st.session_state.bulk_custom_filters)
                 filtered_df = apply_filters(st.session_state.bulk_result, filter_values)
                 
                 col_table, col_charts = st.columns([0.20, 0.80])
