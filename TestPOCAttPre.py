@@ -725,7 +725,7 @@ with header_container:
 # =============================
 # Sidebar Global Settings & Navigation
 # =============================
-# Global Settings for Bulk Analysis (only enabled in certain modes)
+# Global Settings for Bulk Analysis
 if "global_avg_age" not in st.session_state:
     st.session_state.global_avg_age = st.session_state.user.get("settings", {}).get("global_avg_age", 35)
 if "global_female_ratio" not in st.session_state:
@@ -802,7 +802,9 @@ with st.sidebar.expander("Company Type Retention Settings"):
         key="bulk_mnc"
     )
 
-# Navigation Sidebar
+# =============================
+# Sidebar Navigation
+# =============================
 nav_options = ["Dashboard", "Train Mode", "Test Mode", "Cluster Analysis", "Additional Features", "My Account"]
 selected_nav = st.sidebar.radio("Navigation", nav_options, index=0)
 st.session_state.nav = selected_nav
@@ -813,7 +815,7 @@ st.session_state.nav = selected_nav
 if st.session_state.nav == "Dashboard":
     st.header("Dashboard")
     st.write("Welcome to the Employee Attrition Prediction Dashboard!")
-    # You can add aggregated metrics and summaries here.
+    # Add aggregated metrics or summaries here.
 
 elif st.session_state.nav == "Train Mode":
     st.header("Train Mode")
@@ -865,7 +867,6 @@ elif st.session_state.nav == "Test Mode":
     .tooltip:hover .tooltiptext { visibility: visible; }
     </style>
     """, unsafe_allow_html=True)
-    # (Place your Test Mode bulk prediction code here as needed.)
     uploaded_file = st.file_uploader("Upload Bulk Data (CSV or Excel)", type=["csv", "xlsx"], key="bulk_file")
     if uploaded_file is not None:
         try:
@@ -954,7 +955,7 @@ elif st.session_state.nav == "Cluster Analysis":
                       <p><strong>Employee Count:</strong> {cluster['Count']}</p>
                     </div>
                     """, unsafe_allow_html=True)
-                    # Display a mini chart within the card
+                    # Mini chart within the cluster card
                     cluster_data = st.session_state.bulk_result[
                         (st.session_state.bulk_result["Gender"] == cluster["Gender"]) &
                         (st.session_state.bulk_result["Employee Age"] >= int(str(cluster["Age Group"]).split("-")[0])) &
