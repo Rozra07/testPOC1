@@ -37,18 +37,45 @@ alt.themes.enable("dark_theme")
 # -----------------------------
 st.set_page_config(layout="wide")
 
-# ---------------------------------------
+# -----------------------------
+# Custom CSS for an engaging design
+# -----------------------------
+st.markdown("""
+    <style>
+      .cluster-card {
+          border: 1px solid #ccc;
+          padding: 10px;
+          border-radius: 8px;
+          background-color: #222;
+          color: white;
+          margin: 5px;
+      }
+      .custom-cluster-card {
+          border: 2px solid #4c78a8;
+          padding: 10px;
+          border-radius: 8px;
+          background-color: #333;
+          color: white;
+      }
+      .header-title {
+          text-align: center;
+          color: white;
+      }
+    </style>
+    """, unsafe_allow_html=True)
+
+# -----------------------------
 # Helper function for safe rerun
-# ---------------------------------------
+# -----------------------------
 def safe_rerun():
     if hasattr(st, "experimental_rerun"):
         st.experimental_rerun()
     else:
         st.warning("Refresh functionality is not available. Please update Streamlit (>=0.65.0).")
 
-# ---------------------------------------
+# -----------------------------
 # Global helper: colored_metric for trustworthiness table
-# ---------------------------------------
+# -----------------------------
 def colored_metric(value, threshold, higher_better=True, is_lower=False):
     if is_lower:
         color = "green" if value <= threshold else "red"
@@ -56,16 +83,18 @@ def colored_metric(value, threshold, higher_better=True, is_lower=False):
         color = "green" if value >= threshold else "red"
     return f'<span style="color:{color}; font-weight:bold;">{value:.2f}</span>'
 
-# ----------------------------------------------------
+# -----------------------------
 # Initialize st.session_state keys if not already set
-# ----------------------------------------------------
+# -----------------------------
 for key in ["logged_in", "nav", "user", "bulk_prediction_complete", "bulk_result", "enable_what_if", "custom_charts", "custom_filters", "training_data"]:
     if key not in st.session_state:
         st.session_state[key] = [] if key in ["custom_charts", "custom_filters"] else (False if key=="logged_in" else ("Tabs" if key=="nav" else None))
+if "enable_cluster_analysis" not in st.session_state:
+    st.session_state.enable_cluster_analysis = False
 
-# ----------------------------------------------------
+# -----------------------------
 # Helper functions for user storage
-# ----------------------------------------------------
+# -----------------------------
 USERS_FILE = "users.json"
 USER_DATA_DIR = "user_data"
 
@@ -106,17 +135,46 @@ def load_user_history(email):
     else:
         return []
 
-# ----------------------------------------------------
+# -----------------------------
 # Global: Expanded Industry Options
-# ----------------------------------------------------
+# -----------------------------
 industry_options = [
     "Tech", "Finance", "Healthcare", "Education", "Manufacturing", 
     "Retail", "Energy", "Telecommunications", "Government", "Nonprofit", "Other"
 ]
 
-# ----------------------------------------------------
+# -----------------------------
+# Function to generate automatic clusters based on bulk prediction results
+# -----------------------------
+def generate_automatic_clusters(df):
+    if df.empty:
+        return pd.DataFrame()
+    df_auto = df.copy()
+    # Create Age Group using bins. You can adjust bins/labels as needed.
+    bins = [18, 30, 40, 50, 60, 100]
+    labels = ["18-30", "31-40", "41-50", "51-60", "61+"]
+    df_auto["Age Group"] = pd.cut(df_auto["Employee Age"], bins=bins, labels=labels, right=False)
+    # Extract primary negative trigger; if none exists, return NaN.
+    def get_primary(trigger_str):
+        if pd.isna(trigger_str) or trigger_str.strip() == "" or trigger_str.strip().lower() == "none":
+            return np.nan
+        else:
+            return trigger_str.split(",")[0].strip()
+    df_auto["Primary Trigger"] = df_auto["Negative Triggers"].apply(get_primary)
+    df_auto = df_auto.dropna(subset=["Primary Trigger"])
+    # Group by Gender, Age Group, and Primary Trigger to compute average attrition score and employee count
+    clusters = df_auto.groupby(["Gender", "Age Group", "Primary Trigger"]).agg({"Attrition Score": "mean", "Name": "count"}).reset_index()
+    clusters.rename(columns={"Name": "Count"}, inplace=True)
+    # Filter for clusters with a minimum count and high attrition score (thresholds can be adjusted)
+    clusters = clusters[(clusters["Count"] >= 3) & (clusters["Attrition Score"] >= 60)]
+    clusters = clusters.sort_values(by="Attrition Score", ascending=False)
+    # Limit to maximum 9 clusters
+    clusters = clusters.head(9)
+    return clusters
+
+# -----------------------------
 # Functions for model training/prediction
-# ----------------------------------------------------
+# -----------------------------
 def train_model(training_df, target_column, industry):
     st.write("Training on data shape:", training_df.shape)
     X = training_df.drop(columns=[target_column])
@@ -162,6 +220,7 @@ def train_model(training_df, target_column, industry):
     # -------------------------------
     # Compute Trustworthiness Metrics
     # -------------------------------
+    from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, log_loss, average_precision_score
     y_pred = model.predict(X_scaled)
     accuracy = accuracy_score(y, y_pred)
     precision = precision_score(y, y_pred)
@@ -310,9 +369,9 @@ def load_model(industry):
         st.error("No trained model found for the selected industry. Please train your model in Train Mode first.")
         return None, None, None
 
-# ----------------------------------------------------
+# -----------------------------
 # Trigger Details (for recommended solutions)
-# ----------------------------------------------------
+# -----------------------------
 TRIGGER_DETAILS = {
     "Low gender diversity": {
         "subproblems": {
@@ -376,9 +435,9 @@ TRIGGER_DETAILS = {
     }
 }
 
-# ----------------------------------------------------
+# -----------------------------
 # Rule-based attrition computation
-# ----------------------------------------------------
+# -----------------------------
 def compute_weighted_attrition(employee, return_triggers=False):
     score = 0
     extreme_factors = 0
@@ -424,9 +483,9 @@ def compute_weighted_attrition(employee, return_triggers=False):
     else:
         return final_score
 
-# ----------------------------------------------------
+# -----------------------------
 # Predict attrition using both ML and rule-based approaches
-# ----------------------------------------------------
+# -----------------------------
 def predict_attrition(employee_data, industry):
     model, scaler, feature_columns = load_model(industry)
     if model is None:
@@ -478,9 +537,9 @@ def generate_dummy_training_file():
     dummy_df.to_csv(csv_buffer, index=False)
     return csv_buffer.getvalue()
 
-# ----------------------------------------------------
+# -----------------------------
 # Function to compute trigger counts from a column with comma-separated triggers
-# ----------------------------------------------------
+# -----------------------------
 def compute_trigger_counts(df, column_name):
     triggers_list = []
     for val in df[column_name].dropna():
@@ -491,15 +550,15 @@ def compute_trigger_counts(df, column_name):
     else:
         return pd.Series(dtype=int)
 
-# ---------------------------------------
+# -----------------------------
 # Helper function: Graph header with tooltip
-# ---------------------------------------
+# -----------------------------
 def graph_header(title, explanation):
     return f'<h4 style="color: white;">{title} <span title="{explanation}" style="cursor: help; color: #ccc;">&#9432;</span></h4>'
 
-# ---------------------------------------
+# -----------------------------
 # Helper: generate a custom chart from a saved configuration and current filtered data
-# ---------------------------------------
+# -----------------------------
 def generate_custom_chart(config, data):
     x_axis = config.get("x_axis")
     y_axis = config.get("y_axis")
@@ -549,10 +608,10 @@ def generate_custom_chart(config, data):
             )
     return chart
 
-# ---------------------------------------
+# -----------------------------
 # Horizontal Filter Functions for Bulk Analysis
 # (Rewritten to avoid nested columns beyond one level)
-# ---------------------------------------
+# -----------------------------
 def horizontal_filters(df):
     filter_values = {}
     st.markdown(
@@ -618,9 +677,9 @@ def apply_filters(df, filter_values):
                     filtered_df = filtered_df[filtered_df[col].isin(selected_vals)]
     return filtered_df
 
-# ---------------------------------------
+# -----------------------------
 # Login/Sign Up System
-# ---------------------------------------
+# -----------------------------
 if not st.session_state.logged_in:
     st.title("Employee Attrition Prediction Tool - Login / Sign Up")
     auth_mode = st.radio("Select Mode", ["Login", "Sign Up"], index=0)
@@ -672,9 +731,9 @@ if not st.session_state.logged_in:
     if not st.session_state.logged_in:
         st.stop()
 
-# ---------------------------------------
+# -----------------------------
 # Top Header with Title, My Account Icon, and Logout
-# ---------------------------------------
+# -----------------------------
 def logout():
     for key in list(st.session_state.keys()):
         del st.session_state[key]
@@ -691,9 +750,9 @@ with header_container:
         if st.button("Logout", key="logout_button"):
             logout()
 
-# ---------------------------------------
+# -----------------------------
 # Sidebar: Global Settings and Mode Selection
-# ---------------------------------------
+# -----------------------------
 if st.session_state.nav != "My Account":
     with st.sidebar:
         mode = st.radio("Select Mode", ["Train Mode", "Test Mode"], index=0, key="main_mode")
@@ -755,9 +814,9 @@ if st.session_state.nav != "My Account":
                 key="bulk_mnc", disabled=disabled_flag
             )
 
-# ---------------------------------------
+# -----------------------------
 # Main Navigation
-# ---------------------------------------
+# -----------------------------
 if st.session_state.nav == "My Account":
     st.markdown("<div style='text-align: center;'><h2>My Account</h2></div>", unsafe_allow_html=True)
     user = st.session_state.user
@@ -919,6 +978,7 @@ else:
                 with btn_cols[1]:
                     if st.session_state.bulk_prediction_complete:
                         st.session_state.enable_what_if = st.checkbox("Enable What-If Analysis", key="whatif_toggle")
+                        st.session_state.enable_cluster_analysis = st.checkbox("🔍 Enable Cluster Analysis", key="cluster_toggle")
                 
                 # -------------------------------
                 # Bulk Analysis Section:
@@ -927,6 +987,73 @@ else:
                     st.markdown("### Bulk Analysis")
                     st.markdown("<hr>", unsafe_allow_html=True)
                     
+                    # ---------------------------
+                    # Cluster Analysis Section
+                    # ---------------------------
+                    if st.session_state.enable_cluster_analysis:
+                        st.markdown("<h2 class='header-title'>Cluster Analysis</h2>", unsafe_allow_html=True)
+                        
+                        # Automatic Clusters
+                        st.markdown("#### Automatic Clusters")
+                        clusters_df = generate_automatic_clusters(st.session_state.bulk_result)
+                        if clusters_df.empty:
+                            st.info("No significant clusters found. Try adjusting your global settings or bulk data.")
+                        else:
+                            # Display clusters in a grid (3 columns per row)
+                            num_clusters = len(clusters_df)
+                            cols = st.columns(3)
+                            for i, (_, cluster) in enumerate(clusters_df.iterrows()):
+                                col = cols[i % 3]
+                                with col:
+                                    st.markdown(f"""
+                                    <div class="cluster-card">
+                                      <h4>{cluster['Gender']} | Age {cluster['Age Group']} | {cluster['Primary Trigger']}</h4>
+                                      <p><strong>Avg Attrition Score:</strong> {cluster['Attrition Score']:.2f}</p>
+                                      <p><strong>Employee Count:</strong> {cluster['Count']}</p>
+                                      <p>High attrition observed due to <em>{cluster['Primary Trigger']}</em>. This group requires attention.</p>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        
+                        # Custom Cluster Analysis
+                        st.markdown("#### Custom Cluster Analysis")
+                        with st.form("custom_cluster_form"):
+                            st.markdown("Customize your cluster filters:")
+                            custom_age = st.slider("Employee Age", 18, 100, (30, 50))
+                            custom_gender = st.multiselect("Gender", options=st.session_state.bulk_result["Gender"].unique().tolist(), default=st.session_state.bulk_result["Gender"].unique().tolist())
+                            custom_industry = st.multiselect("Industry", options=st.session_state.bulk_result["Industry"].unique().tolist(), default=st.session_state.bulk_result["Industry"].unique().tolist())
+                            custom_college = st.multiselect("College Tier", options=st.session_state.bulk_result["College Tier"].unique().tolist(), default=st.session_state.bulk_result["College Tier"].unique().tolist())
+                            custom_company = st.multiselect("Company Type", options=st.session_state.bulk_result["Company Type"].unique().tolist(), default=st.session_state.bulk_result["Company Type"].unique().tolist())
+                            submit_custom = st.form_submit_button("Generate Custom Cluster")
+                        if submit_custom:
+                            df_custom = st.session_state.bulk_result.copy()
+                            df_custom = df_custom[(df_custom["Employee Age"] >= custom_age[0]) & (df_custom["Employee Age"] <= custom_age[1])]
+                            df_custom = df_custom[df_custom["Gender"].isin(custom_gender)]
+                            df_custom = df_custom[df_custom["Industry"].isin(custom_industry)]
+                            df_custom = df_custom[df_custom["College Tier"].isin(custom_college)]
+                            df_custom = df_custom[df_custom["Company Type"].isin(custom_company)]
+                            if df_custom.empty:
+                                st.warning("No data matching the custom cluster criteria.")
+                            else:
+                                avg_score = df_custom["Attrition Score"].mean()
+                                count = df_custom.shape[0]
+                                triggers_series = compute_trigger_counts(df_custom, "Negative Triggers")
+                                if not triggers_series.empty:
+                                    common_trigger = triggers_series.idxmax()
+                                else:
+                                    common_trigger = "None"
+                                st.markdown(f"""
+                                <div class="custom-cluster-card">
+                                  <h4>Custom Cluster Summary</h4>
+                                  <p><strong>Employee Count:</strong> {count}</p>
+                                  <p><strong>Average Attrition Score:</strong> {avg_score:.2f}</p>
+                                  <p><strong>Common Negative Trigger:</strong> {common_trigger}</p>
+                                </div>
+                                """, unsafe_allow_html=True)
+                    
+                    # ---------------------------
+                    # Data Filters and Charts Section
+                    # ---------------------------
                     filter_values = horizontal_filters(st.session_state.bulk_result)
                     filtered_df = apply_filters(st.session_state.bulk_result, filter_values)
                     
@@ -1488,10 +1615,9 @@ else:
                                         st.write("No Prediction Time data available.")
                                 
                                 # --------------------------
-                                # NEW: Cohort Analysis Section
+                                # NEW: Cohort Analysis Section [Under Development]
                                 # --------------------------
                                 st.markdown("### Cohort Analysis [Under Development]")
-                                # Use a separate checkbox to enable the cohort analysis section
                                 cohort_enabled = st.checkbox("Enable Cohort Analysis", key="cohort_toggle")
                                 if cohort_enabled:
                                     if st.session_state.training_data is None:
@@ -1500,7 +1626,6 @@ else:
                                         cohort_df = st.session_state.training_data.copy()
                                         st.markdown("#### Training Data for Cohort Analysis (First 10 Rows)")
                                         st.dataframe(cohort_df.head(10))
-                                        # Optionally, allow filtering of the training data
                                         cohort_filter_values = horizontal_filters(cohort_df)
                                         filtered_cohort_df = apply_filters(cohort_df, cohort_filter_values)
                                         st.markdown("#### Filtered Training Data")
