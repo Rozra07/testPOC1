@@ -45,7 +45,7 @@ def safe_rerun():
     if hasattr(st, "experimental_rerun"):
         st.experimental_rerun()
     else:
-        st.warning("Refresh functionality is not available. Please update Streamlit (>=0.65.0).")
+        st.warning("Refresh functionality is not available. Please update Streamlit.")
 
 # ---------------------------------------
 # Global helper: colored_metric for trustworthiness table
@@ -122,6 +122,29 @@ industry_options = [
 ]
 
 # ----------------------------------------------------
+# Dummy Training File Generator (Missing function now provided)
+# ----------------------------------------------------
+def generate_dummy_training_file():
+    dummy_df = pd.DataFrame({
+        "Name": ["Example 1", "Example 2", "Example 3"],
+        "Employee Age": [30, 40, 35],
+        "Gender": ["Male", "Female", "Male"],
+        "Tenure (Months)": [36, 48, 24],
+        "Pulse": ["Medium", "High", "Low"],
+        "Hasn't been promoted": [12, 30, 15],
+        "Minimum Promotion Cycle": [24, 24, 24],
+        "College Tier": ["Tier 1", "Tier 2", "Tier 3"],
+        "Industry": ["Tech", "Finance", "Healthcare"],
+        "Company Type": ["Startup", "Enterprise", "SME"],
+        "Last Performance Rating": [3, 1, 4],
+        "Compa Ratio": [90, 65, 100],
+        "Attrition": [0, 1, 0]
+    })
+    csv_buffer = io.StringIO()
+    dummy_df.to_csv(csv_buffer, index=False)
+    return csv_buffer.getvalue()
+
+# ----------------------------------------------------
 # Functions for model training/prediction
 # ----------------------------------------------------
 def train_model(training_df, target_column, industry):
@@ -136,9 +159,6 @@ def train_model(training_df, target_column, industry):
     model.fit(X_scaled, y)
     st.write("Model coefficients:", model.coef_)
     
-    # -------------------------------
-    # Model Evaluation Metrics
-    # -------------------------------
     from sklearn.metrics import roc_curve, auc, confusion_matrix, classification_report, accuracy_score, precision_score, recall_score, f1_score, log_loss, average_precision_score
     preds = model.predict_proba(X_scaled)[:, 1]
     fpr, tpr, thresholds = roc_curve(y, preds)
@@ -166,9 +186,6 @@ def train_model(training_df, target_column, industry):
     st.write("**Classification Report:**")
     st.json(report)
     
-    # -------------------------------
-    # Compute Trustworthiness Metrics
-    # -------------------------------
     y_pred = model.predict(X_scaled)
     accuracy = accuracy_score(y, y_pred)
     precision = precision_score(y, y_pred)
@@ -257,7 +274,6 @@ def train_model(training_df, target_column, industry):
     
     update_industry_record(industry, model_filename, scaler_filename, features_filename)
     
-    # Save global settings to user record
     user = st.session_state.user
     user_settings = user.get("settings") or {}
     user_settings["global_avg_age"] = st.session_state.global_avg_age
@@ -318,16 +334,17 @@ def load_model(industry):
         return None, None, None
 
 # ----------------------------------------------------
-# Automatic Cohort Analysis (Using Bulk Result)
+# Automatic Cohort Analysis – Boxed Layout
 # ----------------------------------------------------
-def run_auto_cohort_analysis(df):
+def run_auto_cohort_analysis_boxed(df):
+    # Required columns for automatic clustering
     required_cols = ["Attrition Score", "Employee Age", "Tenure (Months)", "Compa Ratio", "Negative Triggers"]
     for col in required_cols:
         if col not in df.columns:
-            st.error(f"Missing column {col} for automatic cohort analysis.")
-            return None
+            st.error(f"Missing column '{col}' for automatic cohort analysis.")
+            return
     df = df.copy()
-    # Compute Negative Trigger Count
+    # Compute Negative Trigger Count from the Negative Triggers column
     df["NegTriggerCount"] = df["Negative Triggers"].apply(
         lambda x: 0 if pd.isna(x) or x=="None" or x.strip()=="" 
         else len([item for item in x.split(",") if item.strip() != ""])
@@ -336,37 +353,63 @@ def run_auto_cohort_analysis(df):
     X = df[features]
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
-    # Cluster into 10 cohorts using KMeans
-    kmeans = KMeans(n_clusters=10, random_state=42)
-    df["Cohort Cluster"] = kmeans.fit_predict(X_scaled)
+    # Cluster into 9 groups
+    kmeans = KMeans(n_clusters=9, random_state=42)
+    df["Cluster"] = kmeans.fit_predict(X_scaled)
     
-    summary_list = []
-    for cluster in sorted(df["Cohort Cluster"].unique()):
-        cluster_df = df[df["Cohort Cluster"] == cluster]
+    # Build cluster summary information
+    cluster_summaries = []
+    for cluster in sorted(df["Cluster"].unique()):
+        cluster_df = df[df["Cluster"] == cluster]
         count = cluster_df.shape[0]
         avg_attrition = cluster_df["Attrition Score"].mean()
         avg_age = cluster_df["Employee Age"].mean()
         avg_tenure = cluster_df["Tenure (Months)"].mean()
         avg_compa = cluster_df["Compa Ratio"].mean()
-        avg_neg_trigger = cluster_df["NegTriggerCount"].mean()
-        # Combine negative triggers from all rows in the cluster
-        all_triggers = cluster_df["Negative Triggers"].dropna().apply(lambda x: [item.strip() for item in x.split(",") if item.strip()!=""]).sum()
+        avg_neg = cluster_df["NegTriggerCount"].mean()
+        # Aggregate all negative triggers
+        all_triggers = cluster_df["Negative Triggers"].dropna().apply(lambda x: [item.strip() for item in x.split(",") if item.strip()]).sum()
         top_trigger = pd.Series(all_triggers).value_counts().idxmax() if len(all_triggers) > 0 else "None"
-        summary_list.append({
-            "Cohort Cluster": cluster,
+        cluster_summaries.append({
+            "Cluster": cluster,
             "Count": count,
-            "Avg Attrition Score": avg_attrition,
+            "Avg Attrition": avg_attrition,
             "Avg Age": avg_age,
             "Avg Tenure": avg_tenure,
-            "Avg Compa Ratio": avg_compa,
-            "Avg Neg Trigger Count": avg_neg_trigger,
-            "Top Negative Trigger": top_trigger
+            "Avg Compa": avg_compa,
+            "Avg Neg Triggers": avg_neg,
+            "Top Issue": top_trigger
         })
-    summary_df = pd.DataFrame(summary_list)
-    return summary_df
+    summary_df = pd.DataFrame(cluster_summaries)
+    
+    st.subheader("Automatic Cohort Analysis")
+    st.markdown("The following 9 clusters are automatically computed from key metrics. Each box shows the key insights for that cohort.")
+    
+    # Display in a 3-column grid (3 boxes per row)
+    num_clusters = summary_df.shape[0]
+    num_cols = 3
+    for i in range(0, num_clusters, num_cols):
+        cols = st.columns(num_cols)
+        for j, col in enumerate(cols):
+            idx = i + j
+            if idx < num_clusters:
+                row = summary_df.iloc[idx]
+                box_html = f"""
+                <div style="border:1px solid white; border-radius:5px; padding:10px; margin:5px; background-color:#333;">
+                    <h3 style="color:white;">Cluster {int(row['Cluster'])}</h3>
+                    <p style="color:white;"><b>Count:</b> {row['Count']}</p>
+                    <p style="color:white;"><b>Avg Attrition Score:</b> {row['Avg Attrition']:.2f}</p>
+                    <p style="color:white;"><b>Avg Age:</b> {row['Avg Age']:.2f}</p>
+                    <p style="color:white;"><b>Avg Tenure:</b> {row['Avg Tenure']:.2f}</p>
+                    <p style="color:white;"><b>Avg Compa Ratio:</b> {row['Avg Compa']:.2f}</p>
+                    <p style="color:white;"><b>Avg Neg Trigger Count:</b> {row['Avg Neg Triggers']:.2f}</p>
+                    <p style="color:white;"><b>Top Issue:</b> {row['Top Issue']}</p>
+                </div>
+                """
+                col.markdown(box_html, unsafe_allow_html=True)
 
 # ----------------------------------------------------
-# Function to compute trigger counts from a column with comma-separated triggers
+# Function to compute trigger counts from a column with comma-separated triggers (repeated)
 # ----------------------------------------------------
 def compute_trigger_counts(df, column_name):
     triggers_list = []
@@ -744,17 +787,15 @@ else:
                         st.session_state.enable_what_if = st.checkbox("Enable What-If Analysis", key="whatif_toggle")
                 
                 # -------------------------------
-                # Automatic Cohort Analysis Section
+                # Automatic Cohort Analysis – Boxed Layout
                 # -------------------------------
                 if st.session_state.bulk_prediction_complete:
                     st.markdown("### Automatic Cohort Analysis")
                     if st.button("Run Automatic Cohort Analysis"):
-                        auto_cohort_summary = run_auto_cohort_analysis(st.session_state.bulk_result)
-                        if auto_cohort_summary is not None:
-                            st.dataframe(auto_cohort_summary)
+                        run_auto_cohort_analysis_boxed(st.session_state.bulk_result)
                 
                 # -------------------------------
-                # TOP-LEVEL Cohort Analysis (Custom Builder)
+                # TOP-LEVEL Custom Cohort Analysis (Custom Builder)
                 # -------------------------------
                 if st.session_state.bulk_prediction_complete:
                     cohort_toggle = st.checkbox("Enable Custom Cohort Analysis", key="cohort_toggle_top")
@@ -765,18 +806,15 @@ else:
                         filtered_cohort_df = cohort_df if not cohort_filter_values else apply_filters(cohort_df, cohort_filter_values)
                         st.markdown("#### Filtered Bulk Data for Cohort Analysis")
                         st.dataframe(filtered_cohort_df)
-                        
                         st.markdown("#### Define Cohorts")
                         possible_cohort_columns = [col for col in filtered_cohort_df.columns if col not in ["Name", "Attrition Score", "What-If Attrition Score", "What-If Negative Triggers", "Prediction Time"]]
                         primary_cohort_col = st.selectbox("Select Primary Cohort Column", options=possible_cohort_columns, key="primary_cohort")
-                        
                         secondary_cohort_option = st.checkbox("Enable Secondary Cohort Dimension", key="enable_secondary_cohort")
                         if secondary_cohort_option:
                             secondary_possible = [col for col in possible_cohort_columns if col != primary_cohort_col]
                             secondary_cohort_col = st.selectbox("Select Secondary Cohort Column", options=secondary_possible, key="secondary_cohort")
                         else:
                             secondary_cohort_col = None
-                        
                         if pd.api.types.is_numeric_dtype(filtered_cohort_df[primary_cohort_col]):
                             bin_option = st.checkbox("Bin numeric column?", key="cohort_bin_option")
                             if bin_option:
@@ -799,25 +837,20 @@ else:
                                 filtered_cohort_df["Cohort_Primary"] = filtered_cohort_df[primary_cohort_col].dt.to_period("Q").astype(str)
                         else:
                             filtered_cohort_df["Cohort_Primary"] = filtered_cohort_df[primary_cohort_col]
-                        
                         if secondary_cohort_col is not None:
                             filtered_cohort_df["Cohort_Secondary"] = filtered_cohort_df[secondary_cohort_col]
                             filtered_cohort_df["Cohort_Combined"] = filtered_cohort_df["Cohort_Primary"].astype(str) + " | " + filtered_cohort_df["Cohort_Secondary"].astype(str)
                             cohort_group_col = "Cohort_Combined"
                         else:
                             cohort_group_col = "Cohort_Primary"
-                        
                         st.markdown(f"#### Cohort Grouping Based on: {cohort_group_col}")
                         st.dataframe(filtered_cohort_df[[cohort_group_col]].drop_duplicates())
-                        
                         st.markdown("#### Cohort Metrics and KPIs")
                         metric_options = ["Count", "Average Employee Age", "Average Tenure (Months)", "Average Compa Ratio", "Average Last Performance Rating"]
                         if "Attrition" in filtered_cohort_df.columns:
                             metric_options.append("Attrition Rate")
                         selected_metric = st.selectbox("Select Primary Metric for Cohort Analysis", options=metric_options, key="cohort_metric")
-                        
                         sort_option = st.selectbox("Sort Cohorts By", options=["Cohort", selected_metric], key="cohort_sort")
-                        
                         if selected_metric == "Count":
                             cohort_data = filtered_cohort_df.groupby(cohort_group_col).size().reset_index(name="Count")
                         elif selected_metric == "Average Employee Age":
@@ -830,15 +863,12 @@ else:
                             cohort_data = filtered_cohort_df.groupby(cohort_group_col)["Last Performance Rating"].mean().reset_index(name="Average Last Performance Rating")
                         elif selected_metric == "Attrition Rate":
                             cohort_data = filtered_cohort_df.groupby(cohort_group_col)["Attrition"].mean().reset_index(name="Attrition Rate")
-                        
                         if sort_option == selected_metric:
                             cohort_data = cohort_data.sort_values(by=selected_metric, ascending=False)
                         else:
                             cohort_data = cohort_data.sort_values(by=cohort_group_col)
-                        
                         st.markdown("##### Cohort KPI Table")
                         st.dataframe(cohort_data)
-                        
                         st.markdown("#### Visualization Options for Cohort KPIs")
                         viz_options = ["Bar Chart", "Line Chart", "Pie Chart", "Area Chart"]
                         selected_viz = st.selectbox("Select Visualization Type", options=viz_options, key="cohort_viz")
@@ -870,7 +900,7 @@ else:
                 # End TOP-LEVEL Custom Cohort Analysis
                 
                 # -------------------------------
-                # Bulk Analysis Charts and What-If Analysis (remain below)
+                # Bulk Analysis Charts and What-If Analysis (Custom)
                 # -------------------------------
                 st.markdown("### Bulk Analysis")
                 st.markdown("<hr>", unsafe_allow_html=True)
@@ -898,88 +928,24 @@ else:
                         st.markdown("#### What-If Analysis")
                         filtered_whatif_df = filtered_df.copy()
                         trig_series = compute_trigger_counts(filtered_whatif_df, "Negative Triggers")
+                        
                         trigger_widget_config = {
-                            "Low gender diversity": {
-                                "widget": "slider",
-                                "label": "Women % in Organization",
-                                "min": 0,
-                                "max": 100,
-                                "default": global_female_ratio,
-                                "param": "female_ratio"
-                            },
-                            "Stagnant promotions": {
-                                "widget": "slider_pair",
-                                "labels": ["Months Since Last Promotion", "Minimum Promotion Cycle"],
-                                "min": [0, 12],
-                                "max": [60, 60],
-                                "default": [
-                                    int(filtered_whatif_df["Hasn't been promoted"].mean()) if not filtered_whatif_df.empty else 0,
-                                    int(filtered_whatif_df["Minimum Promotion Cycle"].mean()) if not filtered_whatif_df.empty else 24
-                                ],
-                                "params": ["not_promoted", "min_cycle"]
-                            },
-                            "Very low performance rating": {
-                                "widget": "selectbox",
-                                "label": "Last Performance Rating",
-                                "options": [1,2,3,4,5],
-                                "default": 3,
-                                "param": "rating"
-                            },
-                            "Low performance rating": {
-                                "widget": "selectbox",
-                                "label": "Last Performance Rating",
-                                "options": [1,2,3,4,5],
-                                "default": 3,
-                                "param": "rating"
-                            },
-                            "Low compensation competitiveness": {
-                                "widget": "slider",
-                                "label": "Compa Ratio (%)",
-                                "min": 50,
-                                "max": 150,
-                                "default": 90,
-                                "param": "compa_ratio"
-                            },
-                            "High compensation ratio": {
-                                "widget": "slider",
-                                "label": "Compa Ratio (%)",
-                                "min": 50,
-                                "max": 150,
-                                "default": 90,
-                                "param": "compa_ratio"
-                            },
-                            "Low college tier retention": {
-                                "widget": "slider_group",
-                                "labels": ["Tier 1 Retention (%)", "Tier 2 Retention (%)", "Tier 3 Retention (%)"],
-                                "min": [10, 10, 10],
-                                "max": [100, 100, 100],
-                                "default": [bulk_tier1, bulk_tier2, bulk_tier3],
-                                "params": ["tier1", "tier2", "tier3"]
-                            },
-                            "Low industry retention": {
-                                "widget": "slider",
-                                "label": "Industry Retention (%)",
-                                "min": 10,
-                                "max": 100,
-                                "default": 50,
-                                "param": "industry_retention"
-                            },
-                            "Low company type retention": {
-                                "widget": "slider",
-                                "label": "Company Type Retention (%)",
-                                "min": 10,
-                                "max": 100,
-                                "default": 60,
-                                "param": "company_retention"
-                            },
-                            "High dissatisfaction (Pulse)": {
-                                "widget": "selectbox",
-                                "label": "Pulse",
-                                "options": ["High", "Medium", "Low"],
-                                "default": "High",
-                                "param": "pulse"
-                            }
+                            "Low gender diversity": {"widget": "slider", "label": "Women % in Organization", "min": 0, "max": 100, "default": global_female_ratio, "param": "female_ratio"},
+                            "Stagnant promotions": {"widget": "slider_pair", "labels": ["Months Since Last Promotion", "Minimum Promotion Cycle"], "min": [0, 12], "max": [60, 60],
+                                                      "default": [int(filtered_whatif_df["Hasn't been promoted"].mean()) if not filtered_whatif_df.empty else 0,
+                                                                  int(filtered_whatif_df["Minimum Promotion Cycle"].mean()) if not filtered_whatif_df.empty else 24],
+                                                      "params": ["not_promoted", "min_cycle"]},
+                            "Very low performance rating": {"widget": "selectbox", "label": "Last Performance Rating", "options": [1,2,3,4,5], "default": 3, "param": "rating"},
+                            "Low performance rating": {"widget": "selectbox", "label": "Last Performance Rating", "options": [1,2,3,4,5], "default": 3, "param": "rating"},
+                            "Low compensation competitiveness": {"widget": "slider", "label": "Compa Ratio (%)", "min": 50, "max": 150, "default": 90, "param": "compa_ratio"},
+                            "High compensation ratio": {"widget": "slider", "label": "Compa Ratio (%)", "min": 50, "max": 150, "default": 90, "param": "compa_ratio"},
+                            "Low college tier retention": {"widget": "slider_group", "labels": ["Tier 1 Retention (%)", "Tier 2 Retention (%)", "Tier 3 Retention (%)"],
+                                                           "min": [10, 10, 10], "max": [100, 100, 100], "default": [bulk_tier1, bulk_tier2, bulk_tier3], "params": ["tier1", "tier2", "tier3"]},
+                            "Low industry retention": {"widget": "slider", "label": "Industry Retention (%)", "min": 10, "max": 100, "default": 50, "param": "industry_retention"},
+                            "Low company type retention": {"widget": "slider", "label": "Company Type Retention (%)", "min": 10, "max": 100, "default": 60, "param": "company_retention"},
+                            "High dissatisfaction (Pulse)": {"widget": "selectbox", "label": "Pulse", "options": ["High", "Medium", "Low"], "default": "High", "param": "pulse"}
                         }
+                        
                         whatif_params = {}
                         displayed_params = set()
                         for trigger, config in trigger_widget_config.items():
@@ -987,13 +953,7 @@ else:
                                 if config["widget"] == "slider":
                                     if config["param"] not in displayed_params:
                                         param_name = config["param"]
-                                        whatif_params[param_name] = st.slider(
-                                            config["label"],
-                                            config["min"],
-                                            config["max"],
-                                            config["default"],
-                                            key=f"whatif_{param_name}"
-                                        )
+                                        whatif_params[param_name] = st.slider(config["label"], config["min"], config["max"], config["default"], key=f"whatif_{param_name}")
                                         displayed_params.add(param_name)
                                 elif config["widget"] == "selectbox":
                                     if config["param"] not in displayed_params:
@@ -1002,26 +962,13 @@ else:
                                             default_index = config["options"].index(config["default"])
                                         except ValueError:
                                             default_index = 0
-                                        whatif_params[param_name] = st.selectbox(
-                                            config["label"],
-                                            config["options"],
-                                            index=default_index,
-                                            key=f"whatif_{param_name}"
-                                        )
+                                        whatif_params[param_name] = st.selectbox(config["label"], config["options"], index=default_index, key=f"whatif_{param_name}")
                                         displayed_params.add(param_name)
                                 elif config["widget"] == "slider_pair":
                                     param_names = config["params"]
                                     values = []
                                     for i, p in enumerate(param_names):
-                                        values.append(
-                                            st.slider(
-                                                config["labels"][i],
-                                                config["min"][i],
-                                                config["max"][i],
-                                                config["default"][i],
-                                                key=f"whatif_{p}"
-                                            )
-                                        )
+                                        values.append(st.slider(config["labels"][i], config["min"][i], config["max"][i], config["default"][i], key=f"whatif_{p}"))
                                     for i, p in enumerate(param_names):
                                         whatif_params[p] = values[i]
                                     displayed_params.update(param_names)
@@ -1029,18 +976,11 @@ else:
                                     param_names = config["params"]
                                     values = []
                                     for i, p in enumerate(param_names):
-                                        values.append(
-                                            st.slider(
-                                                config["labels"][i],
-                                                config["min"][i],
-                                                config["max"][i],
-                                                config["default"][i],
-                                                key=f"whatif_{p}"
-                                            )
-                                        )
+                                        values.append(st.slider(config["labels"][i], config["min"][i], config["max"][i], config["default"][i], key=f"whatif_{p}"))
                                     for i, p in enumerate(param_names):
                                         whatif_params[p] = values[i]
                                     displayed_params.update(param_names)
+                        
                         st.markdown("##### Recalculated Predictions (What-If)")
                         new_scores = []
                         new_triggers_list = []
